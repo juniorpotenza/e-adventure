@@ -2,13 +2,13 @@
 /**
  * Plugin Name: WooAdventure Integration
  * Description: Integração completa para Ecoturismo (Checkout, API Roca, Gestão de Participantes, Agenda, Assinaturas e Check-in).
- * Version: 2.4.0
+ * Version: 2.5.0
  * Author: Seu Nome
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'WCAI_VERSION', '2.4.0' );
+define( 'WCAI_VERSION', '2.5.0' );
 
 // ... (Mantenha a função wcai_safe_require igual) ...
 if ( ! function_exists( 'wcai_safe_require' ) ) {
@@ -23,6 +23,7 @@ wcai_safe_require( 'class-utils.php' );
 wcai_safe_require( 'class-capabilities.php' );
 wcai_safe_require( 'class-audit-log.php' );
 wcai_safe_require( 'class-departures.php' );
+wcai_safe_require( 'class-reservations.php' );
 wcai_safe_require( 'class-settings.php' );
 wcai_safe_require( 'class-participants-db.php' );
 wcai_safe_require( 'class-checkout.php' );
@@ -37,6 +38,7 @@ wcai_safe_require( 'class-scanner.php' ); // NOVO
 function wcai_init() {
     if ( class_exists( 'WCAI_Capabilities' ) ) WCAI_Capabilities::register();
     if ( class_exists( 'WCAI_Departures' ) ) new WCAI_Departures();
+    if ( class_exists( 'WCAI_Reservations' ) ) WCAI_Reservations::register_hooks();
     if ( class_exists( 'WCAI_Settings' ) ) new WCAI_Settings();
     if ( class_exists( 'WCAI_Checkout' ) ) new WCAI_Checkout();
     if ( class_exists( 'WCAI_Order' ) ) new WCAI_Order();
@@ -62,6 +64,9 @@ function wcai_maybe_upgrade_database() {
     if ( class_exists( 'WCAI_Audit_Log' ) ) {
         WCAI_Audit_Log::create_table();
     }
+    if ( class_exists( 'WCAI_Reservations' ) ) {
+        WCAI_Reservations::create_table();
+    }
     if ( class_exists( 'WCAI_Capabilities' ) ) {
         WCAI_Capabilities::install();
     }
@@ -76,6 +81,7 @@ function wcai_activate_plugin() {
     if ( class_exists( 'WCAI_Participants_DB' ) ) WCAI_Participants_DB::create_table();
     if ( class_exists( 'WCAI_API_Integration' ) ) WCAI_API_Integration::create_tables();
     if ( class_exists( 'WCAI_Audit_Log' ) ) WCAI_Audit_Log::create_table();
+    if ( class_exists( 'WCAI_Reservations' ) ) WCAI_Reservations::create_table();
     if ( class_exists( 'WCAI_Capabilities' ) ) WCAI_Capabilities::install();
     update_option( 'wcai_version', WCAI_VERSION );
 }

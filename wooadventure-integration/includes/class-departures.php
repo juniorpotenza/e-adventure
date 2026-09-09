@@ -117,12 +117,16 @@ class WCAI_Departures {
     }
 
     public function set_columns( $columns ) {
-        return array( 'cb' => $columns['cb'], 'title' => 'Saída', 'departure_datetime' => 'Início', 'departure_capacity' => 'Capacidade', 'departure_status' => 'Status', 'date' => $columns['date'] );
+        return array( 'cb' => $columns['cb'], 'title' => 'Saída', 'departure_datetime' => 'Início', 'departure_capacity' => 'Vagas', 'departure_status' => 'Status', 'date' => $columns['date'] );
     }
 
     public function render_column( $column, $post_id ) {
         if ( 'departure_datetime' === $column ) echo esc_html( get_post_meta( $post_id, '_wcai_starts_at', true ) ?: '—' );
-        if ( 'departure_capacity' === $column ) echo esc_html( get_post_meta( $post_id, '_wcai_capacity', true ) ?: '—' );
+        if ( 'departure_capacity' === $column ) {
+            $capacity = absint( get_post_meta( $post_id, '_wcai_capacity', true ) );
+            $available = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_available_quantity( $post_id ) : $capacity;
+            echo esc_html( $available . ' / ' . $capacity );
+        }
         if ( 'departure_status' === $column ) echo esc_html( get_post_meta( $post_id, '_wcai_departure_status', true ) ?: 'draft' );
     }
 }

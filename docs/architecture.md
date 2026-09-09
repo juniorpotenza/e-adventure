@@ -6,7 +6,7 @@ O WooCommerce continua responsável por carrinho, pagamento e pedido. O plugin �
 
 - **Saída:** data, capacidade, guia e condições operacionais de uma atividade.
 - **Participante:** pessoa vinculada ao pedido e, futuramente, à reserva de uma saída.
-- **Reserva:** vínculo transacional entre item de pedido e saída; será incluída antes de o checkout passar a controlar capacidade.
+- **Reserva:** vínculo transacional entre item de pedido e saída, com quantidade, estado e expiração de bloqueio.
 - **Documento:** evidência versionada de aceite e termos.
 - **Evento de auditoria:** ação administrativa ou operacional sem dados pessoais sensíveis.
 
@@ -21,7 +21,6 @@ Durante a transição, as leituras de metadados históricos de pedidos permanece
 
 ## Evolução
 
-1. Saídas, capabilities e auditoria.
-2. Reservas e capacidade transacional.
-3. Checkout, agenda e scanner usando reservas.
-4. Documentos jurídicos versionados, incidentes, seguro e comunicação.
+1. Saídas, capabilities, auditoria e reservas.
+2. Checkout, agenda e scanner usando reservas.
+3. Documentos jurídicos versionados, incidentes, seguro e comunicação.
