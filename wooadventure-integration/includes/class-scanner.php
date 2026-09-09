@@ -16,12 +16,6 @@ class WCAI_Scanner {
 
         // AJAX Endpoints
 
-        add_action( 'wp_ajax_wcai_process_qr_checkin', array( $this, 'ajax_process_checkin' ) );
-
-        add_action( 'wp_ajax_wcai_manual_search', array( $this, 'ajax_manual_search' ) );
-
-        add_action( 'wp_ajax_wcai_get_manifest', array( $this, 'ajax_get_manifest' ) );
-
         add_action( 'wp_ajax_wcai_get_calendar_data', array( $this, 'ajax_get_calendar_data' ) );
 
         add_action( 'wp_ajax_wcai_sync_data', array( $this, 'ajax_sync_data' ) );
@@ -231,6 +225,7 @@ class WCAI_Scanner {
 
 
         $ajax_url = admin_url('admin-ajax.php', 'https');
+        $ajax_nonce = wp_create_nonce( 'wcai_scanner_nonce' );
 
         $logout_url = wp_logout_url(add_query_arg('fullscreen','1',get_permalink()));
 
@@ -614,7 +609,8 @@ class WCAI_Scanner {
 
         
 
-        const AJAX_URL = '<?php echo $ajax_url; ?>'; 
+        const AJAX_URL = '<?php echo esc_url( $ajax_url ); ?>';
+        const AJAX_NONCE = '<?php echo esc_js( $ajax_nonce ); ?>';
 
         
 
@@ -704,7 +700,7 @@ class WCAI_Scanner {
 
                 
 
-                jQuery.post(AJAX_URL, { action: 'wcai_sync_data', queue: this.queue }).done(function(res) {
+                jQuery.post(AJAX_URL, { action: 'wcai_sync_data', queue: this.queue, nonce: AJAX_NONCE }).done(function(res) {
 
                     if(res.success) {
 
@@ -1054,7 +1050,7 @@ class WCAI_Scanner {
 
             document.getElementById('cal-month-year').innerText = monthNames[calDate.getMonth()]+' '+y;
 
-            jQuery.post(AJAX_URL, {action:'wcai_get_calendar_data', month:m, year:y}, function(res){ 
+            jQuery.post(AJAX_URL, {action:'wcai_get_calendar_data', month:m, year:y, nonce: AJAX_NONCE}, function(res){
 
                 renderCalendarGrid(res.data||[]); 
 
@@ -1160,7 +1156,7 @@ class WCAI_Scanner {
 
             document.getElementById('agenda-details').innerHTML = 'Carregando...';
 
-            jQuery.post(AJAX_URL, {action:'wcai_sync_data', date_query:d}, function(res){
+            jQuery.post(AJAX_URL, {action:'wcai_sync_data', date_query:d, nonce: AJAX_NONCE}, function(res){
 
                 var list = res.data.specific_date||[];
 
@@ -1286,7 +1282,8 @@ class WCAI_Scanner {
 
     public function ajax_sync_data() {
 
-        if(!current_user_can('manage_woocommerce')) wp_send_json_error(['message'=>'Forbidden']);
+        check_ajax_referer( 'wcai_scanner_nonce', 'nonce' );
+        if(!current_user_can('manage_woocommerce')) wp_send_json_error(['message'=>'Forbidden'], 403);
 
         global $wpdb; $table = WCAI_Participants_DB::get_table_name();
 
@@ -1392,7 +1389,8 @@ class WCAI_Scanner {
 
     public function ajax_get_calendar_data() {
 
-        if(!current_user_can('manage_woocommerce')) wp_send_json_error();
+        check_ajax_referer( 'wcai_scanner_nonce', 'nonce' );
+        if(!current_user_can('manage_woocommerce')) wp_send_json_error([], 403);
 
         global $wpdb; $m = intval($_POST['month']); $y = intval($_POST['year']);
 
@@ -1424,14 +1422,4 @@ class WCAI_Scanner {
 
     
 
-    public function ajax_process_qr_checkin() {} 
-
-    public function ajax_manual_search() {} 
-
-    public function ajax_get_manifest() {}
-
 }
-
-
-
-new WCAI_Scanner();
