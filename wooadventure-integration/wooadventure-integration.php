@@ -2,13 +2,13 @@
 /**
  * Plugin Name: WooAdventure Integration
  * Description: Integração completa para Ecoturismo (Checkout, API Roca, Gestão de Participantes, Agenda, Assinaturas e Check-in).
- * Version: 2.5.0
+ * Version: 2.5.1
  * Author: Seu Nome
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'WCAI_VERSION', '2.5.0' );
+define( 'WCAI_VERSION', '2.5.1' );
 
 // ... (Mantenha a função wcai_safe_require igual) ...
 if ( ! function_exists( 'wcai_safe_require' ) ) {

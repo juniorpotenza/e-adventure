@@ -63,6 +63,39 @@ class WCAI_Reservations {
         return max( 0, $capacity - self::get_reserved_quantity( $departure_id ) );
     }
 
+    public static function get_open_departures_for_product( $product_id, $variation_id = 0 ) {
+        $product_ids = array_filter( array_unique( array( absint( $product_id ), absint( $variation_id ) ) ) );
+        if ( empty( $product_ids ) ) return array();
+
+        return get_posts( array(
+            'post_type'      => WCAI_Departures::POST_TYPE,
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_wcai_starts_at',
+            'order'          => 'ASC',
+            'meta_query'     => array(
+                'relation' => 'AND',
+                array( 'key' => '_wcai_product_id', 'value' => $product_ids, 'compare' => 'IN' ),
+                array( 'key' => '_wcai_departure_status', 'value' => array( 'open', 'confirmed' ), 'compare' => 'IN' ),
+                array( 'key' => '_wcai_starts_at', 'value' => current_time( 'Y-m-d\TH:i' ), 'compare' => '>=', 'type' => 'CHAR' ),
+            ),
+        ) );
+    }
+
+    public static function has_open_departures_for_product( $product_id, $variation_id = 0 ) {
+        return ! empty( self::get_open_departures_for_product( $product_id, $variation_id ) );
+    }
+
+    public static function is_available_for_product( $departure_id, $product_id, $variation_id, $quantity ) {
+        $departure_id = absint( $departure_id );
+        $departure_product = absint( get_post_meta( $departure_id, '_wcai_product_id', true ) );
+        if ( ! in_array( $departure_product, array( absint( $product_id ), absint( $variation_id ) ), true ) ) return false;
+
+        $departure = get_post( $departure_id );
+        return $departure && WCAI_Departures::POST_TYPE === $departure->post_type && 'publish' === $departure->post_status && in_array( get_post_meta( $departure_id, '_wcai_departure_status', true ), array( 'open', 'confirmed' ), true ) && self::get_available_quantity( $departure_id ) >= absint( $quantity );
+    }
+
     public static function create( $departure_id, $quantity, $status = 'hold', $order_id = 0, $order_item_id = 0 ) {
         global $wpdb;
         $departure_id = absint( $departure_id );

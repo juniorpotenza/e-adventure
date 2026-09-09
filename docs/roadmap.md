@@ -11,7 +11,7 @@
 
 - Tabela de reservas por saída.
 - Controle de vagas, bloqueio temporário e lista de espera.
-- Integração do checkout com saída selecionada.
+- Integração do checkout com saída selecionada e validação de capacidade.
 
 ## 2.6 — Dossiê e portal do participante
 
