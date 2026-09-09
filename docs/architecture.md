@@ -24,3 +24,5 @@ Durante a transição, as leituras de metadados históricos de pedidos permanece
 1. Saídas, capabilities, auditoria e reservas.
 2. Checkout, agenda e scanner usando reservas.
 3. Documentos jurídicos versionados, incidentes, seguro e comunicação.
+
+Consulte `docs/data-storage.md` para a localização de cada classe de dado, dados temporários e responsabilidades de backup.
