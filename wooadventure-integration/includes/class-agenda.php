@@ -193,11 +193,14 @@ class WCAI_Agenda {
     // =========================================================================
 
     public function admin_reset_key() {
-        if(current_user_can('manage_woocommerce')) {
-            update_option('wcai_ical_secret_key', wp_generate_password(24, false));
-            wp_safe_redirect(admin_url('admin.php?page=wcai-agenda'));
-            exit;
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_die( 'Acesso negado.', 403 );
         }
+
+        check_admin_referer( 'wcai_reset_ical_key' );
+        update_option('wcai_ical_secret_key', wp_generate_password(24, false));
+        wp_safe_redirect(admin_url('admin.php?page=wcai-agenda'));
+        exit;
     }
 
     public function add_menu_page() { 
@@ -225,7 +228,7 @@ class WCAI_Agenda {
                     <input type="text" class="wcai-sync-input" value="<?php echo $feed_url; ?>" style="width:100%" readonly onclick="this.select()">
                 </div>
                 <div>
-                    <a href="<?php echo admin_url('admin-post.php?action=wcai_reset_key'); ?>" class="button" onclick="return confirm('Isso invalida o link anterior. Tem certeza?');">🔄 Gerar Nova Chave</a>
+                    <a href="<?php echo esc_url( wp_nonce_url( admin_url('admin-post.php?action=wcai_reset_key'), 'wcai_reset_ical_key' ) ); ?>" class="button" onclick="return confirm('Isso invalida o link anterior. Tem certeza?');">🔄 Gerar Nova Chave</a>
                     <button type="button" id="wcai-btn-clear-cache" class="button button-secondary">🧹 Limpar Cache</button>
                 </div>
             </div>
@@ -250,7 +253,7 @@ class WCAI_Agenda {
                 }
             });
             calendar.render();
-            jQuery('#wcai-btn-clear-cache').click(function(e){ e.preventDefault(); jQuery(this).text('Limpando...').prop('disabled', true); jQuery.post(ajaxurl, { action: 'wcai_clear_cache' }, function(){ location.reload(); }); });
+            jQuery('#wcai-btn-clear-cache').click(function(e){ e.preventDefault(); jQuery(this).text('Limpando...').prop('disabled', true); jQuery.post(ajaxurl, { action: 'wcai_clear_cache', nonce: '<?php echo esc_js( wp_create_nonce( 'wcai_clear_calendar_cache' ) ); ?>' }, function(){ location.reload(); }); });
             jQuery('.wcai-close').click(function(){ jQuery('#wcaiDetailModal').fadeOut(); });
             jQuery(window).click(function(e){ if(e.target.id=='wcaiDetailModal') jQuery('#wcaiDetailModal').fadeOut(); });
         });
@@ -555,7 +558,16 @@ class WCAI_Agenda {
         return $l;
     }
     private function count_pax_forensic($order) { return count($this->get_pax_details_forensic($order)); }
-    public function ajax_clear_cache() { global $wpdb; $wpdb->query("DELETE FROM $wpdb->options WHERE option_name LIKE '_transient_wcai%'"); wp_send_json_success(); }
+    public function ajax_clear_cache() {
+        check_ajax_referer( 'wcai_clear_calendar_cache', 'nonce' );
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( array( 'message' => 'Acesso negado.' ), 403 );
+        }
+
+        global $wpdb;
+        $wpdb->query( "DELETE FROM $wpdb->options WHERE option_name LIKE '_transient_wcai%'" );
+        wp_send_json_success();
+    }
     public function db_auto_repair_column() {}
     public function clear_calendar_cache_internal() {} 
 }

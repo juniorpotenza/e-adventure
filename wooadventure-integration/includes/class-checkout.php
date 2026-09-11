@@ -6,6 +6,7 @@ class WCAI_Checkout {
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
         add_action( 'woocommerce_after_order_notes', array( $this, 'render_fields' ) );
         add_action( 'woocommerce_checkout_process', array( $this, 'validate_fields' ) );
+        add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'add_departure_to_order_item' ), 10, 4 );
         add_action( 'woocommerce_checkout_update_order_meta', array( $this, 'save_fields_and_notes' ), 10, 1 );
     }
 
@@ -29,6 +30,24 @@ class WCAI_Checkout {
         foreach ( $items as $item ) {
             if ( in_array( $item['variation_id'], $target_ids ) || in_array( $item['product_id'], $target_ids ) ) {
                 $qty = isset($item['quantity']) ? $item['quantity'] : 1;
+                $departure_field = 'wcai_departure_' . sanitize_key( $item['key'] );
+                $departures = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_open_departures_for_product( $item['product_id'], $item['variation_id'] ) : array();
+
+                if ( ! empty( $departures ) ) {
+                    $options = array( '' => 'Selecione a data e horário' );
+                    foreach ( $departures as $departure ) {
+                        $starts_at = get_post_meta( $departure->ID, '_wcai_starts_at', true );
+                        $available = WCAI_Reservations::get_available_quantity( $departure->ID );
+                        if ( $available > 0 ) {
+                            $options[ $departure->ID ] = sprintf( '%s (%d vaga%s)', $starts_at, $available, 1 === $available ? '' : 's' );
+                        }
+                    }
+                    if ( count( $options ) > 1 ) {
+                        echo '<div class="wcai-departure-box"><h3>Escolha sua saída</h3>';
+                        woocommerce_form_field( $departure_field, array( 'type' => 'select', 'class' => array( 'form-row-wide' ), 'label' => 'Data e horário da atividade', 'required' => true, 'options' => $options ), $checkout->get_value( $departure_field ) );
+                        echo '</div>';
+                    }
+                }
                 
                 if ( $qty > 1 ) {
                     $rendered = true;
@@ -78,6 +97,15 @@ class WCAI_Checkout {
         foreach ( $items as $item ) {
             if ( in_array( $item['variation_id'], $target_ids ) || in_array( $item['product_id'], $target_ids ) ) {
                 $qty = $item['quantity'];
+                $departure_field = 'wcai_departure_' . sanitize_key( $item['key'] );
+                $has_departures = class_exists( 'WCAI_Reservations' ) && WCAI_Reservations::has_open_departures_for_product( $item['product_id'], $item['variation_id'] );
+                $departure_id = isset( $_POST[ $departure_field ] ) ? absint( $_POST[ $departure_field ] ) : 0;
+
+                if ( $has_departures ) {
+                    if ( ! $departure_id || ! WCAI_Reservations::is_available_for_product( $departure_id, $item['product_id'], $item['variation_id'], $qty ) ) {
+                        wc_add_notice( 'Selecione uma saída disponível com vagas suficientes.', 'error' );
+                    }
+                }
                 if ( $qty > 1 ) {
                     for ( $i = 2; $i <= $qty; $i++ ) {
                         if ( empty( $_POST[ 'nome_completo_' . $i ] ) ) wc_add_notice( "Nome do Visitante $i é obrigatório.", 'error' );
@@ -110,12 +138,20 @@ class WCAI_Checkout {
         }
     }
 
+    public function add_departure_to_order_item( $item, $cart_item_key, $values, $order ) {
+        $field = 'wcai_departure_' . sanitize_key( $cart_item_key );
+        if ( isset( $_POST[ $field ] ) && absint( $_POST[ $field ] ) ) {
+            $item->add_meta_data( '_wcai_departure_id', absint( $_POST[ $field ] ), true );
+        }
+    }
+
     public function save_fields_and_notes( $order_id ) {
         $order = wc_get_order( $order_id );
         if ( ! $order ) return;
 
         $participants_meta = array(); 
         $note_content = ""; 
+        $reservation_error = '';
         $items = $order->get_items();
         $target_ids = WCAI_Settings::get_product_ids();
 
@@ -130,6 +166,14 @@ class WCAI_Checkout {
             // Verifica se este item é um produto de turismo configurado
             if ( in_array( $item->get_variation_id(), $target_ids ) || in_array( $item->get_product_id(), $target_ids ) ) {
                 $qty = $item->get_quantity();
+                $departure_id = absint( $item->get_meta( '_wcai_departure_id', true ) );
+                if ( $departure_id && class_exists( 'WCAI_Reservations' ) ) {
+                    $reservation = WCAI_Reservations::create( $departure_id, $qty, 'pending', $order_id, $item_id );
+                    if ( is_wp_error( $reservation ) ) {
+                        $order->add_order_note( 'Reserva de saída não criada: ' . $reservation->get_error_message() );
+                        $reservation_error = $reservation->get_error_message();
+                    }
+                }
                 
                 // --- AQUI ESTÁ A CORREÇÃO ---
                 // Salvar o Titular (Participante 1) na Tabela DB para este Item
@@ -188,6 +232,9 @@ class WCAI_Checkout {
         }
         if ( ! empty( $note_content ) ) {
             $order->add_order_note( $note_content, 0, true );
+        }
+        if ( $reservation_error ) {
+            $order->update_status( 'failed', 'Reserva indisponível: ' . $reservation_error );
         }
     }
 }
