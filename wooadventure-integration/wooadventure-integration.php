@@ -31,9 +31,9 @@ wcai_safe_require( 'class-checkout.php' );
 wcai_safe_require( 'class-order.php' );
 wcai_safe_require( 'class-api-integration.php' );
 wcai_safe_require( 'class-frontend-account.php' );
-wcai_safe_require( 'class-agenda.php' ); 
+wcai_safe_require( 'class-agenda.php' );
 wcai_safe_require( 'class-assinatura.php' );
-wcai_safe_require( 'class-scanner.php' ); // NOVO
+wcai_safe_require( 'class-scanner.php' );
 
 // 2. INICIALIZAÇÃO DAS CLASSES
 function wcai_init() {
@@ -46,9 +46,9 @@ function wcai_init() {
     if ( class_exists( 'WCAI_Order' ) ) new WCAI_Order();
     if ( class_exists( 'WCAI_API_Integration' ) ) new WCAI_API_Integration();
     if ( class_exists( 'WCAI_Frontend_Account' ) ) new WCAI_Frontend_Account();
-    if ( class_exists( 'WCAI_Agenda' ) ) new WCAI_Agenda(); 
-    if ( class_exists( 'WCAI_Assinatura' ) ) new WCAI_Assinatura(); 
-    if ( class_exists( 'WCAI_Scanner' ) ) new WCAI_Scanner(); // NOVO
+    if ( class_exists( 'WCAI_Agenda' ) ) new WCAI_Agenda();
+    if ( class_exists( 'WCAI_Assinatura' ) ) new WCAI_Assinatura();
+    if ( class_exists( 'WCAI_Scanner' ) ) new WCAI_Scanner();
 }
 add_action( 'plugins_loaded', 'wcai_init' );
 
