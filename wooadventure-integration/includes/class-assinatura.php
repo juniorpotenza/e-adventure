@@ -17,8 +17,6 @@ class WCAI_Assinatura {
         add_shortcode( 'wcai_script_validacao', array( $this, 'render_validation_script_shortcode' ) );
 
         // 3. AJAX
-        add_action( 'wp_ajax_wcai_check_order_only', array($this, 'ajax_check_order') );
-        add_action( 'wp_ajax_nopriv_wcai_check_order_only', array($this, 'ajax_check_order') );
         add_action( 'wp_ajax_wcai_autocheck_pax', array($this, 'ajax_check_pax_deep') );
         add_action( 'wp_ajax_nopriv_wcai_autocheck_pax', array($this, 'ajax_check_pax_deep') );
         
@@ -100,16 +98,8 @@ class WCAI_Assinatura {
         $cpf_input = preg_replace('/\D/', '', isset($_POST['cpf']) ? $_POST['cpf'] : ''); 
         if ( !$order_id || !$cpf_input ) { wp_send_json_error(); return; }
         $order = wc_get_order($order_id); if ( !$order ) { wp_send_json_error(); return; }
-        $found = false; $nome_encontrado = 'Participante';
-        if(class_exists('WCAI_Participants_DB')) {
-            $db_pax = WCAI_Participants_DB::get_by_order($order_id);
-            if(is_array($db_pax)) { foreach($db_pax as $p) { if(preg_replace('/[^0-9]/','',$p['cpf']) === $cpf_input) { $found = true; $nome_encontrado = $p['nome_completo']; break; } } }
-        }
-        if(!$found) {
-            $b_cpf = preg_replace('/\D/', '', $order->get_meta('_billing_cpf') ?: $order->get_meta('billing_cpf'));
-            if($b_cpf === $cpf_input) { $found = true; $nome_encontrado = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(); }
-        }
-        if ( $found ) { setcookie('wcai_pax_session', $order_id.'|'.$cpf_input, time() + 3600, '/'); wp_send_json_success( array( 'nome' => $nome_encontrado ) ); } 
+        $participant = $this->get_participant_for_order( $order, $cpf_input );
+        if ( $participant ) { setcookie('wcai_pax_session', $order_id.'|'.$cpf_input, time() + 3600, '/'); wp_send_json_success( array( 'nome' => $participant ) ); }
         else { wp_send_json_error('CPF não vinculado.'); }
     }
     public function render_shortcode( $atts ) { return ''; }
@@ -118,9 +108,14 @@ class WCAI_Assinatura {
     // 4. SALVAMENTO NO BACKEND
     // =========================================================================
     public function ajax_save_signature() {
-        $pedido_id  = sanitize_text_field($_POST['pedido']);
-        $cpf        = sanitize_text_field($_POST['cpf']);
-        $img_base64 = $_POST['assinatura'];
+        $pedido_id  = isset( $_POST['pedido'] ) ? absint( $_POST['pedido'] ) : 0;
+        $cpf        = isset( $_POST['cpf'] ) ? preg_replace( '/\D/', '', wp_unslash( $_POST['cpf'] ) ) : '';
+        $img_base64 = isset( $_POST['assinatura'] ) ? wp_unslash( $_POST['assinatura'] ) : '';
+
+        $order = wc_get_order( $pedido_id );
+        if ( ! $order || ! $cpf || ! $this->get_participant_for_order( $order, $cpf ) ) {
+            wp_send_json_error( 'Participante não vinculado ao pedido.', 403 );
+        }
         
         // Tenta pegar o e-mail via POST (Backup)
         $email_participante = '';
@@ -133,7 +128,18 @@ class WCAI_Assinatura {
             setcookie('wcai_pax_email_temp', $email_participante, time() + 3600, '/');
         }
 
-        if (empty($img_base64)) wp_send_json_error('Assinatura vazia.');
+        if ( empty( $img_base64 ) ) wp_send_json_error('Assinatura vazia.');
+
+        $parts = explode( ';base64,', $img_base64, 2 );
+        $decoded = base64_decode( isset( $parts[1] ) ? $parts[1] : $img_base64, true );
+        if ( false === $decoded || strlen( $decoded ) > 2 * MB_IN_BYTES || ! function_exists( 'getimagesizefromstring' ) ) {
+            wp_send_json_error( 'Assinatura inválida.' );
+        }
+
+        $image = getimagesizefromstring( $decoded );
+        if ( ! $image || IMAGETYPE_PNG !== $image[2] ) {
+            wp_send_json_error( 'A assinatura deve estar no formato PNG.' );
+        }
 
         $post_id = wp_insert_post([
             'post_type' => 'wcai_assinatura',
@@ -143,8 +149,6 @@ class WCAI_Assinatura {
         
         if (is_wp_error($post_id)) wp_send_json_error('Erro DB');
 
-        $parts = explode(";base64,", $img_base64);
-        $decoded = base64_decode(isset($parts[1]) ? $parts[1] : $img_base64);
         $filename = "assign_{$pedido_id}_{$post_id}.png";
         $upload = wp_upload_bits($filename, null, $decoded);
 
@@ -163,7 +167,35 @@ class WCAI_Assinatura {
 
         $ticket_data = $this->generate_and_save_ticket($pedido_id, $cpf);
 
+        if ( ! $ticket_data ) {
+            wp_send_json_error( 'Não foi possível gerar o ingresso.', 500 );
+        }
+
         wp_send_json_success(['ticket_url' => $ticket_data['qr_url']]);
+    }
+
+    private function get_participant_for_order( $order, $cpf ) {
+        $cpf = preg_replace( '/\D/', '', $cpf );
+        if ( class_exists( 'WCAI_Participants_DB' ) ) {
+            foreach ( WCAI_Participants_DB::get_by_order( $order->get_id() ) as $participant ) {
+                if ( preg_replace( '/\D/', '', $participant['cpf'] ) === $cpf ) {
+                    return $participant['nome_completo'];
+                }
+            }
+        }
+
+        $billing_cpf = preg_replace( '/\D/', '', $order->get_meta( '_billing_cpf' ) ?: $order->get_meta( 'billing_cpf' ) );
+        if ( $billing_cpf === $cpf ) {
+            return trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
+        }
+
+        foreach ( (array) $order->get_meta( '_additional_participants' ) as $participant ) {
+            if ( isset( $participant['cpf'] ) && preg_replace( '/\D/', '', $participant['cpf'] ) === $cpf ) {
+                return isset( $participant['nome_completo'] ) ? $participant['nome_completo'] : 'Participante';
+            }
+        }
+
+        return false;
     }
 
     private function generate_and_save_ticket($order_id, $cpf_clean) {

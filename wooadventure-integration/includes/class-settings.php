@@ -26,7 +26,9 @@ class WCAI_Settings {
         
         // Geral
         register_setting( 'wcai_settings_group', 'wcai_product_ids' );
-        register_setting( 'wcai_settings_group', 'wcai_blocked_cpfs' );
+        register_setting( 'wcai_settings_group', 'wcai_blocked_cpfs', array(
+            'sanitize_callback' => array( $this, 'sanitize_blocked_cpfs' ),
+        ) );
         register_setting( 'wcai_settings_group', 'wcai_date_meta_key' ); 
         
         // Numeração Sequencial
@@ -165,8 +167,38 @@ class WCAI_Settings {
     }
 
     // --- HELPERS (ESSENCIAIS PARA NÃO QUEBRAR O SITE) ---
-    public static function get_product_ids() { $ids = get_option('wcai_product_ids',''); return array_map('trim', explode(',', $ids)); }
-    public static function is_cpf_blocked($cpf) { return false; }
+    public function sanitize_blocked_cpfs( $value ) {
+        $cpfs = preg_split( '/[\s,;]+/', (string) $value, -1, PREG_SPLIT_NO_EMPTY );
+        $valid_cpfs = array();
+
+        foreach ( $cpfs as $cpf ) {
+            $cpf = preg_replace( '/\D+/', '', $cpf );
+            if ( WCAI_Utils::is_valid_cpf( $cpf ) ) {
+                $valid_cpfs[] = $cpf;
+            }
+        }
+
+        return implode( "\n", array_unique( $valid_cpfs ) );
+    }
+
+    public static function get_product_ids() {
+        $ids = array_map( 'absint', array_map( 'trim', explode( ',', get_option( 'wcai_product_ids', '' ) ) ) );
+        return array_values( array_filter( $ids ) );
+    }
+
+    public static function is_cpf_blocked( $cpf ) {
+        $cpf = preg_replace( '/\D+/', '', (string) $cpf );
+        if ( ! $cpf ) {
+            return false;
+        }
+
+        $blocked = preg_split( '/[\s,;]+/', (string) get_option( 'wcai_blocked_cpfs', '' ), -1, PREG_SPLIT_NO_EMPTY );
+        $blocked = array_map( static function ( $blocked_cpf ) {
+            return preg_replace( '/\D+/', '', $blocked_cpf );
+        }, $blocked );
+
+        return in_array( $cpf, $blocked, true );
+    }
     public static function get_carta_oferta() { return get_option('wcai_carta_oferta',''); }
     public static function get_date_meta_key() { return get_option('wcai_date_meta_key','tour_date'); }
     public static function get_token() { return self::get_carta_oferta(); }
