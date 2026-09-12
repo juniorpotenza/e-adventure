@@ -24,6 +24,7 @@ class WCAI_Participants_DB {
             ticket_hash varchar(64) DEFAULT NULL,
             checkin_status tinyint(1) DEFAULT 0,
             checkin_time datetime DEFAULT NULL,
+            checkout_time datetime DEFAULT NULL,
             termo_assinado tinyint(1) DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
