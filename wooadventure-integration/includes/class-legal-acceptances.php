@@ -123,8 +123,37 @@ class WCAI_Legal_Acceptances {
      * Estado jurídico do participante. Não substitui o status operacional.
      */
     public static function legal_status( $participant_id, $reservation_id = 0, $document_id = 0 ) {
-        $acceptance = self::get_latest( $participant_id, $reservation_id, $document_id );
-        return $acceptance ? 'accepted' : 'pending';
+        if ( ! class_exists( 'WCAI_Legal_Documents' ) ) {
+            return 'pending';
+        }
+
+        $current = $document_id
+            ? WCAI_Legal_Documents::get_snapshot( $document_id )
+            : WCAI_Legal_Documents::get_active_snapshot();
+
+        if ( empty( $current ) ) {
+            return 'pending';
+        }
+
+        $acceptance = self::find_exact(
+            absint( $participant_id ),
+            absint( $reservation_id ),
+            absint( $current['document_id'] ),
+            $current['document_version'],
+            $current['document_hash']
+        );
+
+        if ( $acceptance ) {
+            return 'accepted';
+        }
+
+        $historical = self::get_latest(
+            $participant_id,
+            $reservation_id,
+            absint( $current['document_id'] )
+        );
+
+        return $historical ? 'version_outdated' : 'pending';
     }
 
     /**
