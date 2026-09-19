@@ -172,6 +172,7 @@ class WCAI_Reservations {
             }
 
             WCAI_Audit_Log::log( 'reservation_created', 'reservation', $wpdb->insert_id, array( 'departure_id' => $departure_id, 'quantity' => $quantity, 'status' => $status ) );
+            do_action( 'wcai_reservation_changed', $departure_id );
             return $wpdb->insert_id;
         } finally {
             $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
@@ -183,12 +184,18 @@ class WCAI_Reservations {
         $status = sanitize_key( $status );
         if ( ! in_array( $status, array( 'pending', 'confirmed', 'cancelled', 'refunded' ), true ) ) return false;
 
-        return $wpdb->update(
+        $updated = $wpdb->update(
             self::get_table_name(),
             array( 'status' => $status, 'expires_at' => null, 'updated_at' => current_time( 'mysql', true ) ),
             array( 'order_id' => absint( $order_id ) ),
             array( '%s', '%s', '%s' ),
             array( '%d' )
         );
+
+        if ( false !== $updated ) {
+            do_action( 'wcai_reservations_changed', absint( $order_id ) );
+        }
+
+        return $updated;
     }
 }
