@@ -4,9 +4,17 @@
  * Description: Integração completa para Ecoturismo (Checkout, API Roca, Gestão de Participantes, Agenda, Assinaturas e Check-in).
  * Version: 2.11.0
  * Author: Seu Nome
+ * WC requires at least: 8.9
+ * WC tested up to: 11.1
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
+
+add_action( 'before_woocommerce_init', function() {
+    if ( class_exists( 'Automattic\\WooCommerce\\Utilities\\FeaturesUtil' ) ) {
+        Automattic\\WooCommerce\\Utilities\\FeaturesUtil::declare_compatibility( 'cart_checkout_blocks', __FILE__, true );
+    }
+} );
 
 define( 'WCAI_VERSION', '2.11.0' );
 
