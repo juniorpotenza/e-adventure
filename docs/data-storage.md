@@ -13,7 +13,7 @@
 | --- | --- | --- |
 | Saída | Post type privado `wcai_departure` e metadados `_wcai_*` | Produto, início, capacidade, guia e status. |
 | Reserva | Tabela `{prefix}wcai_reservations` | Quantidade, status, expiração e vínculos com pedido/item. |
-| Participante | Tabela `{prefix}wcai_participantes` | CPF, nascimento, ticket e check-in/check-out. |
+| Participante | Tabela `{prefix}wcai_participantes` | CPF, nascimento, ticket, check-in/check-out e vínculo canônico com `reservation_id`. |
 | Auditoria | Tabela `{prefix}wcai_audit_log` | Não deve guardar CPF, e-mail, nascimento ou assinatura no contexto. |
 | Pedido e pagamento | Tabelas nativas do WooCommerce/WordPress | O WooCommerce continua como origem de carrinho, pagamento e pedido. |
 | Assinatura | CPT `wcai_assinatura`, post meta e diretório de uploads do WordPress | O arquivo PNG fica em `wp-content/uploads/`; referências ficam no post meta. |
@@ -30,3 +30,12 @@
 ## Backup e retenção
 
 O operador deve manter backup do banco WordPress e de `wp-content/uploads/`. Políticas de retenção, anonimização e exclusão para dados pessoais e documentos jurídicos devem ser definidas antes do lançamento do dossiê jurídico.
+
+
+## Relacionamento operacional
+
+A relação operacional nova é:
+
+`Departure → Reservation → Participant`
+
+A tabela de participantes mantém `order_id` e `item_id` para rastreabilidade do WooCommerce, mas `reservation_id` é o vínculo canônico com a saída. A migração preenche automaticamente esse vínculo quando existe uma reserva correspondente ao mesmo pedido e item.
