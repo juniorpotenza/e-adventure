@@ -818,6 +818,12 @@ class WCAI_Scanner {
 
 
 
+        function wcaiEscapeHtml(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, function(char) {
+                return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[char];
+            });
+        }
+
         function renderLocalList(type) {
 
             console.log('📋 renderLocalList:', type);
@@ -872,13 +878,10 @@ class WCAI_Scanner {
 
 
 
-                html += `<div class="wcai-item-card status-${p.status}">
-
-                    <div class="wcai-item-info"><strong>${p.nome}</strong><div class="wcai-info-row"><span>${timeStr}</span><span class="separator">•</span><span>Pedido #${p.pedido}</span></div></div>
-
-                    <button class="wcai-action-btn" onclick="setMode('${clickMode}'); processLocalCheckin(${p.id})">${btnTxt}</button>
-
-                </div>`;
+                html += '<div class="wcai-item-card status-' + wcaiEscapeHtml(p.status) + '">' +
+                    '<div class="wcai-item-info"><strong>' + wcaiEscapeHtml(p.nome) + '</strong><div class="wcai-info-row"><span>' + wcaiEscapeHtml(timeStr) + '</span><span class="separator">•</span><span>Pedido #' + wcaiEscapeHtml(p.pedido) + '</span></div></div>' +
+                    '<button class="wcai-action-btn" onclick="setMode(\'' + clickMode + '\'); processLocalCheckin(' + Number(p.id) + ')">' + wcaiEscapeHtml(btnTxt) + '</button>' +
+                '</div>';
 
             });
 
@@ -934,7 +937,7 @@ class WCAI_Scanner {
 
             results.forEach(p => {
 
-                html += `<div class="wcai-item-card"><div class="wcai-item-info"><strong>${p.nome}</strong><div class="wcai-info-row"><span>${p.data_agendada}</span></div></div><button class="wcai-action-btn" onclick="processLocalCheckin(${p.id})">CHECK</button></div>`;
+                html += '<div class="wcai-item-card"><div class="wcai-item-info"><strong>' + wcaiEscapeHtml(p.nome) + '</strong><div class="wcai-info-row"><span>' + wcaiEscapeHtml(p.data_agendada) + '</span></div></div><button class="wcai-action-btn" onclick="processLocalCheckin(' + Number(p.id) + ')">CHECK</button></div>';
 
             });
 
