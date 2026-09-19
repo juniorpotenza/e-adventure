@@ -497,9 +497,14 @@ class WCAI_Frontend_Account {
     }
 
     public function admin_save($post_id) {
-        if (!isset($_POST['wcai_admin_p'])) return;
-        $order = wc_get_order($post_id);
-        $this->process_save($order, $_POST['wcai_admin_p'], 'Admin');
+        if ( ! isset( $_POST['wcai_admin_p'] ) ) return;
+        if ( ! current_user_can( WCAI_Capabilities::MANAGE_DEPARTURES ) && ! current_user_can( 'edit_shop_order', $post_id ) ) return;
+        if ( ! isset( $_POST['wcai_admin_participants_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['wcai_admin_participants_nonce'] ) ), 'wcai_admin_participants' ) ) return;
+
+        $order = wc_get_order( $post_id );
+        if ( ! $order ) return;
+
+        $this->process_save( $order, wp_unslash( $_POST['wcai_admin_p'] ), 'Admin' );
     }
 
     // --- 5. BUSCA E SALVAMENTO ---
