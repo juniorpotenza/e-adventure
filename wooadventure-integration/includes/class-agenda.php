@@ -215,6 +215,9 @@ class WCAI_Agenda {
     }
 
     public function render_page() {
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
+            wp_die( 'Acesso negado.', 403 );
+        }
         $key = get_option('wcai_ical_secret_key') ?: wp_generate_password(24, false); update_option('wcai_ical_secret_key', $key);
         $feed_url = site_url('/?wcai_action=ical&key=' . $key);
         ?>
