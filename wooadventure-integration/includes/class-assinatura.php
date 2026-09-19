@@ -257,6 +257,20 @@ class WCAI_Assinatura {
             wp_send_json_error( $ticket_data->get_error_message(), 500 );
         }
 
+        $this->set_ticket_session_cookie( $pedido_id, absint( $participant['id'] ), $post_id );
+
+        setcookie(
+            'wcai_pax_session',
+            '',
+            array(
+                'expires' => time() - HOUR_IN_SECONDS,
+                'path' => '/',
+                'secure' => is_ssl(),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            )
+        );
+
         wp_send_json_success(
             array(
                 'ticket_url' => $ticket_data['qr_url'],
@@ -378,6 +392,89 @@ class WCAI_Assinatura {
             'hash'   => $hash,
             'qr_url' => $qr_url,
             'nome'   => $participant['nome_completo'],
+        );
+    }
+
+    public function consume_ticket_session() {
+        if ( empty( $_COOKIE['wcai_ticket_session'] ) ) {
+            return false;
+        }
+
+        $parts = explode( '|', sanitize_text_field( wp_unslash( $_COOKIE['wcai_ticket_session'] ) ) );
+        if ( 4 !== count( $parts ) ) {
+            return false;
+        }
+
+        $order_id = absint( $parts[0] );
+        $participant_id = absint( $parts[1] );
+        $signature_post_id = absint( $parts[2] );
+        $payload = $order_id . '|' . $participant_id . '|' . $signature_post_id;
+        $expected = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+
+        setcookie(
+            'wcai_ticket_session',
+            '',
+            array(
+                'expires' => time() - HOUR_IN_SECONDS,
+                'path' => '/',
+                'secure' => is_ssl(),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            )
+        );
+
+        if (
+            ! $order_id ||
+            ! $participant_id ||
+            ! $signature_post_id ||
+            ! hash_equals( $expected, $parts[3] ) ||
+            ! class_exists( 'WCAI_Participants_DB' )
+        ) {
+            return false;
+        }
+
+        $participant = WCAI_Participants_DB::get_by_id( $participant_id );
+        if (
+            ! $participant ||
+            absint( $participant['order_id'] ) !== $order_id ||
+            absint( $participant['reservation_id'] ) < 1
+        ) {
+            return false;
+        }
+
+        if (
+            ! class_exists( 'WCAI_Legal_Acceptances' ) ||
+            'accepted' !== WCAI_Legal_Acceptances::legal_status(
+                $participant_id,
+                absint( $participant['reservation_id'] )
+            )
+        ) {
+            return false;
+        }
+
+        $ticket = $this->generate_and_save_ticket( $participant, $signature_post_id );
+        if ( is_wp_error( $ticket ) ) {
+            return false;
+        }
+
+        $ticket['order_id'] = $order_id;
+        return $ticket;
+    }
+
+    private function set_ticket_session_cookie( $order_id, $participant_id, $signature_post_id ) {
+        $payload = absint( $order_id ) . '|' . absint( $participant_id ) . '|' . absint( $signature_post_id );
+        $signature = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+
+        setcookie(
+            'wcai_ticket_session',
+            $payload . '|' . $signature,
+            array(
+                'expires' => time() + 5 * MINUTE_IN_SECONDS,
+                'path' => '/',
+                'secure' => is_ssl(),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            )
         );
     }
 
