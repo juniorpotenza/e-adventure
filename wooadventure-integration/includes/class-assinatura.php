@@ -166,6 +166,10 @@ class WCAI_Assinatura {
             wp_send_json_error( 'Participante não vinculado ao pedido.', 403 );
         }
 
+        if ( ! $this->valid_session_for_participant( $pedido_id, $participant['id'] ) ) {
+            wp_send_json_error( 'Sessão de assinatura inválida ou expirada.', 403 );
+        }
+
         if ( empty( $img_base64 ) ) {
             wp_send_json_error( 'Assinatura vazia.' );
         }
@@ -359,7 +363,9 @@ class WCAI_Assinatura {
     }
 
     private function set_session_cookie( $order_id, $participant_id ) {
-        $value = absint( $order_id ) . '|' . absint( $participant_id );
+        $payload = absint( $order_id ) . '|' . absint( $participant_id );
+        $signature = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+        $value = $payload . '|' . $signature;
 
         setcookie(
             'wcai_pax_session',
@@ -372,6 +378,25 @@ class WCAI_Assinatura {
                 'samesite' => 'Lax',
             )
         );
+    }
+
+    private function valid_session_for_participant( $order_id, $participant_id ) {
+        if ( empty( $_COOKIE['wcai_pax_session'] ) ) {
+            return false;
+        }
+
+        $parts = explode( '|', sanitize_text_field( wp_unslash( $_COOKIE['wcai_pax_session'] ) ) );
+
+        if ( 3 !== count( $parts ) ) {
+            return false;
+        }
+
+        $payload = absint( $parts[0] ) . '|' . absint( $parts[1] );
+        $expected = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+
+        return absint( $parts[0] ) === absint( $order_id)
+            && absint( $parts[1] ) === absint( $participant_id )
+            && hash_equals( $expected, $parts[2] );
     }
 
     public function register_cpt() {
