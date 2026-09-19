@@ -1352,56 +1352,83 @@ class WCAI_Scanner {
         ) );
     }
 
-    private function get_pax_by_date($date) {
+    private function participant_is_in_active_manifest( $participant_id ) {
+        global $wpdb;
+        $participants = WCAI_Participants_DB::get_table_name();
+        $reservations = WCAI_Reservations::get_table_name();
+        $today = current_time( 'Y-m-d' );
+        $after_tomorrow = wp_date( 'Y-m-d', current_datetime()->modify( '+2 days' ) );
 
-        global $wpdb; $table = WCAI_Participants_DB::get_table_name();
+        $sql = "SELECT COUNT(*)
+                FROM $participants p
+                INNER JOIN $reservations r ON r.id = p.reservation_id
+                INNER JOIN {$wpdb->posts} d ON d.ID = r.departure_id
+                INNER JOIN {$wpdb->postmeta} dm ON dm.post_id = d.ID AND dm.meta_key = '_wcai_starts_at'
+                WHERE p.id = %d
+                  AND r.status IN ('pending', 'confirmed')
+                  AND d.post_type = %s
+                  AND d.post_status = 'publish'
+                  AND dm.meta_value >= %s
+                  AND dm.meta_value < %s";
 
-        $sql_orders = "SELECT post_id, meta_value FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID 
-
-            WHERE pm.meta_key IN ('tour_date', 'Data', 'booking_date') AND (pm.meta_value LIKE %s OR pm.meta_value LIKE %s)
-
-            AND p.post_status IN ('wc-completed', 'wc-processing', 'wc-on-hold')";
-
-        $fmt1 = '%' . $date . '%'; $parts = explode('-', $date); $fmt2 = '%' . $parts[2].'/'.$parts[1].'/'.$parts[0] . '%';
-
-        $results_meta = $wpdb->get_results($wpdb->prepare($sql_orders, $fmt1, $fmt2));
-
-        if(empty($results_meta)) return [];
-
-        $map = []; $ids = [];
-
-        foreach($results_meta as $row) {
-
-            $ids[] = $row->post_id;
-
-            if(preg_match('/(\d{1,2}:\d{2})/', $row->meta_value, $m)) $map[$row->post_id] = $m[1];
-
-            else $map[$row->post_id] = '';
-
-        }
-
-        $ids_str = implode(',', array_map('intval', $ids));
-
-        $sql_pax = "SELECT id, ticket_hash as hash, nome_completo as nome, cpf, order_id as pedido, checkin_status as status, checkin_time, checkout_time FROM $table WHERE order_id IN ($ids_str)";
-
-        $pax_list = $wpdb->get_results($sql_pax);
-
-        foreach($pax_list as $p) {
-
-            $p->tour_time = isset($map[$p->pedido]) ? $map[$p->pedido] : '';
-
-            $p->data_agendada = date('d/m', strtotime($date)) . ' ' . $p->tour_time;
-
-            $p->entry_time = $p->checkin_time ? date('H:i', strtotime($p->checkin_time)) : '';
-
-        }
-
-        return $pax_list;
-
+        return (bool) $wpdb->get_var( $wpdb->prepare(
+            $sql,
+            absint( $participant_id ),
+            WCAI_Departures::POST_TYPE,
+            $today . 'T00:00',
+            $after_tomorrow . 'T00:00'
+        ) );
     }
 
+    private function get_pax_by_date( $date ) {
+        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+            return array();
+        }
 
+        global $wpdb;
+        $participants = WCAI_Participants_DB::get_table_name();
+        $reservations = WCAI_Reservations::get_table_name();
+        $can_view_sensitive = current_user_can( WCAI_Capabilities::VIEW_SENSITIVE );
 
+        $sql = "SELECT
+                    p.id,
+                    p.ticket_hash AS hash,
+                    p.nome_completo AS nome,
+                    p.cpf,
+                    p.order_id AS pedido,
+                    p.reservation_id,
+                    p.checkin_status AS status,
+                    p.checkin_time,
+                    p.checkout_time,
+                    r.departure_id,
+                    r.status AS reservation_status,
+                    dm.meta_value AS starts_at
+                FROM $participants p
+                INNER JOIN $reservations r ON r.id = p.reservation_id
+                INNER JOIN {$wpdb->posts} d ON d.ID = r.departure_id
+                INNER JOIN {$wpdb->postmeta} dm ON dm.post_id = d.ID AND dm.meta_key = '_wcai_starts_at'
+                WHERE r.status IN ('pending', 'confirmed')
+                  AND d.post_type = %s
+                  AND d.post_status = 'publish'
+                  AND LEFT(dm.meta_value, 10) = %s
+                ORDER BY dm.meta_value ASC, p.nome_completo ASC, p.id ASC";
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare( $sql, WCAI_Departures::POST_TYPE, $date )
+        );
+
+        foreach ( $rows as $p ) {
+            $p->tour_time = strlen( $p->starts_at ) >= 16 ? substr( $p->starts_at, 11, 5 ) : '';
+            $p->data_agendada = wp_date( 'd/m', strtotime( $date . ' 12:00:00' ) ) . ' ' . $p->tour_time;
+            $p->entry_time = $p->checkin_time ? wp_date( 'H:i', strtotime( $p->checkin_time ) ) : '';
+
+            if ( ! $can_view_sensitive ) {
+                $p->cpf = '';
+            }
+        }
+
+        return $rows;
+    }
     public function ajax_get_calendar_data() {
 
         check_ajax_referer( 'wcai_scanner_nonce', 'nonce' );
