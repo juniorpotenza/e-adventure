@@ -454,7 +454,7 @@ class WCAI_Agenda {
             return '';
         }
 
-        $ticket_info = ( new WCAI_Assinatura() )->consume_ticket_session();
+        $ticket_info = WCAI_Assinatura::consume_ticket_session();
 
         if ( ! $ticket_info || empty( $ticket_info['qr_url'] ) ) {
             return '';
