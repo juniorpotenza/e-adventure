@@ -2,23 +2,23 @@
 /**
  * Plugin Name: WooAdventure Integration
  * Description: Integração completa para Ecoturismo (Checkout, API Roca, Gestão de Participantes, Agenda, Assinaturas e Check-in).
- * Version: 2.7.0
+ * Version: 2.8.0
  * Author: Seu Nome
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'WCAI_VERSION', '2.7.0' );
+define( 'WCAI_VERSION', '2.8.0' );
 
-// ... (Mantenha a função wcai_safe_require igual) ...
 if ( ! function_exists( 'wcai_safe_require' ) ) {
     function wcai_safe_require( $filename ) {
         $path = plugin_dir_path( __FILE__ ) . 'includes/' . $filename;
-        if ( file_exists( $path ) ) require_once $path;
+        if ( file_exists( $path ) ) {
+            require_once $path;
+        }
     }
 }
 
-// 1. CARREGAMENTO DOS ARQUIVOS
 wcai_safe_require( 'class-utils.php' );
 wcai_safe_require( 'class-capabilities.php' );
 wcai_safe_require( 'class-audit-log.php' );
@@ -36,7 +36,6 @@ wcai_safe_require( 'class-agenda.php' );
 wcai_safe_require( 'class-assinatura.php' );
 wcai_safe_require( 'class-scanner.php' );
 
-// 2. INICIALIZAÇÃO DAS CLASSES
 function wcai_init() {
     if ( class_exists( 'WCAI_Capabilities' ) ) WCAI_Capabilities::register();
     if ( class_exists( 'WCAI_Departures' ) ) new WCAI_Departures();
@@ -51,6 +50,7 @@ function wcai_init() {
     if ( class_exists( 'WCAI_Assinatura' ) ) new WCAI_Assinatura();
     if ( class_exists( 'WCAI_Scanner' ) ) new WCAI_Scanner();
 }
+
 add_action( 'plugins_loaded', 'wcai_init' );
 
 function wcai_maybe_upgrade_database() {
@@ -82,16 +82,21 @@ function wcai_maybe_upgrade_database() {
         WCAI_Participants_DB::backfill_reservation_links();
     }
 
+    if ( class_exists( 'WCAI_Legal_Acceptances' ) ) {
+        WCAI_Legal_Acceptances::backfill_reservation_links();
+    }
+
     if ( class_exists( 'WCAI_Capabilities' ) ) {
         WCAI_Capabilities::install();
     }
 
     update_option( 'wcai_version', WCAI_VERSION );
 }
+
 add_action( 'plugins_loaded', 'wcai_maybe_upgrade_database', 5 );
 
-// 3. ATIVAÇÃO
 register_activation_hook( __FILE__, 'wcai_activate_plugin' );
+
 function wcai_activate_plugin() {
     if ( class_exists( 'WCAI_Reservations' ) ) {
         WCAI_Reservations::create_table();
@@ -115,6 +120,10 @@ function wcai_activate_plugin() {
 
     if ( class_exists( 'WCAI_Participants_DB' ) ) {
         WCAI_Participants_DB::backfill_reservation_links();
+    }
+
+    if ( class_exists( 'WCAI_Legal_Acceptances' ) ) {
+        WCAI_Legal_Acceptances::backfill_reservation_links();
     }
 
     if ( class_exists( 'WCAI_Capabilities' ) ) {

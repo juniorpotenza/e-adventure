@@ -3,7 +3,7 @@
 ## 2.4 — Fundação operacional
 
 - Cadastro administrativo de saídas.
-- Role `Guia de Aventura` e capabilities operacionais.
+- Role Guia de Aventura e capabilities operacionais.
 - Log de auditoria sem dados pessoais sensíveis.
 - Migração versionada.
 
@@ -13,10 +13,15 @@
 - Controle de vagas, bloqueio temporário e lista de espera.
 - Integração do checkout com saída selecionada e validação de capacidade.
 
-## 2.6 — Dossiê e portal do participante
+## 2.6 — Dossiê e identidade jurídica do participante
 
-- Termos versionados, responsável por menor e ficha pré-atividade.
-- Portal de ticket, documentação, comunicação e remarcação.
+- [x] Participante canônico vinculado à reserva.
+- [x] Documento jurídico versionado com hash.
+- [x] Aceite jurídico ligado a Participant + Reservation + versão exata.
+- [x] Assinatura ligada à identidade canônica e protegida por nonce/sessão.
+- [ ] Termos versionados com fluxo completo para responsável por menor.
+- [ ] Ficha pré-atividade e demais documentos do dossiê.
+- [ ] Portal do participante.
 
 ## 2.7 — Operação de campo
 
