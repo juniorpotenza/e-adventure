@@ -167,14 +167,22 @@ class WCAI_Checkout {
             if ( in_array( $item->get_variation_id(), $target_ids ) || in_array( $item->get_product_id(), $target_ids ) ) {
                 $qty = $item->get_quantity();
                 $departure_id = absint( $item->get_meta( '_wcai_departure_id', true ) );
+                $reservation_id = 0;
+
                 if ( $departure_id && class_exists( 'WCAI_Reservations' ) ) {
                     $reservation = WCAI_Reservations::create( $departure_id, $qty, 'pending', $order_id, $item_id );
+
                     if ( is_wp_error( $reservation ) ) {
                         $order->add_order_note( 'Reserva de saída não criada: ' . $reservation->get_error_message() );
                         $reservation_error = $reservation->get_error_message();
+
+                        // Não cria participantes sem a reserva operacional correspondente.
+                        continue;
                     }
+
+                    $reservation_id = absint( $reservation );
                 }
-                
+
                 // --- AQUI ESTÁ A CORREÇÃO ---
                 // Salvar o Titular (Participante 1) na Tabela DB para este Item
                 // Isso garante que ele apareça na lista de participantes do evento
@@ -182,6 +190,7 @@ class WCAI_Checkout {
                      WCAI_Participants_DB::add( array(
                         'order_id'      => $order_id,
                         'item_id'       => $item_id,
+                        'reservation_id' => $reservation_id,
                         'customer_id'   => $order->get_customer_id(),
                         'nome_completo' => $billing_first_name . ' ' . $billing_last_name,
                         'cpf'           => $billing_cpf,
@@ -204,6 +213,7 @@ class WCAI_Checkout {
                                 WCAI_Participants_DB::add( array(
                                     'order_id'      => $order_id,
                                     'item_id'       => $item_id,
+                                    'reservation_id' => $reservation_id,
                                     'customer_id'   => $order->get_customer_id(),
                                     'nome_completo' => $nome,
                                     'cpf'           => $cpf,

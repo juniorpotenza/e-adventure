@@ -5,7 +5,7 @@
 O WooCommerce continua responsável por carrinho, pagamento e pedido. O plugin é responsável pelos dados operacionais:
 
 - **Saída:** data, capacidade, guia e condições operacionais de uma atividade.
-- **Participante:** pessoa vinculada ao pedido e, futuramente, à reserva de uma saída.
+- **Participante:** pessoa vinculada a uma reserva operacional; o pedido/item permanece como referência transacional e histórica.
 - **Reserva:** vínculo transacional entre item de pedido e saída, com quantidade, estado e expiração de bloqueio.
 - **Documento:** evidência versionada de aceite e termos.
 - **Evento de auditoria:** ação administrativa ou operacional sem dados pessoais sensíveis.
