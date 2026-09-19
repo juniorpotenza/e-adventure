@@ -220,7 +220,7 @@ class WCAI_Scanner {
 
         }
 
-        if ( ! current_user_can( 'manage_woocommerce' ) ) return '<div style="padding:20px;color:red">Acesso Negado</div>';
+        if ( ! current_user_can( WCAI_Capabilities::CHECK_IN ) ) return '<div style="padding:20px;color:red">Acesso Negado</div>';
 
 
 
@@ -640,9 +640,21 @@ class WCAI_Scanner {
 
                 console.log('📦 Store.init()');
 
-                const sp = localStorage.getItem('wcai_pax'); const sq = localStorage.getItem('wcai_queue');
+                const sp = localStorage.getItem('wcai_pax');
+                const sq = localStorage.getItem('wcai_queue');
+                const cachedAt = parseInt(localStorage.getItem('wcai_pax_cached_at') || '0', 10);
+                const cacheTtl = 12 * 60 * 60 * 1000;
 
-                if(sp) this.pax = JSON.parse(sp); if(sq) this.queue = JSON.parse(sq);
+                if ( sp && cachedAt && (Date.now() - cachedAt) <= cacheTtl ) {
+                    try { this.pax = JSON.parse(sp); } catch (e) { this.pax = []; }
+                } else {
+                    localStorage.removeItem('wcai_pax');
+                    localStorage.removeItem('wcai_pax_cached_at');
+                }
+
+                if ( sq ) {
+                    try { this.queue = JSON.parse(sq); } catch (e) { this.queue = []; }
+                }
 
                 this.sync(); setInterval(() => this.sync(), 30000);
 
@@ -652,7 +664,7 @@ class WCAI_Scanner {
 
                 term = term.toLowerCase();
 
-                return this.pax.filter(p => (p.hash===term) || (String(p.id)===term) || (p.nome.toLowerCase().includes(term)) || (p.cpf.includes(term)));
+                return this.pax.filter(p => (p.hash===term) || (String(p.id)===term) || (p.nome && p.nome.toLowerCase().includes(term)) || (p.cpf && p.cpf.includes(term)));
 
             },
 
@@ -706,7 +718,7 @@ class WCAI_Scanner {
 
                         Store.queue = []; localStorage.setItem('wcai_queue', '[]');
 
-                        if(res.data.full_manifest) { Store.pax = res.data.full_manifest; localStorage.setItem('wcai_pax', JSON.stringify(Store.pax)); }
+                        if(res.data.full_manifest) { Store.pax = res.data.full_manifest; localStorage.setItem('wcai_pax', JSON.stringify(Store.pax)); localStorage.setItem('wcai_pax_cached_at', String(Date.now())); }
 
                         ind.innerHTML = '☁️ Sincronizado'; ind.style.color='#28a745';
 
