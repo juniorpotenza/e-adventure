@@ -5,6 +5,7 @@
     var ROOT = 'wcai-checkout-integration';
     var state = { items: [] };
     var signature = '';
+    var validationIds = [];
 
     function cart() {
         if (!window.wp || !wp.data) return null;
@@ -26,8 +27,11 @@
     function validation(errors) {
         var store = wp.data.dispatch('wc/store/validation');
         if (!store) return;
-        if (typeof store.clearValidationErrors === 'function') store.clearValidationErrors();
-        if (errors && Object.keys(errors).length && typeof store.setValidationErrors === 'function') store.setValidationErrors(errors);
+        if (typeof store.clearValidationError === 'function') {
+            validationIds.forEach(function (id) { store.clearValidationError(id); });
+        }
+        validationIds = errors ? Object.keys(errors) : [];
+        if (validationIds.length && typeof store.setValidationErrors === 'function') store.setValidationErrors(errors);
     }
 
     function error(errors, id, message) {
