@@ -22,6 +22,8 @@ class WCAI_Agenda {
         // Manutenção
         add_action( 'woocommerce_process_shop_order_meta', array( $this, 'clear_calendar_cache_internal' ) );
         add_action( 'woocommerce_order_status_changed', array( $this, 'clear_calendar_cache_internal' ) );
+        add_action( 'wcai_reservation_changed', array( $this, 'clear_calendar_cache_internal' ) );
+        add_action( 'wcai_reservations_changed', array( $this, 'clear_calendar_cache_internal' ) );
         add_action( 'admin_init', array( $this, 'db_auto_repair_column' ) );
         add_action( 'admin_post_wcai_reset_key', array($this, 'admin_reset_key') );
     }
@@ -31,122 +33,152 @@ class WCAI_Agenda {
     // =========================================================================
 
     public function handle_ical_feed() {
-        if(isset($_GET['wcai_action']) && $_GET['wcai_action'] == 'ical') {
-            
-            $stored_key = trim(get_option('wcai_ical_secret_key'));
-            $request_key = isset($_GET['key']) ? trim($_GET['key']) : '';
-            
-            if(empty($stored_key) || $request_key !== $stored_key) {
-                wp_die('Acesso Negado (Chave Inválida)', '403', 403);
+        if ( isset( $_GET['wcai_action'] ) && 'ical' === sanitize_key( wp_unslash( $_GET['wcai_action'] ) ) ) {
+            $stored_key = trim( (string) get_option( 'wcai_ical_secret_key' ) );
+            $request_key = isset( $_GET['key'] ) ? trim( (string) wp_unslash( $_GET['key'] ) ) : '';
+
+            if ( empty( $stored_key ) || empty( $request_key ) || ! hash_equals( $stored_key, $request_key ) ) {
+                wp_die( 'Acesso Negado (Chave Inválida)', '403', 403 );
             }
 
-            @set_time_limit(0);
-            while(ob_get_level()) ob_end_clean();
+            @set_time_limit( 0 );
+            while ( ob_get_level() ) {
+                ob_end_clean();
+            }
 
-            if (isset($_GET['debug'])) {
-                header('Content-Type: text/html; charset=utf-8');
-                echo "<h1>Relatório iCal (Agrupado)</h1><pre>";
+            $debug = isset( $_GET['debug'] );
+            $eol   = "\r\n";
+
+            if ( $debug ) {
+                header( 'Content-Type: text/html; charset=utf-8' );
+                echo '<h1>Agenda iCal operacional</h1><pre>';
             } else {
-                header('Content-Type: text/calendar; charset=utf-8');
-                header('Content-Disposition: attachment; filename="agenda_agrupada.ics"');
+                header( 'Content-Type: text/calendar; charset=utf-8' );
+                header( 'Content-Disposition: attachment; filename="agenda_operacional.ics"' );
+                header( 'Cache-Control: private, no-store, max-age=0' );
+                echo 'BEGIN:VCALENDAR' . $eol;
+                echo 'VERSION:2.0' . $eol;
+                echo 'PRODID:-//WooAdventure//Operational//PT' . $eol;
+                echo 'CALSCALE:GREGORIAN' . $eol;
+                echo 'METHOD:PUBLISH' . $eol;
+                echo 'X-WR-CALNAME:Agenda Operacional' . $eol;
             }
 
-            global $wpdb;
-            $eol = "\r\n";
-            
-            if(!isset($_GET['debug'])) {
-                echo "BEGIN:VCALENDAR" . $eol;
-                echo "VERSION:2.0" . $eol;
-                echo "PRODID:-//WooAdventure//Grouped//PT" . $eol;
-                echo "CALSCALE:GREGORIAN" . $eol;
-                echo "METHOD:PUBLISH" . $eol;
-                echo "X-WR-CALNAME:Agenda Agrupada" . $eol;
-            }
-            
-            $tz_local = new DateTimeZone('America/Sao_Paulo');
-            $tz_utc   = new DateTimeZone('UTC');
+            $start_req  = wp_date( 'Y-m-d', strtotime( '-2 months' ) );
+            $end_req    = wp_date( 'Y-m-d', strtotime( '+18 months' ) );
+            $departures = $this->get_canonical_departures_in_range( $start_req, $end_req );
+            $timezone   = wp_timezone();
+            $utc        = new DateTimeZone( 'UTC' );
+            $count      = 0;
 
-            $sql = "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'shop_order' AND post_status IN ('wc-processing','wc-completed','wc-on-hold') ORDER BY ID DESC LIMIT 300";
-            $order_ids = $wpdb->get_col($sql);
-            
-            if (isset($_GET['debug'])) echo "IDs Encontrados: " . count($order_ids) . "\n-----------------------------\n";
-            
-            $start_req = date('Y-m-d', strtotime('-2 months'));
-            $end_req   = date('Y-m-d', strtotime('+18 months'));
-
-            $groups = [];
-
-            foreach($order_ids as $oid) {
-                $meta = $this->get_date_via_sql_direct($oid);
-                
-                if(!$meta) continue;
-                if($meta['date'] < $start_req || $meta['date'] > $end_req) continue;
-
-                $pax_names = $this->get_pax_via_sql_direct($oid);
-                $qtd_pax = count($pax_names);
-                if($qtd_pax == 0) $qtd_pax = 1;
-
-                $slot_key = $meta['full'];
-
-                if(!isset($groups[$slot_key])) {
-                    $groups[$slot_key] = [
-                        'pax_total' => 0,
-                        'orders_count' => 0,
-                        'details' => [],
-                        'dt_start_local' => $slot_key
-                    ];
+            foreach ( $departures as $departure ) {
+                $starts_at = get_post_meta( $departure->ID, '_wcai_starts_at', true );
+                if ( empty( $starts_at ) ) {
+                    continue;
                 }
 
-                $groups[$slot_key]['pax_total'] += $qtd_pax;
-                $groups[$slot_key]['orders_count']++;
-                $groups[$slot_key]['details'][] = "Pedido #$oid ($qtd_pax): " . implode(", ", $pax_names);
-            }
-
-            $count_events = 0;
-
-            foreach($groups as $slot_key => $data) {
                 try {
-                    $dt_obj = new DateTime($data['dt_start_local'], $tz_local);
-                    $dt_obj->setTimezone($tz_utc);
-                    $dtstart = $dt_obj->format('Ymd\THis\Z');
-
-                    $dt_end_obj = clone $dt_obj;
-                    $dt_end_obj->modify('+3 hours');
-                    $dtend = $dt_end_obj->format('Ymd\THis\Z');
-                    $dtstamp = gmdate('Ymd\THis\Z');
-                } catch (Exception $e) { continue; }
-
-                $title = $data['pax_total'] . " pax (" . $data['orders_count'] . " peds)";
-                $desc = "Resumo:\\nTotal Pax: " . $data['pax_total'] . "\\nPedidos: " . $data['orders_count'] . "\\n--- DETALHES ---\\n" . implode("\\n", $data['details']);
-                $uid = "slot_" . md5($slot_key) . "@" . $_SERVER['HTTP_HOST'];
-
-                if(isset($_GET['debug'])) {
-                    echo "📅 GRUPO $slot_key: $title\n";
-                } else {
-                    echo "BEGIN:VEVENT" . $eol;
-                    echo "UID:" . $uid . $eol;
-                    echo "DTSTAMP:" . $dtstamp . $eol;
-                    echo "DTSTART:" . $dtstart . $eol;
-                    echo "DTEND:" . $dtend . $eol;
-                    echo "SUMMARY:" . $title . $eol;
-                    echo "DESCRIPTION:" . $desc . $eol;
-                    echo "END:VEVENT" . $eol;
+                    $dt_start = new DateTime( $starts_at, $timezone );
+                } catch ( Exception $e ) {
+                    continue;
                 }
-                $count_events++;
+
+                $duration = absint( get_post_meta( $departure->ID, '_wcai_duration_minutes', true ) );
+                $duration = $duration > 0 ? $duration : 180;
+                $dt_end   = clone $dt_start;
+                $dt_end->modify( '+' . $duration . ' minutes' );
+
+                $reserved = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_reserved_quantity( $departure->ID ) : 0;
+                $capacity = absint( get_post_meta( $departure->ID, '_wcai_capacity', true ) );
+                $available = max( 0, $capacity - $reserved );
+                $status = get_post_meta( $departure->ID, '_wcai_departure_status', true ) ?: 'draft';
+                $meeting = get_post_meta( $departure->ID, '_wcai_meeting_point', true );
+                $guide_id = absint( get_post_meta( $departure->ID, '_wcai_guide_id', true ) );
+                $guide = $guide_id ? get_the_author_meta( 'display_name', $guide_id ) : '';
+
+                $title = get_the_title( $departure->ID ) ?: 'Saída #' . $departure->ID;
+                $summary = $title . ' — ' . $reserved . ' pax / ' . $capacity . ' vagas';
+                $description = 'Status: ' . $status . "\n" .
+                    'Reservados: ' . $reserved . "\n" .
+                    'Disponíveis: ' . $available;
+
+                if ( $meeting ) {
+                    $description .= "\nPonto de encontro: " . $meeting;
+                }
+                if ( $guide ) {
+                    $description .= "\nGuia: " . $guide;
+                }
+
+                $dt_start->setTimezone( $utc );
+                $dt_end->setTimezone( $utc );
+                $uid = 'departure-' . absint( $departure->ID ) . '@' . wp_parse_url( home_url(), PHP_URL_HOST );
+
+                if ( $debug ) {
+                    echo esc_html( $starts_at . ' — ' . $summary ) . "\n";
+                } else {
+                    echo 'BEGIN:VEVENT' . $eol;
+                    echo 'UID:' . $this->ical_escape( $uid ) . $eol;
+                    echo 'DTSTAMP:' . gmdate( 'Ymd\THis\Z' ) . $eol;
+                    echo 'DTSTART:' . $dt_start->format( 'Ymd\THis\Z' ) . $eol;
+                    echo 'DTEND:' . $dt_end->format( 'Ymd\THis\Z' ) . $eol;
+                    echo 'SUMMARY:' . $this->ical_escape( $summary ) . $eol;
+                    echo 'DESCRIPTION:' . $this->ical_escape( $description ) . $eol;
+                    echo 'END:VEVENT' . $eol;
+                }
+
+                $count++;
             }
-            
-            if (isset($_GET['debug'])) {
-                echo "\n-----------------------------\nTotal de Grupos Gerados: $count_events.</pre>";
+
+            if ( $debug ) {
+                echo "\nTotal de saídas: " . absint( $count ) . '</pre>';
                 exit;
             }
 
-            if ($count_events == 0) {
-                 echo "BEGIN:VEVENT" . $eol . "UID:empty" . $eol . "DTSTAMP:".gmdate('Ymd\THis\Z'). $eol . "DTSTART:".gmdate('Ymd\THis\Z'). $eol . "SUMMARY:Sem agendamentos" . $eol . "END:VEVENT" . $eol;
+            if ( 0 === $count ) {
+                echo 'BEGIN:VEVENT' . $eol;
+                echo 'UID:empty' . $eol;
+                echo 'DTSTAMP:' . gmdate( 'Ymd\THis\Z' ) . $eol;
+                echo 'DTSTART:' . gmdate( 'Ymd\THis\Z' ) . $eol;
+                echo 'SUMMARY:Sem saídas cadastradas' . $eol;
+                echo 'END:VEVENT' . $eol;
             }
 
-            echo "END:VCALENDAR";
+            echo 'END:VCALENDAR';
             exit;
         }
+    }
+
+    private function get_canonical_departures_in_range( $start, $end ) {
+        $start = preg_match( '/^\d{4}-\d{2}-\d{2}$/', $start ) ? $start : wp_date( 'Y-m-01' );
+        $end   = preg_match( '/^\d{4}-\d{2}-\d{2}$/', $end ) ? $end : wp_date( 'Y-m-t' );
+
+        $departures = get_posts( array(
+            'post_type'      => WCAI_Departures::POST_TYPE,
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_wcai_starts_at',
+            'order'          => 'ASC',
+            'meta_query'     => array(
+                array(
+                    'key'     => '_wcai_starts_at',
+                    'value'   => array( $start . 'T00:00', $end . 'T23:59' ),
+                    'compare' => 'BETWEEN',
+                    'type'    => 'CHAR',
+                ),
+            ),
+        ) );
+
+        return array_values( array_filter( $departures, static function( $departure ) {
+            $status = get_post_meta( $departure->ID, '_wcai_departure_status', true );
+            return 'draft' !== $status;
+        } ) );
+    }
+
+    private function ical_escape( $value ) {
+        $value = str_replace( "\\", "\\\\", (string) $value );
+        $value = str_replace( array( "\r\n", "\r", "\n" ), "\\n", $value );
+        return str_replace( array( ';', ',' ), array( "\\;", "\\," ), $value );
     }
 
     private function get_date_via_sql_direct($order_id) {
@@ -193,7 +225,7 @@ class WCAI_Agenda {
     // =========================================================================
 
     public function admin_reset_key() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( WCAI_Capabilities::MANAGE_DEPARTURES ) ) {
             wp_die( 'Acesso negado.', 403 );
         }
 
@@ -204,7 +236,7 @@ class WCAI_Agenda {
     }
 
     public function add_menu_page() { 
-        add_submenu_page('woocommerce', 'Agenda', 'Agenda Passeios', 'manage_woocommerce', 'wcai-agenda', array($this, 'render_page')); 
+        add_submenu_page('woocommerce', 'Agenda', 'Agenda Passeios', WCAI_Capabilities::VIEW_MANIFEST, 'wcai-agenda', array($this, 'render_page')); 
     }
 
     public function enqueue_assets( $hook ) {
@@ -216,6 +248,9 @@ class WCAI_Agenda {
     }
 
     public function render_page() {
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
+            wp_die( 'Acesso negado.', 403 );
+        }
         $key = get_option('wcai_ical_secret_key') ?: wp_generate_password(24, false); update_option('wcai_ical_secret_key', $key);
         $feed_url = site_url('/?wcai_action=ical&key=' . $key);
         ?>
@@ -225,7 +260,7 @@ class WCAI_Agenda {
             <div class="wcai-sync-box">
                 <div style="flex-grow:1; margin-right:15px;">
                     <strong>🔗 Sincronização Automática:</strong><br>
-                    <input type="text" class="wcai-sync-input" value="<?php echo $feed_url; ?>" style="width:100%" readonly onclick="this.select()">
+                    <input type="text" class="wcai-sync-input" value="<?php echo esc_attr( $feed_url ); ?>" style="width:100%" readonly onclick="this.select()">
                 </div>
                 <div>
                     <a href="<?php echo esc_url( wp_nonce_url( admin_url('admin-post.php?action=wcai_reset_key'), 'wcai_reset_ical_key' ) ); ?>" class="button" onclick="return confirm('Isso invalida o link anterior. Tem certeza?');">🔄 Gerar Nova Chave</a>
@@ -248,7 +283,7 @@ class WCAI_Agenda {
                     var rawStr = info.event.startStr; var parts = rawStr.split('T');
                     var title = parts[0].split('-').reverse().join('/'); if(parts[1] && !info.event.allDay) title += ' às ' + parts[1].substring(0, 5);
                     document.getElementById("modalTitle").innerText = title;
-                    jQuery.post(ajaxurl, { action: 'wcai_get_day_details', iso_string: rawStr, is_allday: info.event.allDay ? 1 : 0, nonce: '<?php echo wp_create_nonce('wcai_calendar_nonce'); ?>' })
+                    jQuery.post(ajaxurl, { action: 'wcai_get_day_details', departure_id: info.event.id, nonce: '<?php echo wp_create_nonce('wcai_calendar_nonce'); ?>' })
                     .done(function(r){ document.getElementById("modalBody").innerHTML = r.success ? r.data.html : '<p>Erro.</p>'; });
                 }
             });
@@ -262,76 +297,192 @@ class WCAI_Agenda {
     }
 
     public function ajax_get_events() {
-        check_ajax_referer('wcai_calendar_nonce', 'nonce');
-        $start = isset($_POST['start']) ? $_POST['start'] : date('Y-m-01');
-        $end = isset($_POST['end']) ? $_POST['end'] : date('Y-m-t');
-        $cached = get_transient('wcai_events_' . md5($start . $end));
-        if($cached !== false) wp_send_json($cached);
+        check_ajax_referer( 'wcai_calendar_nonce', 'nonce' );
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
+            wp_send_json_error( array( 'message' => 'Acesso negado.' ), 403 );
+        }
 
-        $orders = $this->fetch_orders_in_range($start, $end);
-        $grouped = []; 
-        foreach($orders as $o) {
-            $meta = $this->get_tour_datetime_smart($o);
-            if(!$meta || $meta['date'] < $start || $meta['date'] > $end) continue;
-            $k = $meta['full'];
-            if(!isset($grouped[$k])) $grouped[$k] = ['pax'=>0, 'peds'=>[]];
-            $c = $this->count_pax_forensic($o); if($c == 0) $c = 1; 
-            $grouped[$k]['pax'] += $c; $grouped[$k]['peds'][$o->get_id()] = true;
+        $start = isset( $_POST['start'] ) ? substr( sanitize_text_field( wp_unslash( $_POST['start'] ) ), 0, 10 ) : wp_date( 'Y-m-01' );
+        $end   = isset( $_POST['end'] ) ? substr( sanitize_text_field( wp_unslash( $_POST['end'] ) ), 0, 10 ) : wp_date( 'Y-m-t' );
+        $cache_key = 'wcai_events_' . md5( $start . '|' . $end );
+        $cached = get_transient( $cache_key );
+
+        if ( false !== $cached ) {
+            wp_send_json( $cached );
         }
-        $evs = [];
-        foreach($grouped as $iso => $d) {
-            if($d['pax'] > 0) {
-                $evs[] = [
-                    'title' => $d['pax'] . " pax (" . count($d['peds']) . " peds)",
-                    'start' => $iso, 'allDay' => (strpos($iso, 'T00:00:00') !== false),
-                    'backgroundColor' => ($d['pax'] >= 10 ? '#155724' : '#3788d8'), 'borderColor' => ($d['pax'] >= 10 ? '#155724' : '#3788d8')
-                ];
+
+        $events = array();
+        $departures = $this->get_canonical_departures_in_range( $start, $end );
+
+        foreach ( $departures as $departure ) {
+            $departure_id = absint( $departure->ID );
+            $starts_at = get_post_meta( $departure_id, '_wcai_starts_at', true );
+            if ( empty( $starts_at ) ) {
+                continue;
             }
+
+            $status = get_post_meta( $departure_id, '_wcai_departure_status', true ) ?: 'draft';
+            $capacity = absint( get_post_meta( $departure_id, '_wcai_capacity', true ) );
+            $reserved = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_reserved_quantity( $departure_id ) : 0;
+            $available = max( 0, $capacity - $reserved );
+            $title = get_the_title( $departure_id ) ?: 'Saída #' . $departure_id;
+
+            $status_labels = array(
+                'open' => 'Aberta',
+                'full' => 'Lotada',
+                'confirmed' => 'Confirmada',
+                'cancelled' => 'Cancelada',
+                'completed' => 'Concluída',
+            );
+            $status_label = isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : ucfirst( $status );
+            $event_title = $title . ' — ' . $reserved . '/' . $capacity . ' pax';
+
+            if ( 'cancelled' === $status ) {
+                $event_title .= ' · CANCELADA';
+            }
+
+            $background = 'open' === $status ? '#3788d8' : '#6c757d';
+            if ( 'confirmed' === $status ) {
+                $background = '#155724';
+            } elseif ( 'full' === $status ) {
+                $background = '#d69e2e';
+            } elseif ( 'cancelled' === $status ) {
+                $background = '#dc3545';
+            } elseif ( 'completed' === $status ) {
+                $background = '#6c757d';
+            }
+
+            $events[] = array(
+                'id' => (string) $departure_id,
+                'title' => $event_title,
+                'start' => $starts_at,
+                'allDay' => false,
+                'backgroundColor' => $background,
+                'borderColor' => $background,
+                'extendedProps' => array(
+                    'departure_id' => $departure_id,
+                    'status' => $status,
+                    'status_label' => $status_label,
+                    'capacity' => $capacity,
+                    'reserved' => $reserved,
+                    'available' => $available,
+                ),
+            );
         }
-        set_transient('wcai_events_' . md5($start . $end), $evs, 12 * HOUR_IN_SECONDS);
-        wp_send_json($evs);
+
+        usort( $events, static function( $a, $b ) {
+            return strcmp( $a['start'], $b['start'] );
+        } );
+
+        set_transient( $cache_key, $events, 15 * MINUTE_IN_SECONDS );
+        wp_send_json( $events );
     }
 
     public function ajax_get_day_details() {
-        check_ajax_referer('wcai_calendar_nonce', 'nonce');
-        $iso = isset($_POST['iso_string']) ? sanitize_text_field($_POST['iso_string']) : '';
-        if(empty($iso)) wp_send_json_error();
-        $parts = explode('T', $iso); $dt = $parts[0]; $tm = isset($parts[1]) ? substr($parts[1], 0, 5) : '00:00';
-        $orders = $this->fetch_orders_in_range($dt, $dt);
-        $found = [];
-        foreach($orders as $o) {
-            $meta = $this->get_tour_datetime_smart($o);
-            if(!$meta || $meta['date'] !== $dt || ($meta['time'] !== $tm && $tm !== '00:00')) continue;
-            $pax = $this->get_pax_details_forensic($o);
-            foreach($pax as $p) {
-                $clean = preg_replace('/[^0-9]/','',$p['cpf']);
-                $meta_signed = $o->get_meta('_waiver_signed_'.$clean);
-                $db_signed = false;
-                if(class_exists('WCAI_Participants_DB')) {
-                    global $wpdb; $tb = WCAI_Participants_DB::get_table_name();
-                    $chk = $wpdb->get_var($wpdb->prepare("SELECT termo_assinado FROM $tb WHERE order_id=%d AND REPLACE(REPLACE(cpf,'.',''),'-','')=%s", $o->get_id(), $clean));
-                    if($chk) $db_signed = true;
-                }
-                $icon = ($meta_signed || $db_signed) ? '<span title="Assinado">✅</span>' : '<span title="Pendente" style="opacity:0.3">⚠️</span>';
-                $nasc = $p['nasc'];
-                if(!empty($p['nasc']) && strpos($p['nasc'],'-')!==false) {
-                    $d = DateTime::createFromFormat('Y-m-d', $p['nasc']);
-                    if($d) { $age = (new DateTime())->diff($d)->y; $nasc = $d->format('d/m/Y') . " <span style='color:#888'>($age anos)</span>"; }
-                }
-                $found[] = [
-                    'order_number' => $o->get_order_number(), 'order_id' => $o->get_id(), 'nome' => $p['nome'], 'cpf' => $p['cpf'], 'nasc_html' => $nasc,
-                    'status_name' => wc_get_order_status_name($o->get_status()), 'status_slug' => $o->get_status(), 'termo_icon' => $icon
-                ];
-            }
+        check_ajax_referer( 'wcai_calendar_nonce', 'nonce' );
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
+            wp_send_json_error( array( 'message' => 'Acesso negado.' ), 403 );
         }
-        if(empty($found)) wp_send_json_error();
-        ob_start(); ?>
+
+        $departure_id = isset( $_POST['departure_id'] ) ? absint( $_POST['departure_id'] ) : 0;
+        $departure = $departure_id ? get_post( $departure_id ) : false;
+
+        if ( ! $departure || WCAI_Departures::POST_TYPE !== $departure->post_type || 'publish' !== $departure->post_status ) {
+            wp_send_json_error( array( 'message' => 'Saída não encontrada.' ), 404 );
+        }
+
+        $starts_at = get_post_meta( $departure_id, '_wcai_starts_at', true );
+        $status = get_post_meta( $departure_id, '_wcai_departure_status', true ) ?: 'draft';
+        $capacity = absint( get_post_meta( $departure_id, '_wcai_capacity', true ) );
+        $reserved = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_reserved_quantity( $departure_id ) : 0;
+        $available = max( 0, $capacity - $reserved );
+
+        global $wpdb;
+        $participants_table = WCAI_Participants_DB::get_table_name();
+        $reservations_table = WCAI_Reservations::get_table_name();
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT p.*, r.status AS reservation_status
+                 FROM $participants_table p
+                 INNER JOIN $reservations_table r ON r.id = p.reservation_id
+                 WHERE r.departure_id = %d
+                   AND r.status IN ('pending', 'confirmed')
+                 ORDER BY p.nome_completo ASC, p.id ASC",
+                $departure_id
+            ),
+            ARRAY_A
+        );
+
+        if ( empty( $rows ) ) {
+            wp_send_json_success(
+                array(
+                    'html' => '<p>Nenhum participante vinculado a esta saída.</p>',
+                )
+            );
+        }
+
+        $can_view_sensitive = current_user_can( WCAI_Capabilities::VIEW_SENSITIVE );
+        $status_labels = array(
+            'pending' => 'Pendente',
+            'confirmed' => 'Confirmada',
+        );
+
+        ob_start();
+        ?>
+        <div style="margin-bottom:15px;background:#eef2f7;padding:10px;border-radius:8px;">
+            <strong><?php echo esc_html( get_the_title( $departure_id ) ?: 'Saída #' . $departure_id ); ?></strong><br>
+            <span><?php echo esc_html( $starts_at ); ?></span> ·
+            <span><?php echo esc_html( $reserved . '/' . $capacity . ' pax' ); ?></span> ·
+            <span><?php echo esc_html( $available . ' vagas disponíveis' ); ?></span> ·
+            <span><?php echo esc_html( ucfirst( $status ) ); ?></span>
+        </div>
         <table class="wcai-table">
-            <thead><tr><th style="width:30px">T.</th><th>Pedido</th><th>Participante</th><th>CPF</th><th>Nascimento</th><th>Status</th></tr></thead>
-            <tbody><?php foreach($found as $r): ?><tr><td style="text-align:center;"><?php echo $r['termo_icon']; ?></td><td><a href="<?php echo get_edit_post_link($r['order_id']); ?>" target="_blank">#<?php echo $r['order_number']; ?></a></td><td><?php echo esc_html($r['nome']); ?></td><td><?php echo esc_html($r['cpf']); ?></td><td><?php echo $r['nasc_html']; ?></td><td><span class="wcai-status status-<?php echo $r['status_slug']; ?>"><?php echo esc_html($r['status_name']); ?></span></td></tr><?php endforeach; ?></tbody>
+            <thead>
+                <tr>
+                    <th style="width:30px">T.</th>
+                    <th>Pedido</th>
+                    <th>Participante</th>
+                    <?php if ( $can_view_sensitive ) : ?><th>CPF</th><th>Nascimento</th><?php endif; ?>
+                    <th>Reserva</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php foreach ( $rows as $row ) :
+                $order_number = $row['order_id'] ? wc_get_order( $row['order_id'] ) : false;
+                $order_label = $order_number ? $order_number->get_order_number() : $row['order_id'];
+                $reservation_label = isset( $status_labels[ $row['reservation_status'] ] ) ? $status_labels[ $row['reservation_status'] ] : $row['reservation_status'];
+                $nasc = $row['data_nascimento'];
+                if ( $can_view_sensitive && ! empty( $nasc ) && '0000-00-00' !== $nasc ) {
+                    $date = DateTime::createFromFormat( 'Y-m-d', $nasc );
+                    if ( $date ) {
+                        $nasc = $date->format( 'd/m/Y' );
+                    }
+                }
+                $signed = ! empty( $row['termo_assinado'] );
+            ?>
+                <tr>
+                    <td style="text-align:center;"><?php echo $signed ? '<span title="Assinado">✅</span>' : '<span title="Pendente" style="opacity:0.3">⚠️</span>'; ?></td>
+                    <td>
+                        <?php if ( $row['order_id'] ) : ?>
+                            <a href="<?php echo esc_url( get_edit_post_link( $row['order_id'] ) ); ?>" target="_blank">#<?php echo esc_html( $order_label ); ?></a>
+                        <?php else : ?>
+                            —
+                        <?php endif; ?>
+                    </td>
+                    <td><?php echo esc_html( $row['nome_completo'] ); ?></td>
+                    <?php if ( $can_view_sensitive ) : ?>
+                        <td><?php echo esc_html( $row['cpf'] ); ?></td>
+                        <td><?php echo esc_html( $nasc ); ?></td>
+                    <?php endif; ?>
+                    <td><?php echo esc_html( $reservation_label ); ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
         </table>
         <div style="margin-top:15px;text-align:right"><button class="button button-primary" onclick="window.print()">🖨️ Imprimir</button></div>
-        <?php wp_send_json_success(['html'=>ob_get_clean()]);
+        <?php
+        wp_send_json_success( array( 'html' => ob_get_clean() ) );
     }
 
     // =========================================================================
@@ -569,5 +720,14 @@ class WCAI_Agenda {
         wp_send_json_success();
     }
     public function db_auto_repair_column() {}
-    public function clear_calendar_cache_internal() {} 
+    public function clear_calendar_cache_internal() {
+        global $wpdb;
+        $option_names = $wpdb->get_col( "SELECT option_name FROM $wpdb->options WHERE option_name LIKE '_transient_wcai_events_%'" );
+        foreach ( $option_names as $option_name ) {
+            $transient_name = substr( $option_name, strlen( '_transient_' ) );
+            if ( $transient_name !== '' ) {
+                delete_transient( $transient_name );
+            }
+        }
+    } 
 }
