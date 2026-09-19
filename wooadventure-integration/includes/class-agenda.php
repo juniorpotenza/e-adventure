@@ -491,13 +491,13 @@ class WCAI_Agenda {
         $to = '';
         if ( isset($_COOKIE['wcai_pax_email_temp']) && is_email($_COOKIE['wcai_pax_email_temp']) ) {
             $to = sanitize_email($_COOKIE['wcai_pax_email_temp']);
-            error_log('[WCAI] Usando e-mail capturado do cookie: ' . $to);
+            error_log( '[WCAI] Usando e-mail capturado do cookie.' );
             // Limpa o cookie do email para não ficar "sujo"
             setcookie('wcai_pax_email_temp', '', time() - 3600, '/');
         } else {
             // 2. FALLBACK: Usa o Billing Email
             $to = $order->get_billing_email();
-            error_log('[WCAI] E-mail capturado não encontrado. Usando Billing: ' . $to);
+            error_log( '[WCAI] E-mail capturado não encontrado; usando e-mail do pedido.' );
         }
 
         if ( empty($to) ) {
@@ -505,12 +505,12 @@ class WCAI_Agenda {
             return;
         }
 
-        $nome_pax = $ticket_info['nome'];
-        $qr_img = $ticket_info['qr_url'];
-        $subject = "🎟️ Seu Ingresso - Pedido #$order_id";
+        $nome_pax = esc_html( $ticket_info['nome'] );
+        $qr_img = esc_url( $ticket_info['qr_url'] );
+        $subject = 'Seu Ingresso - Pedido #' . absint( $order_id );
         
-        $admin_email = get_option('admin_email');
-        $site_title = get_bloginfo('name');
+        $admin_email = sanitize_email( get_option( 'admin_email' ) );
+        $site_title = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
         $headers = array(
             'Content-Type: text/html; charset=UTF-8',
             "From: $site_title <$admin_email>"
@@ -540,8 +540,9 @@ class WCAI_Agenda {
         ";
 
         $sent = wp_mail($to, $subject, $msg, $headers);
-        if($sent) error_log('[WCAI] Sucesso no envio do e-mail para: ' . $to);
-        else error_log('[WCAI] Falha no wp_mail.');
+        if ( ! $sent ) {
+            error_log( '[WCAI] Falha no envio do ingresso por e-mail.' );
+        }
     }
 
     public function ajax_clear_cache() {
