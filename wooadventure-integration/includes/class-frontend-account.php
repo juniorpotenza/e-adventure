@@ -395,7 +395,7 @@ class WCAI_Frontend_Account {
     // 4. ADMIN (LAYOUT OTIMIZADO - COLUNAS DIVIDIDAS)
     // =========================================================================
     public function register_admin_metabox() {
-        if ( class_exists( 'Automattic\\WooCommerce\\Utilities\\OrderUtil' ) && Automattic\\WooCommerce\\Utilities\\OrderUtil::custom_orders_table_usage_is_enabled() ) {
+        if ( class_exists( 'Automattic\\WooCommerce\\Utilities\\OrderUtil' ) && Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ) {
             return;
         }
 
