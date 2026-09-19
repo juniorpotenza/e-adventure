@@ -60,13 +60,13 @@ class WCAI_API_Integration {
             
             if ( $token ) {
                 $this->save_event_token( $event_date_db, $token );
-                error_log( "[WCAI] Evento criado. Token: {$token}" );
+                error_log( "[WCAI] Evento remoto criado para a data {$event_date_db}." );
             } else {
                 error_log( "[WCAI] Falha ao criar evento remoto." );
                 return;
             }
         } else {
-            error_log( "[WCAI] Token existente recuperado: {$token}" );
+            error_log( "[WCAI] Token de evento recuperado para a data {$event_date_db}." );
         }
 
         // 2. Enviar Participantes (Aqui entra a alteração para ler do BD)
@@ -191,9 +191,9 @@ class WCAI_API_Integration {
             $response = $this->request( 'PUT', 'seguroAventuraParticipante/evento/' . $token, array('participantes' => array($p)) );
             
             if ( isset( $response['sucesso'] ) && $response['sucesso'] ) {
-                error_log( "[WCAI] Enviado: {$nome}" );
+                error_log( "[WCAI] Participante enviado com sucesso para o evento remoto." );
             } else {
-                error_log( "[WCAI] Erro API {$nome}: " . print_r( $response, true ) );
+                error_log( "[WCAI] Falha no envio de participante para o evento remoto." );
             }
             // Pequena pausa para não floodar a API
             usleep(200000); 
@@ -214,14 +214,27 @@ class WCAI_API_Integration {
         );
         
         $response = wp_remote_request( $this->api_base_url . $endpoint, $args );
-        
+
         if ( is_wp_error( $response ) ) {
-            error_log( "[WCAI] Erro Conexão: " . $response->get_error_message() );
+            error_log( '[WCAI] Falha de conexão com a API externa.' );
             return false;
         }
-        
+
+        $status_code = (int) wp_remote_retrieve_response_code( $response );
         $body_response = wp_remote_retrieve_body( $response );
-        return json_decode( $body_response, true );
+        $decoded = json_decode( $body_response, true );
+
+        if ( $status_code < 200 || $status_code >= 300 ) {
+            error_log( '[WCAI] API externa retornou HTTP ' . $status_code . '.' );
+            return is_array( $decoded ) ? $decoded : false;
+        }
+
+        if ( ! is_array( $decoded ) ) {
+            error_log( '[WCAI] API externa retornou resposta JSON inválida.' );
+            return false;
+        }
+
+        return $decoded;
     }
 
     // Helper simples para garantir Y-m-d
