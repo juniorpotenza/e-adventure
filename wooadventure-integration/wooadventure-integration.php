@@ -8,7 +8,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'WCAI_VERSION', '2.6.1' );
+define( 'WCAI_VERSION', '2.7.0' );
 
 // ... (Mantenha a função wcai_safe_require igual) ...
 if ( ! function_exists( 'wcai_safe_require' ) ) {
@@ -58,6 +58,10 @@ function wcai_maybe_upgrade_database() {
         return;
     }
 
+    if ( class_exists( 'WCAI_Reservations' ) ) {
+        WCAI_Reservations::create_table();
+    }
+
     if ( class_exists( 'WCAI_Participants_DB' ) ) {
         WCAI_Participants_DB::create_table();
     }
@@ -70,12 +74,12 @@ function wcai_maybe_upgrade_database() {
         WCAI_Audit_Log::create_table();
     }
 
-    if ( class_exists( 'WCAI_Reservations' ) ) {
-        WCAI_Reservations::create_table();
-    }
-
     if ( class_exists( 'WCAI_Legal_Acceptances' ) ) {
         WCAI_Legal_Acceptances::create_table();
+    }
+
+    if ( class_exists( 'WCAI_Participants_DB' ) ) {
+        WCAI_Participants_DB::backfill_reservation_links();
     }
 
     if ( class_exists( 'WCAI_Capabilities' ) ) {
@@ -89,6 +93,10 @@ add_action( 'plugins_loaded', 'wcai_maybe_upgrade_database', 5 );
 // 3. ATIVAÇÃO
 register_activation_hook( __FILE__, 'wcai_activate_plugin' );
 function wcai_activate_plugin() {
+    if ( class_exists( 'WCAI_Reservations' ) ) {
+        WCAI_Reservations::create_table();
+    }
+
     if ( class_exists( 'WCAI_Participants_DB' ) ) {
         WCAI_Participants_DB::create_table();
     }
@@ -101,12 +109,12 @@ function wcai_activate_plugin() {
         WCAI_Audit_Log::create_table();
     }
 
-    if ( class_exists( 'WCAI_Reservations' ) ) {
-        WCAI_Reservations::create_table();
-    }
-
     if ( class_exists( 'WCAI_Legal_Acceptances' ) ) {
         WCAI_Legal_Acceptances::create_table();
+    }
+
+    if ( class_exists( 'WCAI_Participants_DB' ) ) {
+        WCAI_Participants_DB::backfill_reservation_links();
     }
 
     if ( class_exists( 'WCAI_Capabilities' ) ) {
