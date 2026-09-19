@@ -36,7 +36,7 @@ class WCAI_Agenda {
             $stored_key = trim(get_option('wcai_ical_secret_key'));
             $request_key = isset($_GET['key']) ? trim($_GET['key']) : '';
             
-            if(empty($stored_key) || $request_key !== $stored_key) {
+            if(empty($stored_key) || !is_string($request_key) || empty($request_key) || !hash_equals($stored_key, $request_key)) {
                 wp_die('Acesso Negado (Chave Inválida)', '403', 403);
             }
 
@@ -55,6 +55,7 @@ class WCAI_Agenda {
             $eol = "\r\n";
             
             if(!isset($_GET['debug'])) {
+                header('Cache-Control: private, no-store, max-age=0');
                 echo "BEGIN:VCALENDAR" . $eol;
                 echo "VERSION:2.0" . $eol;
                 echo "PRODID:-//WooAdventure//Grouped//PT" . $eol;
@@ -92,14 +93,12 @@ class WCAI_Agenda {
                     $groups[$slot_key] = [
                         'pax_total' => 0,
                         'orders_count' => 0,
-                        'details' => [],
                         'dt_start_local' => $slot_key
                     ];
                 }
 
                 $groups[$slot_key]['pax_total'] += $qtd_pax;
                 $groups[$slot_key]['orders_count']++;
-                $groups[$slot_key]['details'][] = "Pedido #$oid ($qtd_pax): " . implode(", ", $pax_names);
             }
 
             $count_events = 0;
@@ -117,7 +116,7 @@ class WCAI_Agenda {
                 } catch (Exception $e) { continue; }
 
                 $title = $data['pax_total'] . " pax (" . $data['orders_count'] . " peds)";
-                $desc = "Resumo:\\nTotal Pax: " . $data['pax_total'] . "\\nPedidos: " . $data['orders_count'] . "\\n--- DETALHES ---\\n" . implode("\\n", $data['details']);
+                $desc = "Resumo:\\nTotal Pax: " . $data['pax_total'] . "\\nPedidos: " . $data['orders_count'];
                 $uid = "slot_" . md5($slot_key) . "@" . $_SERVER['HTTP_HOST'];
 
                 if(isset($_GET['debug'])) {
@@ -204,7 +203,7 @@ class WCAI_Agenda {
     }
 
     public function add_menu_page() { 
-        add_submenu_page('woocommerce', 'Agenda', 'Agenda Passeios', 'manage_woocommerce', 'wcai-agenda', array($this, 'render_page')); 
+        add_submenu_page('woocommerce', 'Agenda', 'Agenda Passeios', WCAI_Capabilities::VIEW_MANIFEST, 'wcai-agenda', array($this, 'render_page')); 
     }
 
     public function enqueue_assets( $hook ) {
@@ -225,7 +224,7 @@ class WCAI_Agenda {
             <div class="wcai-sync-box">
                 <div style="flex-grow:1; margin-right:15px;">
                     <strong>🔗 Sincronização Automática:</strong><br>
-                    <input type="text" class="wcai-sync-input" value="<?php echo $feed_url; ?>" style="width:100%" readonly onclick="this.select()">
+                    <input type="text" class="wcai-sync-input" value="<?php echo esc_attr( $feed_url ); ?>" style="width:100%" readonly onclick="this.select()">
                 </div>
                 <div>
                     <a href="<?php echo esc_url( wp_nonce_url( admin_url('admin-post.php?action=wcai_reset_key'), 'wcai_reset_ical_key' ) ); ?>" class="button" onclick="return confirm('Isso invalida o link anterior. Tem certeza?');">🔄 Gerar Nova Chave</a>
@@ -263,6 +262,9 @@ class WCAI_Agenda {
 
     public function ajax_get_events() {
         check_ajax_referer('wcai_calendar_nonce', 'nonce');
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
+            wp_send_json_error( array( 'message' => 'Acesso negado.' ), 403 );
+        }
         $start = isset($_POST['start']) ? $_POST['start'] : date('Y-m-01');
         $end = isset($_POST['end']) ? $_POST['end'] : date('Y-m-t');
         $cached = get_transient('wcai_events_' . md5($start . $end));
@@ -294,6 +296,9 @@ class WCAI_Agenda {
 
     public function ajax_get_day_details() {
         check_ajax_referer('wcai_calendar_nonce', 'nonce');
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
+            wp_send_json_error( array( 'message' => 'Acesso negado.' ), 403 );
+        }
         $iso = isset($_POST['iso_string']) ? sanitize_text_field($_POST['iso_string']) : '';
         if(empty($iso)) wp_send_json_error();
         $parts = explode('T', $iso); $dt = $parts[0]; $tm = isset($parts[1]) ? substr($parts[1], 0, 5) : '00:00';
@@ -560,14 +565,22 @@ class WCAI_Agenda {
     private function count_pax_forensic($order) { return count($this->get_pax_details_forensic($order)); }
     public function ajax_clear_cache() {
         check_ajax_referer( 'wcai_clear_calendar_cache', 'nonce' );
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
             wp_send_json_error( array( 'message' => 'Acesso negado.' ), 403 );
         }
 
-        global $wpdb;
-        $wpdb->query( "DELETE FROM $wpdb->options WHERE option_name LIKE '_transient_wcai%'" );
+        $this->clear_calendar_cache_internal();
         wp_send_json_success();
     }
     public function db_auto_repair_column() {}
-    public function clear_calendar_cache_internal() {} 
+    public function clear_calendar_cache_internal() {
+        global $wpdb;
+        $option_names = $wpdb->get_col( "SELECT option_name FROM $wpdb->options WHERE option_name LIKE '_transient_wcai_events_%'" );
+        foreach ( $option_names as $option_name ) {
+            $transient_name = substr( $option_name, strlen( '_transient_' ) );
+            if ( $transient_name !== '' ) {
+                delete_transient( $transient_name );
+            }
+        }
+    } 
 }
