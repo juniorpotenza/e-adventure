@@ -127,6 +127,11 @@ class WCAI_Legal_Acceptances {
             return 'pending';
         }
 
+        if ( ! $reservation_id && class_exists( 'WCAI_Participants_DB' ) ) {
+            $participant = WCAI_Participants_DB::get_by_id( $participant_id );
+            $reservation_id = $participant ? absint( $participant['reservation_id'] ) : 0;
+        }
+
         $current = $document_id
             ? WCAI_Legal_Documents::get_snapshot( $document_id )
             : WCAI_Legal_Documents::get_active_snapshot();
