@@ -170,6 +170,13 @@ class WCAI_Assinatura {
             wp_send_json_error( 'Sessão de assinatura inválida ou expirada.', 403 );
         }
 
+        if (
+            class_exists( 'WCAI_Legal_Acceptances' ) &&
+            'accepted' === WCAI_Legal_Acceptances::legal_status( $participant['id'], $participant['reservation_id'] )
+        ) {
+            wp_send_json_error( 'Este participante já possui aceite da versão jurídica vigente.' );
+        }
+
         if ( empty( $img_base64 ) ) {
             wp_send_json_error( 'Assinatura vazia.' );
         }
