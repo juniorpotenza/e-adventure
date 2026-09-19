@@ -1293,61 +1293,64 @@ class WCAI_Scanner {
 
 
     public function ajax_sync_data() {
-
         check_ajax_referer( 'wcai_scanner_nonce', 'nonce' );
-        if(!current_user_can('manage_woocommerce')) wp_send_json_error(['message'=>'Forbidden'], 403);
 
-        global $wpdb; $table = WCAI_Participants_DB::get_table_name();
+        if ( ! current_user_can( WCAI_Capabilities::CHECK_IN ) ) {
+            wp_send_json_error( array( 'message' => 'Forbidden' ), 403 );
+        }
 
-        $queue = isset($_POST['queue']) ? $_POST['queue'] : [];
+        global $wpdb;
+        $table = WCAI_Participants_DB::get_table_name();
+        $queue = isset( $_POST['queue'] ) && is_array( $_POST['queue'] ) ? wp_unslash( $_POST['queue'] ) : array();
 
-        if(!empty($queue)) {
-
-            foreach($queue as $item) {
-
-                $status = ($item['mode'] == 'in') ? 1 : 2;
-
-                $pax_id = intval($item['id']);
-
-                if($status == 1) {
-
-                    $wpdb->update($table, ['checkin_status'=>1, 'checkin_time'=>current_time('mysql')], ['id'=>$pax_id]);
-
-                } else {
-
-                    $wpdb->update($table, ['checkin_status'=>2, 'checkout_time'=>current_time('mysql')], ['id'=>$pax_id]);
-
+        if ( ! empty( $queue ) ) {
+            foreach ( $queue as $item ) {
+                if ( ! is_array( $item ) ) {
+                    continue;
                 }
 
+                $mode = isset( $item['mode'] ) ? sanitize_key( $item['mode'] ) : '';
+                $pax_id = isset( $item['id'] ) ? absint( $item['id'] ) : 0;
+
+                if ( ! $pax_id || ! in_array( $mode, array( 'in', 'out' ), true ) ) {
+                    continue;
+                }
+
+                if ( ! $this->participant_is_in_active_manifest( $pax_id ) ) {
+                    continue;
+                }
+
+                $now = current_time( 'mysql' );
+
+                if ( 'in' === $mode ) {
+                    $wpdb->query( $wpdb->prepare(
+                        "UPDATE $table SET checkin_status=1, checkin_time=%s WHERE id=%d AND checkin_status=0",
+                        $now,
+                        $pax_id
+                    ) );
+                } else {
+                    $wpdb->query( $wpdb->prepare(
+                        "UPDATE $table SET checkin_status=2, checkout_time=%s WHERE id=%d AND checkin_status=1",
+                        $now,
+                        $pax_id
+                    ) );
+                }
             }
-
         }
 
-        $date_query = isset($_POST['date_query']) ? sanitize_text_field($_POST['date_query']) : '';
+        $date_query = isset( $_POST['date_query'] ) ? sanitize_text_field( wp_unslash( $_POST['date_query'] ) ) : '';
 
-        if($date_query) {
-
-            $pax_list = $this->get_pax_by_date($date_query);
-
-            wp_send_json_success(['specific_date' => $pax_list]);
-
-        } else {
-
-            $today = date('Y-m-d');
-
-            $tomorrow = date('Y-m-d', strtotime('+1 day'));
-
-            $pax_today = $this->get_pax_by_date($today);
-
-            $pax_tomorrow = $this->get_pax_by_date($tomorrow);
-
-            wp_send_json_success(['full_manifest' => array_merge($pax_today, $pax_tomorrow)]);
-
+        if ( $date_query ) {
+            wp_send_json_success( array( 'specific_date' => $this->get_pax_by_date( $date_query ) ) );
         }
 
+        $today = current_time( 'Y-m-d' );
+        $tomorrow = wp_date( 'Y-m-d', current_datetime()->modify( '+1 day' ) );
+
+        wp_send_json_success( array(
+            'full_manifest' => array_merge( $this->get_pax_by_date( $today ), $this->get_pax_by_date( $tomorrow ) ),
+        ) );
     }
-
-
 
     private function get_pax_by_date($date) {
 
