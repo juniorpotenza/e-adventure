@@ -213,6 +213,7 @@ class WCAI_Checkout {
                                 WCAI_Participants_DB::add( array(
                                     'order_id'      => $order_id,
                                     'item_id'       => $item_id,
+                                    'reservation_id' => $reservation_id,
                                     'customer_id'   => $order->get_customer_id(),
                                     'nome_completo' => $nome,
                                     'cpf'           => $cpf,
