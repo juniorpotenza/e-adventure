@@ -395,7 +395,7 @@ class WCAI_Assinatura {
         );
     }
 
-    public function consume_ticket_session() {
+    public static function consume_ticket_session() {
         if ( empty( $_COOKIE['wcai_ticket_session'] ) ) {
             return false;
         }
@@ -452,13 +452,23 @@ class WCAI_Assinatura {
             return false;
         }
 
-        $ticket = $this->generate_and_save_ticket( $participant, $signature_post_id );
-        if ( is_wp_error( $ticket ) ) {
+        $hash = ! empty( $participant['ticket_hash'] ) ? (string) $participant['ticket_hash'] : '';
+        if ( '' === $hash ) {
             return false;
         }
 
-        $ticket['order_id'] = $order_id;
-        return $ticket;
+        $qr_url = self::generate_local_qr( $hash, $participant_id );
+        if ( is_wp_error( $qr_url ) ) {
+            return false;
+        }
+
+        return array(
+            'hash'    => $hash,
+            'qr_url'  => $qr_url,
+            'nome'    => $participant['nome_completo'],
+            'order_id' => $order_id,
+            'cpf'     => '',
+        );
     }
 
     private function set_ticket_session_cookie( $order_id, $participant_id, $signature_post_id ) {
@@ -478,7 +488,7 @@ class WCAI_Assinatura {
         );
     }
 
-    private function generate_local_qr( $hash, $participant_id ) {
+    public static function generate_local_qr( $hash, $participant_id ) {
         $hash = sanitize_text_field( $hash );
         $participant_id = absint( $participant_id );
 
