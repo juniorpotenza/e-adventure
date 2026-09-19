@@ -220,7 +220,7 @@ class WCAI_Scanner {
 
         }
 
-        if ( ! current_user_can( 'manage_woocommerce' ) ) return '<div style="padding:20px;color:red">Acesso Negado</div>';
+        if ( ! current_user_can( WCAI_Capabilities::CHECK_IN ) ) return '<div style="padding:20px;color:red">Acesso Negado</div>';
 
 
 
@@ -640,9 +640,21 @@ class WCAI_Scanner {
 
                 console.log('📦 Store.init()');
 
-                const sp = localStorage.getItem('wcai_pax'); const sq = localStorage.getItem('wcai_queue');
+                const sp = localStorage.getItem('wcai_pax');
+                const sq = localStorage.getItem('wcai_queue');
+                const cachedAt = parseInt(localStorage.getItem('wcai_pax_cached_at') || '0', 10);
+                const cacheTtl = 12 * 60 * 60 * 1000;
 
-                if(sp) this.pax = JSON.parse(sp); if(sq) this.queue = JSON.parse(sq);
+                if ( sp && cachedAt && (Date.now() - cachedAt) <= cacheTtl ) {
+                    try { this.pax = JSON.parse(sp); } catch (e) { this.pax = []; }
+                } else {
+                    localStorage.removeItem('wcai_pax');
+                    localStorage.removeItem('wcai_pax_cached_at');
+                }
+
+                if ( sq ) {
+                    try { this.queue = JSON.parse(sq); } catch (e) { this.queue = []; }
+                }
 
                 this.sync(); setInterval(() => this.sync(), 30000);
 
@@ -706,7 +718,7 @@ class WCAI_Scanner {
 
                         Store.queue = []; localStorage.setItem('wcai_queue', '[]');
 
-                        if(res.data.full_manifest) { Store.pax = res.data.full_manifest; localStorage.setItem('wcai_pax', JSON.stringify(Store.pax)); }
+                        if(res.data.full_manifest) { Store.pax = res.data.full_manifest; localStorage.setItem('wcai_pax', JSON.stringify(Store.pax)); localStorage.setItem('wcai_pax_cached_at', String(Date.now())); }
 
                         ind.innerHTML = '☁️ Sincronizado'; ind.style.color='#28a745';
 
@@ -1283,32 +1295,49 @@ class WCAI_Scanner {
     public function ajax_sync_data() {
 
         check_ajax_referer( 'wcai_scanner_nonce', 'nonce' );
-        if(!current_user_can('manage_woocommerce')) wp_send_json_error(['message'=>'Forbidden'], 403);
+        if ( ! current_user_can( WCAI_Capabilities::CHECK_IN ) ) wp_send_json_error( array( 'message' => 'Forbidden' ), 403 );
 
         global $wpdb; $table = WCAI_Participants_DB::get_table_name();
 
-        $queue = isset($_POST['queue']) ? $_POST['queue'] : [];
+        $queue = isset( $_POST['queue'] ) && is_array( $_POST['queue'] ) ? wp_unslash( $_POST['queue'] ) : array();
 
-        if(!empty($queue)) {
-
-            foreach($queue as $item) {
-
-                $status = ($item['mode'] == 'in') ? 1 : 2;
-
-                $pax_id = intval($item['id']);
-
-                if($status == 1) {
-
-                    $wpdb->update($table, ['checkin_status'=>1, 'checkin_time'=>current_time('mysql')], ['id'=>$pax_id]);
-
-                } else {
-
-                    $wpdb->update($table, ['checkin_status'=>2, 'checkout_time'=>current_time('mysql')], ['id'=>$pax_id]);
-
+        if ( ! empty( $queue ) ) {
+            foreach ( $queue as $item ) {
+                if ( ! is_array( $item ) ) {
+                    continue;
                 }
 
-            }
+                $mode   = isset( $item['mode'] ) ? sanitize_key( $item['mode'] ) : '';
+                $pax_id = isset( $item['id'] ) ? absint( $item['id'] ) : 0;
 
+                if ( ! $pax_id || ! in_array( $mode, array( 'in', 'out' ), true ) ) {
+                    continue;
+                }
+
+                // A fila offline é tratada como uma operação sobre um participante
+                // que precisa estar no manifesto operacional atual.
+                if ( ! $this->participant_is_in_active_manifest( $pax_id ) ) {
+                    continue;
+                }
+
+                $now = current_time( 'mysql' );
+
+                if ( 'in' === $mode ) {
+                    // Idempotência: só muda 0 -> 1.
+                    $wpdb->query( $wpdb->prepare(
+                        "UPDATE $table SET checkin_status=1, checkin_time=%s WHERE id=%d AND checkin_status=0",
+                        $now,
+                        $pax_id
+                    ) );
+                } else {
+                    // Idempotência: só muda 1 -> 2.
+                    $wpdb->query( $wpdb->prepare(
+                        "UPDATE $table SET checkin_status=2, checkout_time=%s WHERE id=%d AND checkin_status=1",
+                        $now,
+                        $pax_id
+                    ) );
+                }
+            }
         }
 
         $date_query = isset($_POST['date_query']) ? sanitize_text_field($_POST['date_query']) : '';
@@ -1336,6 +1365,39 @@ class WCAI_Scanner {
     }
 
 
+
+    private function participant_is_in_active_manifest( $participant_id ) {
+        global $wpdb;
+        $table = WCAI_Participants_DB::get_table_name();
+        $participant_id = absint( $participant_id );
+
+        if ( ! $participant_id ) {
+            return false;
+        }
+
+        $order_id = $wpdb->get_var( $wpdb->prepare(
+            "SELECT order_id FROM $table WHERE id = %d",
+            $participant_id
+        ) );
+
+        if ( ! $order_id ) {
+            return false;
+        }
+
+        $today    = current_time( 'Y-m-d' );
+        $tomorrow = wp_date( 'Y-m-d', current_datetime()->modify( '+1 day' ) );
+
+        $allowed = $this->get_pax_by_date( $today );
+        $allowed = array_merge( $allowed, $this->get_pax_by_date( $tomorrow ) );
+
+        foreach ( $allowed as $participant ) {
+            if ( absint( $participant->id ) === $participant_id ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private function get_pax_by_date($date) {
 
@@ -1390,7 +1452,7 @@ class WCAI_Scanner {
     public function ajax_get_calendar_data() {
 
         check_ajax_referer( 'wcai_scanner_nonce', 'nonce' );
-        if(!current_user_can('manage_woocommerce')) wp_send_json_error([], 403);
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) wp_send_json_error( array(), 403 );
 
         global $wpdb; $m = intval($_POST['month']); $y = intval($_POST['year']);
 
