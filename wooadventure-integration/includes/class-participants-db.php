@@ -17,6 +17,7 @@ class WCAI_Participants_DB {
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             order_id bigint(20) NOT NULL,
             item_id bigint(20) DEFAULT 0,
+            reservation_id bigint(20) unsigned DEFAULT NULL,
             customer_id bigint(20) DEFAULT 0,
             nome_completo varchar(255) NOT NULL,
             cpf varchar(20) NOT NULL,
@@ -29,6 +30,8 @@ class WCAI_Participants_DB {
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY order_id (order_id),
+            KEY item_id (item_id),
+            KEY reservation_id (reservation_id),
             KEY cpf (cpf),
             KEY ticket_hash (ticket_hash)
         ) $charset_collate;";
@@ -57,6 +60,7 @@ class WCAI_Participants_DB {
         $defaults = array(
             'order_id' => 0,
             'item_id'  => 0,
+            'reservation_id' => 0,
             'customer_id' => get_current_user_id(),
             'nome_completo' => '',
             'cpf' => '',
@@ -66,10 +70,27 @@ class WCAI_Participants_DB {
         $data = wp_parse_args( $data, $defaults );
         
         // Sanitização
-        $data['cpf'] = preg_replace('/[^0-9]/', '', $data['cpf']); 
+        $data['cpf'] = preg_replace('/[^0-9]/', '', $data['cpf']);
         $data['data_nascimento'] = self::prepare_date( $data['data_nascimento'] );
+        $data['reservation_id'] = absint( $data['reservation_id'] );
 
-        return $wpdb->insert( self::get_table_name(), $data );
+        // Idempotência: a mesma pessoa não deve ser inserida duas vezes
+        // para a mesma reserva durante retries do checkout ou da assinatura.
+        if ( $data['reservation_id'] && $data['cpf'] ) {
+            $existing = $wpdb->get_var( $wpdb->prepare(
+                "SELECT id FROM " . self::get_table_name() . " WHERE reservation_id = %d AND cpf = %s LIMIT 1",
+                $data['reservation_id'],
+                $data['cpf']
+            ) );
+
+            if ( $existing ) {
+                return absint( $existing );
+            }
+        }
+
+        $inserted = $wpdb->insert( self::get_table_name(), $data );
+
+        return false === $inserted ? false : absint( $wpdb->insert_id );
     }
 
     public static function update( $id, $data ) {
@@ -95,6 +116,35 @@ class WCAI_Participants_DB {
             array( 'id' => $id ), 
             $format, 
             array( '%d' ) 
+        );
+    }
+
+    public static function get_by_reservation( $reservation_id ) {
+        global $wpdb;
+        $table = self::get_table_name();
+        return $wpdb->get_results(
+            $wpdb->prepare( "SELECT * FROM $table WHERE reservation_id = %d ORDER BY id ASC", absint( $reservation_id ) ),
+            ARRAY_A
+        );
+    }
+
+    public static function backfill_reservation_links() {
+        global $wpdb;
+        $participants = self::get_table_name();
+        $reservations = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_table_name() : '';
+
+        if ( empty( $reservations ) ) {
+            return;
+        }
+
+        $wpdb->query(
+            "UPDATE $participants p
+             INNER JOIN $reservations r
+                ON r.order_id = p.order_id
+               AND r.order_item_id = p.item_id
+             SET p.reservation_id = r.id
+             WHERE p.reservation_id IS NULL
+                OR p.reservation_id = 0"
         );
     }
 
