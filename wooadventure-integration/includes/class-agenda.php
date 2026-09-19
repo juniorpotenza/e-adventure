@@ -711,12 +711,11 @@ class WCAI_Agenda {
     private function count_pax_forensic($order) { return count($this->get_pax_details_forensic($order)); }
     public function ajax_clear_cache() {
         check_ajax_referer( 'wcai_clear_calendar_cache', 'nonce' );
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
             wp_send_json_error( array( 'message' => 'Acesso negado.' ), 403 );
         }
 
-        global $wpdb;
-        $wpdb->query( "DELETE FROM $wpdb->options WHERE option_name LIKE '_transient_wcai%'" );
+        $this->clear_calendar_cache_internal();
         wp_send_json_success();
     }
     public function db_auto_repair_column() {}
