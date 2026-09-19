@@ -181,45 +181,6 @@ class WCAI_Agenda {
         return str_replace( array( ';', ',' ), array( "\\;", "\\," ), $value );
     }
 
-    private function get_date_via_sql_direct($order_id) {
-        global $wpdb;
-        $sql = "SELECT meta_value FROM {$wpdb->prefix}woocommerce_order_itemmeta as im JOIN {$wpdb->prefix}woocommerce_order_items as i ON im.order_item_id = i.order_item_id WHERE i.order_id = %d AND (im.meta_key = 'tour_date' OR im.meta_key = '_tour_date' OR im.meta_key = 'Data' OR im.meta_key = 'Data do Passeio') LIMIT 1";
-        $raw_val = $wpdb->get_var($wpdb->prepare($sql, $order_id));
-        if(!$raw_val) return false;
-        $raw_val = trim($raw_val);
-
-        if(preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})/', $raw_val, $m)){ 
-             $d = $m[0]; $t = '00:00';
-             if(preg_match('/\s(\d{1,2}):(\d{1,2})/', $raw_val, $mt)) $t = sprintf('%02d:%02d', $mt[1], $mt[2]);
-             return ['full' => $d.'T'.$t.':00', 'date' => $d];
-        }
-        if(preg_match('/^(\d{4})\/(\d{1,2})\/(\d{1,2})/', $raw_val, $m)){ 
-             $d = sprintf('%04d-%02d-%02d', $m[1], $m[2], $m[3]); $t = '00:00';
-             if(preg_match('/\s(\d{1,2}):(\d{1,2})/', $raw_val, $mt)) $t = sprintf('%02d:%02d', $mt[1], $mt[2]);
-             return ['full' => $d.'T'.$t.':00', 'date' => $d];
-        }
-        if(preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})/', $raw_val, $m)){ 
-             $d = sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]); $t = '00:00';
-             if(preg_match('/\s(\d{1,2}):(\d{1,2})/', $raw_val, $mt)) $t = sprintf('%02d:%02d', $mt[1], $mt[2]);
-             return ['full' => $d.'T'.$t.':00', 'date' => $d];
-        }
-        return false;
-    }
-
-    private function get_pax_via_sql_direct($order_id) {
-        global $wpdb;
-        $names = [];
-        $sql = "SELECT meta_value FROM {$wpdb->prefix}woocommerce_order_itemmeta as im JOIN {$wpdb->prefix}woocommerce_order_items as i ON im.order_item_id = i.order_item_id WHERE i.order_id = %d AND (im.meta_key LIKE '%%nome%%' OR im.meta_key LIKE '%%participante%%') AND im.meta_value NOT LIKE '%%{%%'";
-        $results = $wpdb->get_col($wpdb->prepare($sql, $order_id));
-        if($results) {
-            foreach($results as $n) {
-                $clean = trim(preg_replace('/[^a-zA-Z0-9 ]/', '', strtr(utf8_decode($n), utf8_decode('àáâãäçèéêëìíîïñòóôõöùúûüýÿÀÁÂÃÄÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝ'), 'aaaaaceeeeiiiinooooouuuuyyAAAAACEEEEIIIINOOOOOUUUUY')));
-                if(strlen($clean) > 2) $names[] = $clean;
-            }
-        }
-        return $names;
-    }
-
     // =========================================================================
     // PARTE B: PAINEL ADMIN (MANTIDO)
     // =========================================================================
@@ -681,34 +642,6 @@ class WCAI_Agenda {
         else error_log('[WCAI] Falha no wp_mail.');
     }
 
-    // =========================================================================
-    // AUXILIARES (MANTIDAS DO ORIGINAL - SEM ERROS DE FATAL ERROR)
-    // =========================================================================
-    private function fetch_orders_in_range($start, $end) {
-        $st = class_exists('WCAI_Settings') ? WCAI_Settings::get_calendar_statuses() : ['wc-processing','wc-completed'];
-        return wc_get_orders(['limit'=>-1, 'status'=>$st, 'date_created'=>'>='.strtotime('-15 years')]);
-    }
-    private function get_tour_datetime_smart($order) {
-        $pk = class_exists('WCAI_Settings') ? WCAI_Settings::get_date_meta_key() : 'tour_date';
-        $keys = array_unique([$pk, 'tour_date', '_tour_date', 'date', 'Data', 'Data do Passeio', 'booking_date']);
-        $raw = ''; foreach($keys as $k){ if($v=$order->get_meta($k)){ $raw=$v; break; } }
-        if(!$raw){ foreach($order->get_items() as $i){ foreach($keys as $k){ if($v=$i->get_meta($k)){ $raw=$v; break 2; } } } }
-        if(!$raw) return false;
-        $d=''; $t='00:00';
-        if(preg_match('/^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{1,2})/', $raw, $m)){ $d=sprintf('%04d-%02d-%02d',$m[1],$m[2],$m[3]); $t=sprintf('%02d:%02d',$m[4],$m[5]); }
-        elseif(preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2})/', $raw, $m)){ $d=sprintf('%04d-%02d-%02d',$m[3],$m[2],$m[1]); $t=sprintf('%02d:%02d',$m[4],$m[5]); }
-        elseif(preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})/', $raw, $m)){ $d=sprintf('%04d-%02d-%02d',$m[3],$m[2],$m[1]); }
-        else{ $ts=strtotime(str_replace('/','-',$raw)); if($ts){ $d=date('Y-m-d',$ts); if(strpos($raw,':')) $t=date('H:i',$ts); } }
-        return empty($d) ? false : ['date'=>$d, 'time'=>$t, 'full'=>$d.'T'.$t.':00'];
-    }
-    private function get_pax_details_forensic($order) {
-        $l=[]; if(class_exists('WCAI_Participants_DB')) foreach(WCAI_Participants_DB::get_by_order($order->get_id()) as $r) $l[]=['nome'=>$r['nome_completo'],'cpf'=>$r['cpf'],'nasc'=>$r['data_nascimento']];
-        if(empty($l)) { $n=$order->get_customer_note(); if(!empty($n)) foreach(explode("\n",$n) as $lin){ $x=explode(',',$lin); if(count($x)>=3)$l[]=['nome'=>trim($x[0]),'cpf'=>trim($x[1]),'nasc'=>trim($x[2])]; } }
-        if(empty($l)) { foreach($order->get_items() as $i) { foreach($i->get_meta_data() as $m) { $k=strtolower($m->key); $v=$m->value; if((strpos($k,'nome')!==false||strpos($k,'participante')!==false)&&strlen($v)>3&&!preg_match('/\d/',$v)) $l[]=['nome'=>$v,'cpf'=>'-','nasc'=>'-']; } } }
-        $tit=$order->get_billing_first_name().' '.$order->get_billing_last_name(); if(!empty($tit) && empty($l)) $l[]=['nome'=>$tit,'cpf'=>$order->get_meta('_billing_cpf'),'nasc'=>''];
-        return $l;
-    }
-    private function count_pax_forensic($order) { return count($this->get_pax_details_forensic($order)); }
     public function ajax_clear_cache() {
         check_ajax_referer( 'wcai_clear_calendar_cache', 'nonce' );
         if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
