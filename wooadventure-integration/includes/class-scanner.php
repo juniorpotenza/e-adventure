@@ -1430,38 +1430,56 @@ class WCAI_Scanner {
         return $rows;
     }
     public function ajax_get_calendar_data() {
-
         check_ajax_referer( 'wcai_scanner_nonce', 'nonce' );
-        if(!current_user_can('manage_woocommerce')) wp_send_json_error([], 403);
 
-        global $wpdb; $m = intval($_POST['month']); $y = intval($_POST['year']);
-
-        $str_like = $y . '-' . str_pad($m, 2, '0', STR_PAD_LEFT); 
-
-        $sql = "SELECT pm.meta_value FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID WHERE pm.meta_key IN ('tour_date', 'Data', 'booking_date') AND (pm.meta_value LIKE %s OR pm.meta_value LIKE %s) AND p.post_status IN ('wc-completed', 'wc-processing', 'wc-on-hold')"; 
-
-        $like1 = $str_like . '%'; $like2 = '%' . str_pad($m, 2, '0', STR_PAD_LEFT) . '/' . $y;
-
-        $dates = $wpdb->get_col($wpdb->prepare($sql, $like1, $like2));
-
-        $counts = [];
-
-        foreach($dates as $raw) {
-
-            $iso = '';
-
-            if(strpos($raw, '/') !== false) { $parts = explode('/', substr($raw, 0, 10)); if(count($parts)==3) $iso = $parts[2].'-'.$parts[1].'-'.$parts[0]; } 
-
-            else { $iso = substr($raw, 0, 10); }
-
-            if($iso) { if(!isset($counts[$iso])) $counts[$iso] = 0; $counts[$iso]++; }
-
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
+            wp_send_json_error( array(), 403 );
         }
 
-        wp_send_json_success($counts);
+        global $wpdb;
+        $month = max( 1, min( 12, absint( $_POST['month'] ?? 0 ) ) );
+        $year = absint( $_POST['year'] ?? 0 );
 
+        if ( ! $year ) {
+            $year = absint( wp_date( 'Y' ) );
+        }
+
+        $month_start = sprintf( '%04d-%02d-01', $year, $month );
+        $month_end = wp_date( 'Y-m-t', strtotime( $month_start ) );
+
+        $sql = "SELECT
+                    LEFT(dm.meta_value, 10) AS agenda_date,
+                    COUNT(DISTINCT d.ID) AS departure_count
+                FROM {$wpdb->posts} d
+                INNER JOIN {$wpdb->postmeta} dm ON dm.post_id = d.ID AND dm.meta_key = '_wcai_starts_at'
+                WHERE d.post_type = %s
+                  AND d.post_status = 'publish'
+                  AND dm.meta_value BETWEEN %s AND %s
+                  AND EXISTS (
+                      SELECT 1
+                      FROM {$wpdb->postmeta} sm
+                      WHERE sm.post_id = d.ID
+                        AND sm.meta_key = '_wcai_departure_status'
+                        AND sm.meta_value NOT IN ('draft', 'cancelled')
+                  )
+                GROUP BY LEFT(dm.meta_value, 10)
+                ORDER BY agenda_date ASC";
+
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                $sql,
+                WCAI_Departures::POST_TYPE,
+                $month_start . 'T00:00',
+                $month_end . 'T23:59'
+            )
+        );
+
+        $counts = array();
+        foreach ( $rows as $row ) {
+            $counts[ $row->agenda_date ] = max( 1, absint( $row->departure_count ) );
+        }
+
+        wp_send_json_success( $counts );
     }
-
-    
 
 }
