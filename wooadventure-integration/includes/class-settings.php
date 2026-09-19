@@ -6,6 +6,7 @@ class WCAI_Settings {
     public function __construct() {
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
         add_action( 'admin_init', array( $this, 'register_settings' ) );
+        add_filter( 'option_page_capability_wcai_settings_group', array( $this, 'get_settings_capability' ) );
     }
 
     public function add_admin_menu() {
@@ -20,7 +21,7 @@ class WCAI_Settings {
     }
 
     public function register_settings() {
-        register_setting( 'wcai_settings_group', 'wcai_carta_oferta', array( 'sanitize_callback' => array( $this, 'sanitize_text' ) ) );
+        register_setting( 'wcai_settings_group', 'wcai_carta_oferta', array( 'sanitize_callback' => array( $this, 'sanitize_carta_oferta' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_trigger_status', array( 'sanitize_callback' => array( $this, 'sanitize_status' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_product_ids', array( 'sanitize_callback' => array( $this, 'sanitize_product_ids' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_blocked_cpfs', array( 'sanitize_callback' => array( $this, 'sanitize_blocked_cpfs' ) ) );
@@ -58,7 +59,10 @@ class WCAI_Settings {
                 <table class="form-table">
                     <tr valign="top">
                         <th scope="row">Carta Oferta (Token)</th>
-                        <td><input type="password" name="wcai_carta_oferta" value="<?php echo esc_attr( get_option( 'wcai_carta_oferta' ) ); ?>" class="regular-text" autocomplete="off" /></td>
+                        <td>
+                            <input type="password" name="wcai_carta_oferta" value="" class="regular-text" autocomplete="new-password" placeholder="<?php echo esc_attr( get_option( 'wcai_carta_oferta' ) ? 'Token configurado — informe apenas para substituir' : 'Informe o token' ); ?>" />
+                            <p class="description">Por segurança, o token salvo não é devolvido ao formulário. Deixe em branco para manter o token atual.</p>
+                        </td>
                     </tr>
                     <tr valign="top">
                         <th scope="row">Gatilho de Envio API</th>
@@ -166,6 +170,20 @@ class WCAI_Settings {
 
     public function sanitize_text( $value ) {
         return sanitize_text_field( (string) $value );
+    }
+
+    public function sanitize_carta_oferta( $value ) {
+        $value = trim( (string) $value );
+
+        if ( '' === $value ) {
+            return (string) get_option( 'wcai_carta_oferta', '' );
+        }
+
+        return sanitize_text_field( $value );
+    }
+
+    public function get_settings_capability() {
+        return WCAI_Capabilities::MANAGE_SETTINGS;
     }
 
     public function sanitize_status( $value ) {
