@@ -450,29 +450,11 @@ class WCAI_Agenda {
     // MÉTODOS DE RASTREAMENTO (MODIFICADO: Ticket + Check-in + E-mail)
     // =========================================================================
     public function render_success_tracker() {
-        if ( empty( $_COOKIE['wcai_pax_session'] ) ) {
+        if ( ! class_exists( 'WCAI_Assinatura' ) ) {
             return '';
         }
 
-        $data = explode( '|', sanitize_text_field( wp_unslash( $_COOKIE['wcai_pax_session'] ) ) );
-
-        if ( 3 !== count( $data ) ) {
-            return '';
-        }
-
-        $ticket_info = $this->sign_waiver_internal( absint( $data[0] ), absint( $data[1] ), $data[2] );
-
-        setcookie(
-            'wcai_pax_session',
-            '',
-            array(
-                'expires' => time() - HOUR_IN_SECONDS,
-                'path' => '/',
-                'secure' => is_ssl(),
-                'httponly' => true,
-                'samesite' => 'Lax',
-            )
-        );
+        $ticket_info = WCAI_Assinatura::consume_ticket_session();
 
         if ( ! $ticket_info || empty( $ticket_info['qr_url'] ) ) {
             return '';
@@ -495,60 +477,6 @@ class WCAI_Agenda {
         </div>';
     }
 
-    private function sign_waiver_internal( $order_id, $participant_id, $signature ) {
-        $order_id = absint( $order_id );
-        $participant_id = absint( $participant_id );
-
-        if ( ! $order_id || ! $participant_id || ! is_string( $signature ) || '' === $signature ) {
-            return false;
-        }
-
-        $payload = $order_id . '|' . $participant_id;
-        $expected = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
-
-        if ( ! hash_equals( $expected, $signature ) ) {
-            return false;
-        }
-
-        if ( ! class_exists( 'WCAI_Participants_DB' ) || ! class_exists( 'WCAI_Reservations' ) ) {
-            return false;
-        }
-
-        $participant = WCAI_Participants_DB::get_by_id( $participant_id );
-
-        if ( ! $participant || absint( $participant['order_id'] ) !== $order_id ) {
-            return false;
-        }
-
-        $reservation_id = absint( $participant['reservation_id'] );
-        if ( ! $reservation_id ) {
-            return false;
-        }
-
-        $reservation = WCAI_Reservations::get_by_id( $reservation_id );
-        if ( ! $reservation || ! in_array( $reservation->status, array( 'pending', 'confirmed' ), true ) ) {
-            return false;
-        }
-
-        $order = wc_get_order( $order_id );
-        if ( ! $order ) {
-            return false;
-        }
-
-        if ( ! class_exists( 'WCAI_Assinatura' ) ) {
-            return false;
-        }
-
-        $reflection = new ReflectionClass( 'WCAI_Assinatura' );
-        if ( ! $reflection->hasMethod( 'generate_and_save_ticket' ) ) {
-            return false;
-        }
-
-        // Este método legado não cria nem migra participantes.
-        // A emissão canônica continua pertencendo ao fluxo de assinatura atual.
-        return false;
-    }
-
     // --- NOVA FUNÇÃO DE DISPARO DE E-MAIL ---
     private function send_ticket_email_via_shortcode($ticket_info) {
         $order_id = $ticket_info['order_id'];
@@ -563,13 +491,13 @@ class WCAI_Agenda {
         $to = '';
         if ( isset($_COOKIE['wcai_pax_email_temp']) && is_email($_COOKIE['wcai_pax_email_temp']) ) {
             $to = sanitize_email($_COOKIE['wcai_pax_email_temp']);
-            error_log('[WCAI] Usando e-mail capturado do cookie: ' . $to);
+            error_log( '[WCAI] Usando e-mail capturado do cookie.' );
             // Limpa o cookie do email para não ficar "sujo"
             setcookie('wcai_pax_email_temp', '', time() - 3600, '/');
         } else {
             // 2. FALLBACK: Usa o Billing Email
             $to = $order->get_billing_email();
-            error_log('[WCAI] E-mail capturado não encontrado. Usando Billing: ' . $to);
+            error_log( '[WCAI] E-mail capturado não encontrado; usando e-mail do pedido.' );
         }
 
         if ( empty($to) ) {
@@ -577,12 +505,12 @@ class WCAI_Agenda {
             return;
         }
 
-        $nome_pax = $ticket_info['nome'];
-        $qr_img = $ticket_info['qr_url'];
-        $subject = "🎟️ Seu Ingresso - Pedido #$order_id";
+        $nome_pax = esc_html( $ticket_info['nome'] );
+        $qr_img = esc_url( $ticket_info['qr_url'] );
+        $subject = 'Seu Ingresso - Pedido #' . absint( $order_id );
         
-        $admin_email = get_option('admin_email');
-        $site_title = get_bloginfo('name');
+        $admin_email = sanitize_email( get_option( 'admin_email' ) );
+        $site_title = wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES );
         $headers = array(
             'Content-Type: text/html; charset=UTF-8',
             "From: $site_title <$admin_email>"
@@ -612,8 +540,9 @@ class WCAI_Agenda {
         ";
 
         $sent = wp_mail($to, $subject, $msg, $headers);
-        if($sent) error_log('[WCAI] Sucesso no envio do e-mail para: ' . $to);
-        else error_log('[WCAI] Falha no wp_mail.');
+        if ( ! $sent ) {
+            error_log( '[WCAI] Falha no envio do ingresso por e-mail.' );
+        }
     }
 
     public function ajax_clear_cache() {

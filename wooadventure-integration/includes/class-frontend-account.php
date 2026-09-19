@@ -23,6 +23,7 @@ class WCAI_Frontend_Account {
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts')); 
         add_action('add_meta_boxes', array($this, 'register_admin_metabox'));
         add_action('woocommerce_process_shop_order_meta', array($this, 'admin_save'), 10, 2);
+        add_action('woocommerce_admin_order_data_after_order_details', array($this, 'render_hpos_admin_content'), 20, 1);
     }
 
     // =========================================================================
@@ -94,7 +95,12 @@ class WCAI_Frontend_Account {
                         </td>
                         <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle; text-align:center;">
                             <?php if ( $has_ticket && !empty($ticket_hash) ): ?>
-                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=<?php echo esc_attr($ticket_hash); ?>" style="width:80px; height:80px; border:1px solid #ccc; padding:2px;">
+                                <?php $ticket_qr_url = class_exists('WCAI_Assinatura') ? WCAI_Assinatura::generate_local_qr($ticket_hash, absint($p['id'])) : false; ?>
+                                <?php if ( $ticket_qr_url && ! is_wp_error($ticket_qr_url) ) : ?>
+                                    <img src="<?php echo esc_url($ticket_qr_url); ?>" style="width:80px; height:80px; border:1px solid #ccc; padding:2px;" alt="QR Code">
+                                <?php else : ?>
+                                    <span style="color:#d63638;">QR indisponível</span>
+                                <?php endif; ?>
                                 <div style="font-size:10px; color:#46b450; font-weight:bold; margin-top:2px;">✅ Ativo</div>
                             <?php elseif ( $has_ticket ): ?>
                                 <span style="color:#46b450; font-weight:bold;">✅ Assinado</span><br><small style="color:#999;">(QR gerando...)</small>
@@ -106,7 +112,8 @@ class WCAI_Frontend_Account {
                         <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle;">
                             <?php if ( $has_ticket && !empty($ticket_hash) ): ?>
                                 <?php 
-                                    $msg_whats = "Olá " . $p['nome_completo'] . ", aqui está seu ingresso para o passeio! Acesse o QR Code: https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" . $ticket_hash;
+                                    $ticket_qr_url = class_exists('WCAI_Assinatura') ? WCAI_Assinatura::generate_local_qr($ticket_hash, absint($p['id'])) : false;
+                                    $msg_whats = "Olá " . $p['nome_completo'] . ", aqui está seu ingresso para o passeio! Acesse o QR Code: " . ( $ticket_qr_url && ! is_wp_error($ticket_qr_url) ? $ticket_qr_url : '' );
                                     $link_whats = "https://wa.me/?text=" . urlencode($msg_whats);
                                 ?>
                                 <a href="<?php echo esc_url($link_whats); ?>" target="_blank" class="button" style="font-size:12px; padding:5px 10px; background-color:#25D366; color:white; border:none; text-decoration:none; display:inline-block;">📲 Enviar Whats</a>
@@ -152,7 +159,7 @@ class WCAI_Frontend_Account {
 
     public function enqueue_admin_scripts( $hook ) {
         $screen = get_current_screen();
-        if ( $screen && 'shop_order' === $screen->post_type ) {
+        if ( $screen && ( 'shop_order' === $screen->post_type || 'woocommerce_page_wc-orders' === $screen->id ) ) {
             wp_enqueue_script( 'jquery-mask', 'https://cdnjs.cloudflare.com/ajax/libs/jquery.mask/1.14.16/jquery.mask.min.js', array( 'jquery' ), '1.14.16', true );
             wp_add_inline_script( 'jquery-mask', "
                 jQuery(document).ready(function($){ 
@@ -388,11 +395,23 @@ class WCAI_Frontend_Account {
     // 4. ADMIN (LAYOUT OTIMIZADO - COLUNAS DIVIDIDAS)
     // =========================================================================
     public function register_admin_metabox() {
+        if ( class_exists( 'Automattic\\WooCommerce\\Utilities\\OrderUtil' ) && Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ) {
+            return;
+        }
+
         add_meta_box('wcai_participants_box', 'Lista de Participantes (DB)', array($this, 'render_admin_content'), 'shop_order', 'normal', 'high');
     }
 
-    public function render_admin_content($post) {
-        $order = wc_get_order($post->ID);
+    public function render_hpos_admin_content( $order ) {
+        if ( ! $order instanceof WC_Order ) {
+            return;
+        }
+
+        $this->render_admin_content( $order );
+    }
+
+    public function render_admin_content($object) {
+        $order = $object instanceof WC_Order ? $object : wc_get_order($object->ID);
         wp_nonce_field( 'wcai_admin_participants', 'wcai_admin_participants_nonce' );
         $participants = $this->get_participants_safe($order);
         

@@ -725,7 +725,9 @@ class WCAI_Scanner {
 
                 this.queue.push({ id: paxId, mode: mode, time: now.toISOString() });
 
-                this.queue = this.queue.slice(-200);\n                localStorage.setItem('wcai_queue', JSON.stringify(this.queue));\n                localStorage.setItem('wcai_queue_updated_at', String(Date.now()));
+                this.queue = this.queue.slice(-200);
+                localStorage.setItem('wcai_queue', JSON.stringify(this.queue));
+                localStorage.setItem('wcai_queue_updated_at', String(Date.now()));
 
                 this.updateUI(); this.sync();
 

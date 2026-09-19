@@ -111,6 +111,14 @@ class WCAI_Assinatura {
 
         $id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
 
+        if ( ! $id ) {
+            wp_send_json_error( 'Pedido inválido.', 400 );
+        }
+
+        if ( $this->signature_rate_limited( $id ) ) {
+            wp_send_json_error( 'Muitas tentativas. Aguarde alguns minutos e tente novamente.', 429 );
+        }
+
         if ( wc_get_order( $id ) ) {
             wp_send_json_success();
         }
@@ -257,6 +265,20 @@ class WCAI_Assinatura {
             wp_send_json_error( $ticket_data->get_error_message(), 500 );
         }
 
+        $this->set_ticket_session_cookie( $pedido_id, absint( $participant['id'] ), $post_id );
+
+        setcookie(
+            'wcai_pax_session',
+            '',
+            array(
+                'expires' => time() - HOUR_IN_SECONDS,
+                'path' => '/',
+                'secure' => is_ssl(),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            )
+        );
+
         wp_send_json_success(
             array(
                 'ticket_url' => $ticket_data['qr_url'],
@@ -337,6 +359,20 @@ class WCAI_Assinatura {
             return new WP_Error( 'wcai_signature_participant_update', 'Não foi possível atualizar o participante.' );
         }
 
+        $qr_url = self::generate_local_qr( $hash, absint( $participant['id'] ) );
+
+        if ( is_wp_error( $qr_url ) ) {
+            WCAI_Participants_DB::update(
+                $participant['id'],
+                array(
+                    'ticket_hash'   => $previous_hash,
+                    'termo_assinado' => $previous_signed ? 1 : 0,
+                )
+            );
+
+            return $qr_url;
+        }
+
         $acceptance = WCAI_Legal_Acceptances::record_for_participant(
             $participant['id'],
             0,
@@ -355,6 +391,10 @@ class WCAI_Assinatura {
                 )
             );
 
+            if ( '' === $previous_hash ) {
+                self::delete_local_qr( $hash, absint( $participant['id'] ) );
+            }
+
             return $acceptance;
         }
 
@@ -368,8 +408,6 @@ class WCAI_Assinatura {
             )
         );
 
-        $qr_url = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' . rawurlencode( $hash );
-
         return array(
             'hash'   => $hash,
             'qr_url' => $qr_url,
@@ -377,17 +415,205 @@ class WCAI_Assinatura {
         );
     }
 
-    private function signature_rate_limited( $order_id, $identifier = '' ) {
-        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
-        $identifier = preg_replace( '/\D/', '', (string) $identifier );
-        $key = 'wcai_sig_rate_' . md5( $ip . '|' . absint( $order_id ) . '|' . $identifier );
-        $attempts = absint( get_transient( $key ) );
-
-        if ( $attempts >= 10 ) {
-            return true;
+    public static function consume_ticket_session() {
+        if ( empty( $_COOKIE['wcai_ticket_session'] ) ) {
+            return false;
         }
 
-        set_transient( $key, $attempts + 1, 10 * MINUTE_IN_SECONDS );
+        $parts = explode( '|', sanitize_text_field( wp_unslash( $_COOKIE['wcai_ticket_session'] ) ) );
+        if ( 4 !== count( $parts ) ) {
+            return false;
+        }
+
+        $order_id = absint( $parts[0] );
+        $participant_id = absint( $parts[1] );
+        $signature_post_id = absint( $parts[2] );
+        $payload = $order_id . '|' . $participant_id . '|' . $signature_post_id;
+        $expected = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+
+        setcookie(
+            'wcai_ticket_session',
+            '',
+            array(
+                'expires' => time() - HOUR_IN_SECONDS,
+                'path' => '/',
+                'secure' => is_ssl(),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            )
+        );
+
+        if (
+            ! $order_id ||
+            ! $participant_id ||
+            ! $signature_post_id ||
+            ! hash_equals( $expected, $parts[3] ) ||
+            ! class_exists( 'WCAI_Participants_DB' )
+        ) {
+            return false;
+        }
+
+        $participant = WCAI_Participants_DB::get_by_id( $participant_id );
+        if (
+            ! $participant ||
+            absint( $participant['order_id'] ) !== $order_id ||
+            absint( $participant['reservation_id'] ) < 1
+        ) {
+            return false;
+        }
+
+        if (
+            ! class_exists( 'WCAI_Legal_Acceptances' ) ||
+            'accepted' !== WCAI_Legal_Acceptances::legal_status(
+                $participant_id,
+                absint( $participant['reservation_id'] )
+            )
+        ) {
+            return false;
+        }
+
+        $hash = ! empty( $participant['ticket_hash'] ) ? (string) $participant['ticket_hash'] : '';
+        if ( '' === $hash ) {
+            return false;
+        }
+
+        $qr_url = self::generate_local_qr( $hash, $participant_id );
+        if ( is_wp_error( $qr_url ) ) {
+            return false;
+        }
+
+        return array(
+            'hash'    => $hash,
+            'qr_url'  => $qr_url,
+            'nome'    => $participant['nome_completo'],
+            'order_id' => $order_id,
+            'cpf'     => '',
+        );
+    }
+
+    private function set_ticket_session_cookie( $order_id, $participant_id, $signature_post_id ) {
+        $payload = absint( $order_id ) . '|' . absint( $participant_id ) . '|' . absint( $signature_post_id );
+        $signature = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+
+        setcookie(
+            'wcai_ticket_session',
+            $payload . '|' . $signature,
+            array(
+                'expires' => time() + 5 * MINUTE_IN_SECONDS,
+                'path' => '/',
+                'secure' => is_ssl(),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            )
+        );
+    }
+
+    private static function delete_local_qr( $hash, $participant_id ) {
+        $upload = wp_upload_dir();
+        if ( ! empty( $upload['error'] ) || empty( $upload['basedir'] ) ) {
+            return;
+        }
+
+        $subdir = 'wcai-tickets/' . gmdate( 'Y/m' );
+        $filename = 'ticket-' . absint( $participant_id ) . '-' . substr( hash( 'sha256', $hash ), 0, 32 ) . '.png';
+        $filepath = trailingslashit( $upload['basedir'] ) . $subdir . '/' . $filename;
+
+        if ( file_exists( $filepath ) ) {
+            wp_delete_file( $filepath );
+        }
+    }
+
+    public static function generate_local_qr( $hash, $participant_id ) {
+        $hash = sanitize_text_field( $hash );
+        $participant_id = absint( $participant_id );
+
+        if ( '' === $hash || ! $participant_id ) {
+            return new WP_Error( 'wcai_qr_invalid_data', 'Dados inválidos para geração do ingresso.' );
+        }
+
+        if ( ! function_exists( 'imagepng' ) || ! function_exists( 'imagecreatetruecolor' ) ) {
+            return new WP_Error( 'wcai_qr_gd_missing', 'O servidor não possui suporte GD para gerar o ingresso.' );
+        }
+
+        $library = dirname( __DIR__ ) . '/vendor/qrcode/qrcode.php';
+        if ( ! file_exists( $library ) ) {
+            return new WP_Error( 'wcai_qr_library_missing', 'Biblioteca local de QR Code indisponível.' );
+        }
+
+        require_once $library;
+
+        if ( ! class_exists( 'WCAI_QRCode' ) ) {
+            return new WP_Error( 'wcai_qr_generator_missing', 'Gerador local de QR Code indisponível.' );
+        }
+
+        $upload = wp_upload_dir();
+        if ( ! empty( $upload['error'] ) || empty( $upload['basedir'] ) || empty( $upload['baseurl'] ) ) {
+            return new WP_Error( 'wcai_qr_upload_dir', 'Diretório de uploads indisponível.' );
+        }
+
+        $subdir = 'wcai-tickets/' . gmdate( 'Y/m' );
+        $directory = trailingslashit( $upload['basedir'] ) . $subdir;
+
+        if ( ! wp_mkdir_p( $directory ) ) {
+            return new WP_Error( 'wcai_qr_directory', 'Não foi possível preparar o diretório do ingresso.' );
+        }
+
+        $filename = 'ticket-' . $participant_id . '-' . substr( hash( 'sha256', $hash ), 0, 32 ) . '.png';
+        $filepath = trailingslashit( $directory ) . $filename;
+        $url = trailingslashit( $upload['baseurl'] ) . $subdir . '/' . rawurlencode( $filename );
+
+        if ( file_exists( $filepath ) ) {
+            return $url;
+        }
+
+        try {
+            $generator = new WCAI_QRCode(
+                $hash,
+                array(
+                    's'  => 'qrl',
+                    'sf' => 6,
+                    'p'  => 12,
+                )
+            );
+
+            $image = $generator->render_image();
+            $saved = imagepng( $image, $filepath, 6 );
+            imagedestroy( $image );
+        } catch ( Throwable $exception ) {
+            return new WP_Error( 'wcai_qr_generation_failed', 'Não foi possível gerar o ingresso.' );
+        }
+
+        if ( ! $saved || ! file_exists( $filepath ) ) {
+            return new WP_Error( 'wcai_qr_write_failed', 'Não foi possível salvar o ingresso.' );
+        }
+
+        return $url;
+    }
+
+    private function signature_rate_limited( $order_id, $identifier = '' ) {
+        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
+        $order_id = absint( $order_id );
+        $identifier = preg_replace( '/\D/', '', (string) $identifier );
+
+        $keys = array(
+            'wcai_sig_rate_order_' . md5( $ip . '|' . $order_id ),
+        );
+
+        if ( '' !== $identifier ) {
+            $keys[] = 'wcai_sig_rate_identifier_' . md5( $ip . '|' . $order_id . '|' . $identifier );
+        }
+
+        foreach ( $keys as $key ) {
+            if ( absint( get_transient( $key ) ) >= 10 ) {
+                return true;
+            }
+        }
+
+        foreach ( $keys as $key ) {
+            $attempts = absint( get_transient( $key ) );
+            set_transient( $key, $attempts + 1, 10 * MINUTE_IN_SECONDS );
+        }
+
         return false;
     }
 
