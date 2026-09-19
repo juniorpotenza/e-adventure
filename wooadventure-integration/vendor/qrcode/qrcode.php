@@ -26,12 +26,6 @@ DEALINGS IN THE SOFTWARE.
 
 \****************************************************************************/
 
-if (realpath(__FILE__) == realpath($_SERVER['SCRIPT_FILENAME'])) {
-	$generator = new WCAI_QRCode($_REQUEST['d'], $_REQUEST);
-	$generator->output_image();
-	exit(0);
-}
-
 class WCAI_QRCode {
 	private $data;
 	private $options;
