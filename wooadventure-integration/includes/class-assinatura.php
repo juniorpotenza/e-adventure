@@ -111,6 +111,14 @@ class WCAI_Assinatura {
 
         $id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
 
+        if ( ! $id ) {
+            wp_send_json_error( 'Pedido inválido.', 400 );
+        }
+
+        if ( $this->signature_rate_limited( $id ) ) {
+            wp_send_json_error( 'Muitas tentativas. Aguarde alguns minutos e tente novamente.', 429 );
+        }
+
         if ( wc_get_order( $id ) ) {
             wp_send_json_success();
         }
@@ -584,15 +592,28 @@ class WCAI_Assinatura {
 
     private function signature_rate_limited( $order_id, $identifier = '' ) {
         $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
+        $order_id = absint( $order_id );
         $identifier = preg_replace( '/\D/', '', (string) $identifier );
-        $key = 'wcai_sig_rate_' . md5( $ip . '|' . absint( $order_id ) . '|' . $identifier );
-        $attempts = absint( get_transient( $key ) );
 
-        if ( $attempts >= 10 ) {
-            return true;
+        $keys = array(
+            'wcai_sig_rate_order_' . md5( $ip . '|' . $order_id ),
+        );
+
+        if ( '' !== $identifier ) {
+            $keys[] = 'wcai_sig_rate_identifier_' . md5( $ip . '|' . $order_id . '|' . $identifier );
         }
 
-        set_transient( $key, $attempts + 1, 10 * MINUTE_IN_SECONDS );
+        foreach ( $keys as $key ) {
+            if ( absint( get_transient( $key ) ) >= 10 ) {
+                return true;
+            }
+        }
+
+        foreach ( $keys as $key ) {
+            $attempts = absint( get_transient( $key ) );
+            set_transient( $key, $attempts + 1, 10 * MINUTE_IN_SECONDS );
+        }
+
         return false;
     }
 
