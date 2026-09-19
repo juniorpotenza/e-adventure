@@ -450,128 +450,102 @@ class WCAI_Agenda {
     // MÉTODOS DE RASTREAMENTO (MODIFICADO: Ticket + Check-in + E-mail)
     // =========================================================================
     public function render_success_tracker() {
-        error_log('[WCAI] Shortcode [wcai_confirma_assinatura] ACIONADO.');
-
-        if ( isset($_COOKIE['wcai_pax_session']) ) {
-            $data = explode('|', $_COOKIE['wcai_pax_session']);
-            if(count($data) == 2) {
-                // Processa assinatura e gera ticket
-                $ticket_info = $this->sign_waiver_internal(intval($data[0]), sanitize_text_field($data[1]));
-                
-                // Limpa o cookie da sessão
-                setcookie('wcai_pax_session', '', time() - 3600, '/'); 
-                
-                // Se gerou ticket, mostra o QR Code e TENTA ENVIAR E-MAIL
-                if ( $ticket_info && !empty($ticket_info['qr_url']) ) {
-                    error_log('[WCAI] Ticket gerado. Preparando envio de e-mail...');
-                    
-                    // --- DISPARO DE E-MAIL ---
-                    $this->send_ticket_email_via_shortcode($ticket_info);
-                    // -------------------------
-
-                    return '
-                    <div style="text-align:center; padding:20px; background:#fff; border:1px solid #d4edda; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.05); margin-bottom:20px;">
-                        <div style="color:#155724; font-size:18px; font-weight:bold; margin-bottom:15px;">✅ Assinatura Confirmada!</div>
-                        <p>O seu ingresso foi enviado por e-mail. Também pode guardá-lo agora:</p>
-                        
-                        <div style="margin:20px auto; display:inline-block; border:1px solid #ccc; padding:10px; background:#fff;">
-                            <img src="' . $ticket_info['qr_url'] . '" alt="QR Code Ticket" style="width:200px; height:200px;">
-                        </div>
-                        
-                        <div style="font-size:12px; color:#777; margin-top:10px;">
-                            Participante: <strong>' . esc_html($ticket_info['nome']) . '</strong><br>
-                            Pedido: #' . esc_html($ticket_info['order_id']) . '
-                        </div>
-                        
-                        <button onclick="window.print()" style="margin-top:15px; padding:10px 20px; background:#007cba; color:#fff; border:none; border-radius:4px; cursor:pointer;">🖨️ Imprimir / Salvar</button>
-                    </div>';
-                }
-
-                return '<div style="padding:15px;background:#d4edda;color:#155724;border-radius:5px;text-align:center;">✅ Assinatura confirmada com sucesso!</div>';
-            }
-        } else {
-            // Caso opcional: Cookie não existe (refresh de página)
-            // error_log('[WCAI] ALERTA: Shortcode rodou, mas o cookie wcai_pax_session NÃO foi encontrado.');
+        if ( empty( $_COOKIE['wcai_pax_session'] ) ) {
+            return '';
         }
-        return '';
+
+        $data = explode( '|', sanitize_text_field( wp_unslash( $_COOKIE['wcai_pax_session'] ) ) );
+
+        if ( 3 !== count( $data ) ) {
+            return '';
+        }
+
+        $ticket_info = $this->sign_waiver_internal( absint( $data[0] ), absint( $data[1] ), $data[2] );
+
+        setcookie(
+            'wcai_pax_session',
+            '',
+            array(
+                'expires' => time() - HOUR_IN_SECONDS,
+                'path' => '/',
+                'secure' => is_ssl(),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            )
+        );
+
+        if ( ! $ticket_info || empty( $ticket_info['qr_url'] ) ) {
+            return '';
+        }
+
+        $this->send_ticket_email_via_shortcode( $ticket_info );
+
+        return '
+        <div style="text-align:center; padding:20px; background:#fff; border:1px solid #d4edda; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.05); margin-bottom:20px;">
+            <div style="color:#155724; font-size:18px; font-weight:bold; margin-bottom:15px;">✅ Assinatura Confirmada!</div>
+            <p>O seu ingresso foi enviado por e-mail. Também pode guardá-lo agora:</p>
+            <div style="margin:20px auto; display:inline-block; border:1px solid #ccc; padding:10px; background:#fff;">
+                <img src="' . esc_url( $ticket_info['qr_url'] ) . '" alt="QR Code Ticket" style="width:200px; height:200px;">
+            </div>
+            <div style="font-size:12px; color:#777; margin-top:10px;">
+                Participante: <strong>' . esc_html( $ticket_info['nome'] ) . '</strong><br>
+                Pedido: #' . esc_html( $ticket_info['order_id'] ) . '
+            </div>
+            <button onclick="window.print()" style="margin-top:15px; padding:10px 20px; background:#007cba; color:#fff; border:none; border-radius:4px; cursor:pointer;">🖨️ Imprimir / Salvar</button>
+        </div>';
     }
 
-    private function sign_waiver_internal($order_id, $cpf_clean) {
-        $order = wc_get_order($order_id); if(!$order) return false;
-        
-        $sig = date('Y-m-d H:i:s') . ' | IP: ' . $_SERVER['REMOTE_ADDR'];
-        $order->update_meta_data('_waiver_signed_' . $cpf_clean, $sig);
-        $order->save();
-        
-        if(class_exists('WCAI_Participants_DB')) {
-            global $wpdb; 
-            $table = WCAI_Participants_DB::get_table_name();
-            
-            // Busca participante (já incluindo hash se existir)
-            $pax = $wpdb->get_row($wpdb->prepare("SELECT id, nome_completo, ticket_hash FROM $table WHERE order_id=%d AND REPLACE(REPLACE(cpf,'.',''),'-','')=%s", $order_id, $cpf_clean));
-            
-            // --- AUTO-MIGRAÇÃO (Se não existe, cria agora) ---
-            if(!$pax) {
-                // error_log('[WCAI] Participante não achado no BD. Tentando migrar CPF: ' . $cpf_clean);
-                $b_cpf = preg_replace('/\D/', '', $order->get_meta('_billing_cpf') ?: $order->get_meta('billing_cpf'));
-                $new_data = [];
+    private function sign_waiver_internal( $order_id, $participant_id, $signature ) {
+        $order_id = absint( $order_id );
+        $participant_id = absint( $participant_id );
 
-                if($b_cpf === $cpf_clean) {
-                    $new_data = [
-                        'order_id' => $order_id,
-                        'customer_id' => $order->get_customer_id(),
-                        'nome_completo' => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
-                        'cpf' => $b_cpf,
-                        'data_nascimento' => $order->get_meta('billing_birthdate') ?: ''
-                    ];
-                } else {
-                    $meta = $order->get_meta('_additional_participants');
-                    if(is_array($meta)) {
-                        foreach($meta as $m) {
-                            if(preg_replace('/[^0-9]/','',$m['cpf']) === $cpf_clean) {
-                                $new_data = [
-                                    'order_id' => $order_id,
-                                    'customer_id' => $order->get_customer_id(),
-                                    'nome_completo' => $m['nome_completo'],
-                                    'cpf' => $m['cpf'],
-                                    'data_nascimento' => $m['data_nascimento']
-                                ];
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if(!empty($new_data)) {
-                    WCAI_Participants_DB::add($new_data);
-                    $pax = $wpdb->get_row($wpdb->prepare("SELECT id, nome_completo, ticket_hash FROM $table WHERE order_id=%d AND REPLACE(REPLACE(cpf,'.',''),'-','')=%s", $order_id, $cpf_clean));
-                }
-            }
-
-            if($pax) {
-                // Gera o Hash se não existir
-                $hash = $pax->ticket_hash;
-                if(empty($hash)) {
-                    $salt = wp_salt();
-                    $hash = md5($pax->id . $order_id . $salt . time());
-                    // Salva Ticket e Check
-                    WCAI_Participants_DB::update($pax->id, array('ticket_hash' => $hash, 'termo_assinado' => 1));
-                } else {
-                    WCAI_Participants_DB::update($pax->id, array('termo_assinado' => 1));
-                }
-                
-                $this->clear_calendar_cache_internal();
-                
-                return array(
-                    'qr_url' => "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" . $hash,
-                    'nome' => $pax->nome_completo,
-                    'order_id' => $order_id,
-                    'cpf' => $cpf_clean
-                );
-            }
+        if ( ! $order_id || ! $participant_id || ! is_string( $signature ) || '' === $signature ) {
+            return false;
         }
-        
-        $this->clear_calendar_cache_internal();
+
+        $payload = $order_id . '|' . $participant_id;
+        $expected = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+
+        if ( ! hash_equals( $expected, $signature ) ) {
+            return false;
+        }
+
+        if ( ! class_exists( 'WCAI_Participants_DB' ) || ! class_exists( 'WCAI_Reservations' ) ) {
+            return false;
+        }
+
+        $participant = WCAI_Participants_DB::get_by_id( $participant_id );
+
+        if ( ! $participant || absint( $participant['order_id'] ) !== $order_id ) {
+            return false;
+        }
+
+        $reservation_id = absint( $participant['reservation_id'] );
+        if ( ! $reservation_id ) {
+            return false;
+        }
+
+        $reservation = WCAI_Reservations::get_by_id( $reservation_id );
+        if ( ! $reservation || ! in_array( $reservation->status, array( 'pending', 'confirmed' ), true ) ) {
+            return false;
+        }
+
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return false;
+        }
+
+        if ( ! class_exists( 'WCAI_Assinatura' ) ) {
+            return false;
+        }
+
+        $reflection = new ReflectionClass( 'WCAI_Assinatura' );
+        if ( ! $reflection->hasMethod( 'generate_and_save_ticket' ) ) {
+            return false;
+        }
+
+        // Este método legado não cria nem migra participantes.
+        // A emissão canônica continua pertencendo ao fluxo de assinatura atual.
         return false;
     }
 

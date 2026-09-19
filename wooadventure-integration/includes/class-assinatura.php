@@ -128,6 +128,10 @@ class WCAI_Assinatura {
             wp_send_json_error();
         }
 
+        if ( $this->signature_rate_limited( $order_id, $cpf_input ) ) {
+            wp_send_json_error( 'Muitas tentativas. Aguarde alguns minutos e tente novamente.', 429 );
+        }
+
         $order = wc_get_order( $order_id );
         if ( ! $order ) {
             wp_send_json_error();
@@ -168,6 +172,10 @@ class WCAI_Assinatura {
 
         if ( ! $this->valid_session_for_participant( $pedido_id, $participant['id'] ) ) {
             wp_send_json_error( 'Sessão de assinatura inválida ou expirada.', 403 );
+        }
+
+        if ( $this->signature_rate_limited( $pedido_id, $participant['id'] ) ) {
+            wp_send_json_error( 'Muitas tentativas de assinatura. Aguarde alguns minutos e tente novamente.', 429 );
         }
 
         if (
@@ -367,6 +375,20 @@ class WCAI_Assinatura {
             'qr_url' => $qr_url,
             'nome'   => $participant['nome_completo'],
         );
+    }
+
+    private function signature_rate_limited( $order_id, $identifier = '' ) {
+        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
+        $identifier = preg_replace( '/\D/', '', (string) $identifier );
+        $key = 'wcai_sig_rate_' . md5( $ip . '|' . absint( $order_id ) . '|' . $identifier );
+        $attempts = absint( get_transient( $key ) );
+
+        if ( $attempts >= 10 ) {
+            return true;
+        }
+
+        set_transient( $key, $attempts + 1, 10 * MINUTE_IN_SECONDS );
+        return false;
     }
 
     private function set_session_cookie( $order_id, $participant_id ) {

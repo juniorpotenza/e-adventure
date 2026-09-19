@@ -8,6 +8,7 @@ class WCAI_Capabilities {
     const VIEW_SENSITIVE    = 'wcai_view_sensitive_data';
     const MANAGE_LEGAL      = 'wcai_manage_legal_documents';
     const MANAGE_INCIDENTS  = 'wcai_manage_incidents';
+    const MANAGE_PARTICIPANTS = 'wcai_manage_participants';
     const MANAGE_SETTINGS   = 'wcai_manage_settings';
 
     public static function all() {
@@ -18,6 +19,7 @@ class WCAI_Capabilities {
             self::VIEW_SENSITIVE,
             self::MANAGE_LEGAL,
             self::MANAGE_INCIDENTS,
+            self::MANAGE_PARTICIPANTS,
             self::MANAGE_SETTINGS,
         );
     }

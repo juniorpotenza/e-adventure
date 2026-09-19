@@ -245,7 +245,7 @@ class WCAI_Scanner {
 
                     <div class="wcai-sync-status" id="sync-indicator" onclick="Store.forceSync()">☁️ Sincronizado</div>
 
-                    <a href="<?php echo $logout_url; ?>" class="wcai-logout-btn">SAIR</a>
+                    <a href="<?php echo esc_url( $logout_url ); ?>" class="wcai-logout-btn" onclick="return Store.clearLocalData()">SAIR</a>
 
                 </div>
 
@@ -643,21 +643,60 @@ class WCAI_Scanner {
                 const sp = localStorage.getItem('wcai_pax');
                 const sq = localStorage.getItem('wcai_queue');
                 const cachedAt = parseInt(localStorage.getItem('wcai_pax_cached_at') || '0', 10);
+                const queueUpdatedAt = parseInt(localStorage.getItem('wcai_queue_updated_at') || '0', 10);
                 const cacheTtl = 12 * 60 * 60 * 1000;
+                const queueTtl = 24 * 60 * 60 * 1000;
 
                 if ( sp && cachedAt && (Date.now() - cachedAt) <= cacheTtl ) {
-                    try { this.pax = JSON.parse(sp); } catch (e) { this.pax = []; }
+                    try {
+                        this.pax = JSON.parse(sp);
+                        if ( ! Array.isArray(this.pax) ) this.pax = [];
+                        this.pax = this.pax.map(function(p) {
+                            return {
+                                id: Number(p.id) || 0,
+                                hash: typeof p.hash === 'string' ? p.hash : '',
+                                nome: typeof p.nome === 'string' ? p.nome : '',
+                                pedido: p.pedido != null ? String(p.pedido) : '',
+                                status: Number(p.status) || 0,
+                                entry_time: typeof p.entry_time === 'string' ? p.entry_time : '',
+                                tour_time: typeof p.tour_time === 'string' ? p.tour_time : '',
+                                data_agendada: typeof p.data_agendada === 'string' ? p.data_agendada : ''
+                            };
+                        }).filter(function(p) { return p.id > 0; });
+                    } catch (e) {
+                        this.pax = [];
+                    }
                 } else {
                     localStorage.removeItem('wcai_pax');
                     localStorage.removeItem('wcai_pax_cached_at');
                 }
 
-                if ( sq ) {
-                    try { this.queue = JSON.parse(sq); } catch (e) { this.queue = []; }
+                if ( sq && queueUpdatedAt && (Date.now() - queueUpdatedAt) <= queueTtl ) {
+                    try {
+                        this.queue = JSON.parse(sq);
+                        if ( ! Array.isArray(this.queue) ) this.queue = [];
+                    } catch (e) {
+                        this.queue = [];
+                    }
+                } else {
+                    this.queue = [];
+                    localStorage.removeItem('wcai_queue');
+                    localStorage.removeItem('wcai_queue_updated_at');
                 }
 
-                this.sync(); setInterval(() => this.sync(), 30000);
+                this.sync();
+                setInterval(() => this.sync(), 30000);
 
+            },
+
+            clearLocalData: function() {
+                localStorage.removeItem('wcai_pax');
+                localStorage.removeItem('wcai_pax_cached_at');
+                localStorage.removeItem('wcai_queue');
+                localStorage.removeItem('wcai_queue_updated_at');
+                this.pax = [];
+                this.queue = [];
+                return true;
             },
 
             find: function(term) {
@@ -686,7 +725,7 @@ class WCAI_Scanner {
 
                 this.queue.push({ id: paxId, mode: mode, time: now.toISOString() });
 
-                localStorage.setItem('wcai_queue', JSON.stringify(this.queue));
+                this.queue = this.queue.slice(-200);\n                localStorage.setItem('wcai_queue', JSON.stringify(this.queue));\n                localStorage.setItem('wcai_queue_updated_at', String(Date.now()));
 
                 this.updateUI(); this.sync();
 
@@ -716,9 +755,24 @@ class WCAI_Scanner {
 
                     if(res.success) {
 
-                        Store.queue = []; localStorage.setItem('wcai_queue', '[]');
+                        Store.queue = []; localStorage.setItem('wcai_queue', '[]'); localStorage.setItem('wcai_queue_updated_at', String(Date.now()));
 
-                        if(res.data.full_manifest) { Store.pax = res.data.full_manifest; localStorage.setItem('wcai_pax', JSON.stringify(Store.pax)); localStorage.setItem('wcai_pax_cached_at', String(Date.now())); }
+                        if(res.data.full_manifest) {
+                            Store.pax = res.data.full_manifest.map(function(p) {
+                                return {
+                                    id: Number(p.id) || 0,
+                                    hash: typeof p.hash === 'string' ? p.hash : '',
+                                    nome: typeof p.nome === 'string' ? p.nome : '',
+                                    pedido: p.pedido != null ? String(p.pedido) : '',
+                                    status: Number(p.status) || 0,
+                                    entry_time: typeof p.entry_time === 'string' ? p.entry_time : '',
+                                    tour_time: typeof p.tour_time === 'string' ? p.tour_time : '',
+                                    data_agendada: typeof p.data_agendada === 'string' ? p.data_agendada : ''
+                                };
+                            }).filter(function(p) { return p.id > 0; });
+                            localStorage.setItem('wcai_pax', JSON.stringify(Store.pax));
+                            localStorage.setItem('wcai_pax_cached_at', String(Date.now()));
+                        }
 
                         ind.innerHTML = '☁️ Sincronizado'; ind.style.color='#28a745';
 
