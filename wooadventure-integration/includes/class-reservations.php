@@ -25,6 +25,18 @@ class WCAI_Reservations {
         self::update_status_for_order( $order_id, 'cancelled' );
     }
 
+    public static function get_by_id( $reservation_id ) {
+        global $wpdb;
+        $table = self::get_table_name();
+        return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE id = %d", absint( $reservation_id ) ) );
+    }
+
+    public static function get_by_order_item( $order_item_id ) {
+        global $wpdb;
+        $table = self::get_table_name();
+        return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE order_item_id = %d", absint( $order_item_id ) ) );
+    }
+
     public static function create_table() {
         global $wpdb;
         $table = self::get_table_name();
@@ -118,6 +130,22 @@ class WCAI_Reservations {
         }
 
         try {
+            if ( $order_item_id ) {
+                $existing = self::get_by_order_item( $order_item_id );
+
+                if ( $existing ) {
+                    if ( absint( $existing->departure_id ) !== $departure_id || absint( $existing->quantity ) !== $quantity ) {
+                        return new WP_Error( 'wcai_reservation_conflict', 'Este item do pedido já possui uma reserva incompatível.' );
+                    }
+
+                    if ( in_array( $existing->status, array( 'hold', 'pending', 'confirmed' ), true ) ) {
+                        return absint( $existing->id );
+                    }
+
+                    return new WP_Error( 'wcai_reservation_closed', 'A reserva deste item já foi encerrada.' );
+                }
+            }
+
             if ( $quantity > self::get_available_quantity( $departure_id ) ) {
                 return new WP_Error( 'wcai_capacity_exceeded', 'Não há vagas suficientes nesta saída.' );
             }
