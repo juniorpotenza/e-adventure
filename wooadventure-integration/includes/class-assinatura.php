@@ -351,6 +351,20 @@ class WCAI_Assinatura {
             return new WP_Error( 'wcai_signature_participant_update', 'Não foi possível atualizar o participante.' );
         }
 
+        $qr_url = self::generate_local_qr( $hash, absint( $participant['id'] ) );
+
+        if ( is_wp_error( $qr_url ) ) {
+            WCAI_Participants_DB::update(
+                $participant['id'],
+                array(
+                    'ticket_hash'   => $previous_hash,
+                    'termo_assinado' => $previous_signed ? 1 : 0,
+                )
+            );
+
+            return $qr_url;
+        }
+
         $acceptance = WCAI_Legal_Acceptances::record_for_participant(
             $participant['id'],
             0,
@@ -369,6 +383,10 @@ class WCAI_Assinatura {
                 )
             );
 
+            if ( '' === $previous_hash ) {
+                self::delete_local_qr( $hash, absint( $participant['id'] ) );
+            }
+
             return $acceptance;
         }
 
@@ -381,12 +399,6 @@ class WCAI_Assinatura {
                 'acceptance_id'  => absint( $acceptance ),
             )
         );
-
-        $qr_url = $this->generate_local_qr( $hash, absint( $participant['id'] ) );
-
-        if ( is_wp_error( $qr_url ) ) {
-            return $qr_url;
-        }
 
         return array(
             'hash'   => $hash,
@@ -486,6 +498,21 @@ class WCAI_Assinatura {
                 'samesite' => 'Lax',
             )
         );
+    }
+
+    private static function delete_local_qr( $hash, $participant_id ) {
+        $upload = wp_upload_dir();
+        if ( ! empty( $upload['error'] ) || empty( $upload['basedir'] ) ) {
+            return;
+        }
+
+        $subdir = 'wcai-tickets/' . gmdate( 'Y/m' );
+        $filename = 'ticket-' . absint( $participant_id ) . '-' . substr( hash( 'sha256', $hash ), 0, 32 ) . '.png';
+        $filepath = trailingslashit( $upload['basedir'] ) . $subdir . '/' . $filename;
+
+        if ( file_exists( $filepath ) ) {
+            wp_delete_file( $filepath );
+        }
     }
 
     public static function generate_local_qr( $hash, $participant_id ) {
