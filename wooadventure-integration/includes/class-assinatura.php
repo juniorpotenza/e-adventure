@@ -534,7 +534,7 @@ class WCAI_Assinatura {
 
         require_once $library;
 
-        if ( ! class_exists( 'QRCode' ) ) {
+        if ( ! class_exists( 'WCAI_QRCode' ) ) {
             return new WP_Error( 'wcai_qr_generator_missing', 'Gerador local de QR Code indisponível.' );
         }
 
@@ -559,7 +559,7 @@ class WCAI_Assinatura {
         }
 
         try {
-            $generator = new QRCode(
+            $generator = new WCAI_QRCode(
                 $hash,
                 array(
                     's'  => 'qrl',
