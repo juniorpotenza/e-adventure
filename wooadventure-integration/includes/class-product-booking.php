@@ -177,10 +177,10 @@ class WCAI_Product_Booking {
         woocommerce_wp_text_input(
             array(
                 'id'                => 'wcai_tour_children_max',
-                'label'             => 'Máximo de crianças por reserva',
+                'label'             => 'Referência de crianças por reserva',
                 'type'              => 'number',
                 'desc_tip'          => true,
-                'description'       => 'Opcional. Use para informar um limite operacional por reserva.',
+                'description'       => 'Informativo para o cliente; não altera automaticamente a quantidade de ingressos.',
                 'custom_attributes' => array(
                     'min'  => '0',
                     'max'  => '100',
@@ -351,7 +351,7 @@ class WCAI_Product_Booking {
         }
 
         echo '<div class="wcai-booking-context">';
-        echo '<strong>Escolha primeiro a data.</strong><span>Depois você verá cada horário com duração, ponto de encontro, tamanho do grupo e o quanto falta para formar a saída.</span>';
+        echo '<strong>Escolha primeiro a data.</strong><span>Depois você verá cada horário com duração, ponto de encontro, tamanho do grupo e o quanto falta para formar a saída. No calendário, por exemplo, <b>3/10</b> significa 3 participantes reservados de 10 necessários para atingir o mínimo.</span>';
         echo '</div>';
 
         echo '<div class="wcai-booking-section">';
@@ -509,7 +509,7 @@ class WCAI_Product_Booking {
                 var best = Math.max.apply(null, bookable.map(function (item) { return parseInt(item.available, 10); }));
                 var forming = bookable.filter(function (item) { return item.group_status === 'forming' && parseInt(item.minimum, 10) > 1; })[0];
                 if (forming) {
-                    return { state: best <= 3 ? 'few' : 'available', label: forming.reserved + '/' + forming.minimum };
+                    return { state: best <= 3 ? 'few' : 'available', label: forming.reserved + '/' + forming.minimum + ' grupo' };
                 }
                 return best <= 3 ? { state: 'few', label: best + ' vaga' + (best === 1 ? '' : 's') } : { state: 'available', label: best + ' vagas' };
             }
@@ -644,6 +644,7 @@ class WCAI_Product_Booking {
                 var meta = document.createElement('small');
                 var parts = [];
                 if (departure.available > 0) parts.push(departure.available + (departure.available === 1 ? ' vaga restante' : ' vagas restantes'));
+                if (departure.capacity) parts.push('Grupo até ' + departure.capacity);
                 else parts.push('Lotado');
                 if (departure.duration) parts.push(departure.duration + ' min');
                 if (departure.meeting_point) parts.push(departure.meeting_point);
@@ -691,6 +692,7 @@ class WCAI_Product_Booking {
                     var selectedMeta = document.createElement('small');
                     var selectedParts = [];
                     if (departure.duration) selectedParts.push(departure.duration + ' min');
+                    if (departure.capacity) selectedParts.push('Grupo até ' + departure.capacity);
                     if (departure.meeting_point) selectedParts.push(departure.meeting_point);
                     if (departure.available > 0) selectedParts.push(departure.available + ' vagas restantes');
                     selectedMeta.textContent = selectedParts.join(' • ');
