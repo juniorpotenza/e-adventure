@@ -121,22 +121,40 @@ class WCAI_Reservations {
 
     public static function get_open_departures_for_product( $product_id, $variation_id = 0 ) {
         $product_ids = array_filter( array_unique( array( absint( $product_id ), absint( $variation_id ) ) ) );
-        if ( empty( $product_ids ) ) return array();
 
-        return get_posts( array(
-            'post_type'      => WCAI_Departures::POST_TYPE,
-            'post_status'    => 'publish',
-            'posts_per_page' => -1,
-            'orderby'        => 'meta_value',
-            'meta_key'       => '_wcai_starts_at',
-            'order'          => 'ASC',
-            'meta_query'     => array(
-                'relation' => 'AND',
-                array( 'key' => '_wcai_product_id', 'value' => $product_ids, 'compare' => 'IN' ),
-                array( 'key' => '_wcai_departure_status', 'value' => array( 'open', 'confirmed' ), 'compare' => 'IN' ),
-                array( 'key' => '_wcai_starts_at', 'value' => current_time( 'Y-m-d\TH:i' ), 'compare' => '>=', 'type' => 'CHAR' ),
-            ),
-        ) );
+        if ( empty( $product_ids ) ) {
+            return array();
+        }
+
+        $departures = get_posts(
+            array(
+                'post_type' => WCAI_Departures::POST_TYPE,
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'orderby' => 'meta_value',
+                'meta_key' => '_wcai_starts_at',
+                'order' => 'ASC',
+                'meta_query' => array(
+                    'relation' => 'AND',
+                    array( 'key' => '_wcai_product_id', 'value' => $product_ids, 'compare' => 'IN' ),
+                    array( 'key' => '_wcai_departure_status', 'value' => array( 'open', 'confirmed' ), 'compare' => 'IN' ),
+                ),
+            )
+        );
+
+        $now = current_time( 'timestamp' );
+
+        return array_values(
+            array_filter(
+                $departures,
+                static function( $departure ) use ( $now ) {
+                    $start = WCAI_Data_Resolver::get_departure_start( $departure->ID );
+                    $timestamp = WCAI_Data_Resolver::parse_timestamp( $start );
+
+                    return $timestamp && $timestamp >= $now && self::is_booking_open( $departure->ID );
+                }
+            )
+        );
     }
 
     public static function has_open_departures_for_product( $product_id, $variation_id = 0 ) {
