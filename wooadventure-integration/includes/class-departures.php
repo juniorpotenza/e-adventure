@@ -49,57 +49,76 @@ class WCAI_Departures {
 
     public function render_details_box( $post ) {
         wp_nonce_field( self::NONCE, 'wcai_departure_nonce' );
+
         $values = array(
-            'product_id'       => absint( get_post_meta( $post->ID, '_wcai_product_id', true ) ),
-            'starts_at'        => get_post_meta( $post->ID, '_wcai_starts_at', true ),
+            'product_id' => absint( get_post_meta( $post->ID, '_wcai_product_id', true ) ),
+            'starts_at' => get_post_meta( $post->ID, '_wcai_starts_at', true ),
             'duration_minutes' => absint( get_post_meta( $post->ID, '_wcai_duration_minutes', true ) ),
-            'capacity'         => absint( get_post_meta( $post->ID, '_wcai_capacity', true ) ),
+            'capacity' => absint( get_post_meta( $post->ID, '_wcai_capacity', true ) ),
             'minimum_capacity' => absint( get_post_meta( $post->ID, '_wcai_minimum_capacity', true ) ),
-            'meeting_point'    => get_post_meta( $post->ID, '_wcai_meeting_point', true ),
-            'guide_id'         => absint( get_post_meta( $post->ID, '_wcai_guide_id', true ) ),
-            'status'           => get_post_meta( $post->ID, '_wcai_departure_status', true ) ?: 'draft',
+            'meeting_point' => get_post_meta( $post->ID, '_wcai_meeting_point', true ),
+            'guide_id' => absint( get_post_meta( $post->ID, '_wcai_guide_id', true ) ),
+            'status' => get_post_meta( $post->ID, '_wcai_departure_status', true ) ?: 'draft',
             'booking_cutoff_value' => absint( get_post_meta( $post->ID, '_wcai_booking_cutoff_value', true ) ),
             'booking_cutoff_unit' => get_post_meta( $post->ID, '_wcai_booking_cutoff_unit', true ) ?: 'hours',
+            'schedule_id' => absint( get_post_meta( $post->ID, '_wcai_schedule_id', true ) ),
         );
+
         $products = function_exists( 'wc_get_products' ) ? wc_get_products( array( 'limit' => -1, 'status' => 'publish', 'return' => 'objects' ) ) : array();
         $guides = get_users( array( 'role__in' => array( 'wcai_guide', 'administrator' ), 'orderby' => 'display_name' ) );
-        ?>
-        <p><label for="wcai_product_id"><strong>Produto</strong></label><br>
-            <select id="wcai_product_id" name="wcai_departure[product_id]" required>
-                <option value="">Selecione um produto</option>
-                <?php foreach ( $products as $product ) : ?>
-                    <option value="<?php echo esc_attr( $product->get_id() ); ?>" <?php selected( $values['product_id'], $product->get_id() ); ?>><?php echo esc_html( $product->get_name() ); ?></option>
-                <?php endforeach; ?>
-            </select></p>
-        <p><label for="wcai_starts_at"><strong>Início</strong></label><br>
-            <input id="wcai_starts_at" type="datetime-local" name="wcai_departure[starts_at]" value="<?php echo esc_attr( $values['starts_at'] ); ?>" required></p>
-        <p><label for="wcai_duration_minutes"><strong>Duração (minutos)</strong></label><br>
-            <input id="wcai_duration_minutes" type="number" min="1" name="wcai_departure[duration_minutes]" value="<?php echo esc_attr( $values['duration_minutes'] ); ?>"></p>
-        <p><label for="wcai_capacity"><strong>Capacidade</strong></label><br>
-            <input id="wcai_capacity" type="number" min="1" name="wcai_departure[capacity]" value="<?php echo esc_attr( $values['capacity'] ); ?>" required></p>
-        <p><label for="wcai_minimum_capacity"><strong>Mínimo para confirmação</strong></label><br>
-            <input id="wcai_minimum_capacity" type="number" min="1" name="wcai_departure[minimum_capacity]" value="<?php echo esc_attr( $values['minimum_capacity'] ); ?>"></p>
-        <p><label for="wcai_meeting_point"><strong>Ponto de encontro</strong></label><br>
-            <input id="wcai_meeting_point" class="widefat" type="text" name="wcai_departure[meeting_point]" value="<?php echo esc_attr( $values['meeting_point'] ); ?>"></p>
-        <p><label for="wcai_guide_id"><strong>Guia responsável</strong></label><br>
-            <select id="wcai_guide_id" name="wcai_departure[guide_id]"><option value="">Não definido</option>
-                <?php foreach ( $guides as $guide ) : ?><option value="<?php echo esc_attr( $guide->ID ); ?>" <?php selected( $values['guide_id'], $guide->ID ); ?>><?php echo esc_html( $guide->display_name ); ?></option><?php endforeach; ?>
-            </select></p>
-        <p><label for="wcai_departure_status"><strong>Status operacional</strong></label><br>
-            <select id="wcai_departure_status" name="wcai_departure[status]">
-                <?php foreach ( array( 'draft' => 'Rascunho', 'open' => 'Aberta', 'full' => 'Lotada', 'confirmed' => 'Confirmada', 'cancelled' => 'Cancelada', 'completed' => 'Concluída' ) as $status => $label ) : ?>
-                    <option value="<?php echo esc_attr( $status ); ?>" <?php selected( $values['status'], $status ); ?>><?php echo esc_html( $label ); ?></option>
-                <?php endforeach; ?>
-            </select></p>
-        <p><label><strong>Fechamento das vendas</strong></label><br>
-            <input type="number" min="0" name="wcai_departure[booking_cutoff_value]" value="<?php echo esc_attr( $values['booking_cutoff_value'] ); ?>" style="width:100px;">
-            <select name="wcai_departure[booking_cutoff_unit]">
-                <option value="hours" <?php selected( $values['booking_cutoff_unit'], 'hours' ); ?>>horas antes</option>
-                <option value="days" <?php selected( $values['booking_cutoff_unit'], 'days' ); ?>>dias antes</option>
-            </select>
-            <br><small>Também é aplicado na página do produto e na validação final da reserva.</small>
-        </p>
-        <?php
+        $available = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_available_quantity( $post->ID ) : $values['capacity'];
+        $schedule_title = $values['schedule_id'] ? get_the_title( $values['schedule_id'] ) : '';
+
+        echo '<div class="wcai-admin-booking" style="max-width:900px;">';
+        echo '<style>.wcai-admin-booking .wcai-admin-section{margin:0 0 20px;padding:18px;border:1px solid #dcdcde;border-radius:8px;background:#fff}.wcai-admin-booking h3{margin:0 0 6px;font-size:16px}.wcai-admin-booking .wcai-help{margin:0 0 16px;color:#646970}.wcai-admin-booking .wcai-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.wcai-admin-booking .wcai-field label{display:block;font-weight:600;margin-bottom:6px}.wcai-admin-booking input,.wcai-admin-booking select{max-width:100%;box-sizing:border-box}.wcai-admin-booking .wcai-wide{width:100%}.wcai-admin-booking .wcai-capacity{display:flex;gap:12px;align-items:flex-end}.wcai-admin-booking .wcai-availability{padding:10px 12px;background:#f6f7f7;border-radius:6px}.wcai-admin-booking .wcai-source{font-size:13px;padding:10px 12px;background:#f0f6fc;border-left:3px solid #2271b1}.wcai-admin-booking .wcai-note{font-size:12px;color:#646970}.wcai-admin-booking .wcai-danger{color:#b32d2e}@media(max-width:700px){.wcai-admin-booking .wcai-grid{grid-template-columns:1fr}}</style>';
+
+        echo '<div class="wcai-admin-section">';
+        echo '<h3>1. Saída e produto</h3><p class="wcai-help">Esta é a ocorrência concreta que o cliente poderá reservar.</p>';
+        if ( $schedule_title ) {
+            echo '<div class="wcai-source"><strong>Gerada pela programação:</strong> ' . esc_html( $schedule_title ) . ' <a href="' . esc_url( get_edit_post_link( $values['schedule_id'] ) ) . '">Editar programação</a></div><br>';
+        } else {
+            echo '<div class="wcai-source">Saída criada manualmente. Para criar várias datas automaticamente, use <strong>WooCommerce → Programações</strong>.</div><br>';
+        }
+        echo '<div class="wcai-grid">';
+        echo '<div class="wcai-field"><label for="wcai_product_id">Produto</label><select id="wcai_product_id" name="wcai_departure[product_id]" required><option value="">Selecione um produto</option>';
+        foreach ( $products as $product ) {
+            echo '<option value="' . esc_attr( $product->get_id() ) . '" ' . selected( $values['product_id'], $product->get_id(), false ) . '>' . esc_html( $product->get_name() ) . '</option>';
+        }
+        echo '</select></div>';
+        echo '<div class="wcai-field"><label for="wcai_starts_at">Data e horário da saída</label><input id="wcai_starts_at" type="datetime-local" name="wcai_departure[starts_at]" value="' . esc_attr( $values['starts_at'] ) . '" required></div>';
+        echo '</div></div>';
+
+        echo '<div class="wcai-admin-section">';
+        echo '<h3>2. Capacidade e disponibilidade</h3><p class="wcai-help">Controle de vagas e da regra mínima de confirmação.</p>';
+        echo '<div class="wcai-grid">';
+        echo '<div class="wcai-field"><label for="wcai_capacity">Capacidade máxima</label><input id="wcai_capacity" type="number" min="1" name="wcai_departure[capacity]" value="' . esc_attr( $values['capacity'] ) . '" required><p class="wcai-note">Quantidade máxima de participantes nesta saída.</p></div>';
+        echo '<div class="wcai-field"><label for="wcai_minimum_capacity">Mínimo para confirmação</label><input id="wcai_minimum_capacity" type="number" min="1" name="wcai_departure[minimum_capacity]" value="' . esc_attr( $values['minimum_capacity'] ) . '"><p class="wcai-note">Abaixo desse número, a saída ainda pode ficar pendente de confirmação.</p></div>';
+        echo '</div>';
+        echo '<div class="wcai-availability"><strong>Vagas disponíveis agora:</strong> ' . esc_html( $available ) . ' de ' . esc_html( $values['capacity'] ?: 0 ) . '</div>';
+        echo '</div>';
+
+        echo '<div class="wcai-admin-section">';
+        echo '<h3>3. Janela de vendas</h3><p class="wcai-help">Define até quando o cliente pode comprar esta saída. A regra é aplicada no produto, carrinho/checkout e validação final da reserva.</p>';
+        echo '<div class="wcai-field"><label>Fechar vendas</label><div class="wcai-capacity"><input type="number" min="0" name="wcai_departure[booking_cutoff_value]" value="' . esc_attr( $values['booking_cutoff_value'] ) . '" style="width:110px;"><select name="wcai_departure[booking_cutoff_unit]"><option value="hours" ' . selected( $values['booking_cutoff_unit'], 'hours', false ) . '>horas antes</option><option value="days" ' . selected( $values['booking_cutoff_unit'], 'days', false ) . '>dias antes</option></select></div><p class="wcai-note">Ex.: 2 horas antes de uma saída às 09:00 encerra a venda às 07:00.</p></div>';
+        echo '</div>';
+
+        echo '<div class="wcai-admin-section">';
+        echo '<h3>4. Operação</h3><p class="wcai-help">Informações exibidas no booking e utilizadas pela operação da saída.</p>';
+        echo '<div class="wcai-grid">';
+        echo '<div class="wcai-field"><label for="wcai_duration_minutes">Duração (minutos)</label><input id="wcai_duration_minutes" type="number" min="1" name="wcai_departure[duration_minutes]" value="' . esc_attr( $values['duration_minutes'] ) . '"></div>';
+        echo '<div class="wcai-field"><label for="wcai_departure_status">Status operacional</label><select id="wcai_departure_status" name="wcai_departure[status]">';
+        foreach ( array( 'draft' => 'Rascunho', 'open' => 'Aberta para reservas', 'full' => 'Lotada', 'confirmed' => 'Confirmada', 'cancelled' => 'Cancelada', 'completed' => 'Concluída' ) as $status => $label ) {
+            echo '<option value="' . esc_attr( $status ) . '" ' . selected( $values['status'], $status, false ) . '>' . esc_html( $label ) . '</option>';
+        }
+        echo '</select></div>';
+        echo '<div class="wcai-field"><label for="wcai_meeting_point">Ponto de encontro</label><input id="wcai_meeting_point" class="wcai-wide" type="text" name="wcai_departure[meeting_point]" value="' . esc_attr( $values['meeting_point'] ) . '"></div>';
+        echo '<div class="wcai-field"><label for="wcai_guide_id">Guia responsável</label><select id="wcai_guide_id" name="wcai_departure[guide_id]"><option value="">Não definido</option>';
+        foreach ( $guides as $guide ) {
+            echo '<option value="' . esc_attr( $guide->ID ) . '" ' . selected( $values['guide_id'], $guide->ID, false ) . '>' . esc_html( $guide->display_name ) . '</option>';
+        }
+        echo '</select></div>';
+        echo '</div></div>';
+        echo '</div>';
     }
 
     public function save_departure( $post_id, $post ) {
