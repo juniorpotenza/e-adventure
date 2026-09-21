@@ -204,7 +204,9 @@
             payment: firstExisting([
                 '[data-block-name="woocommerce/checkout-payment-block"]',
                 '.wc-block-checkout__payment-method',
-                '.wc-block-checkout__payment-methods'
+                '.wc-block-checkout__payment-methods',
+                '.wc-block-components-checkout-payment-methods',
+                '[class*="checkout-payment"]'
             ]) || findSectionByTerms(['pagamento', 'payment']),
             terms: firstExisting([
                 '[data-block-name="woocommerce/checkout-terms-block"]'
@@ -688,7 +690,7 @@
             applyNativeStepVisibility();
         });
 
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
     }
 
     if (document.readyState === 'loading') {
