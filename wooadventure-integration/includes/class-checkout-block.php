@@ -276,7 +276,7 @@ class WCAI_Checkout_Block {
                 ? $data['additional_participants']
                 : array();
 
-            $this->validate_additional_participants( $additional, $quantity );
+            $this->validate_additional_participants( $additional, $quantity, $billing_cpf );
 
             $item->update_meta_data( '_wcai_departure_id', $departure_id, true );
             $item->save();
@@ -340,14 +340,14 @@ class WCAI_Checkout_Block {
         return null;
     }
 
-    private function validate_additional_participants( $participants, $quantity ) {
+    private function validate_additional_participants( $participants, $quantity, $billing_cpf ) {
         $expected = max( 0, $quantity - 1 );
 
         if ( count( $participants ) !== $expected ) {
             $this->fail( 'Informe os dados de todos os participantes adicionais.' );
         }
 
-        $cpfs = array( WCAI_Data_Resolver::get_billing_cpf( wc_get_order( get_current_user_id() ) ) );
+        $cpfs = $billing_cpf ? array( $billing_cpf ) : array();
 
         foreach ( $participants as $index => $participant ) {
             if ( ! is_array( $participant ) ) {
