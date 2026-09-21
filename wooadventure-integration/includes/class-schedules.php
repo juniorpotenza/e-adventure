@@ -107,9 +107,9 @@ class WCAI_Schedules {
         }
         echo '</div></div>';
 
-        echo '<div class="wcai-s-section"><h3>3. Booking e capacidade</h3><p class="wcai-s-help">Estas regras serão copiadas para cada saída gerada.</p><div class="wcai-s-grid">';
+        echo '<div class="wcai-s-section"><h3>3. Booking e capacidade</h3><p class="wcai-s-help">Estas regras serão copiadas para cada saída gerada. O cliente verá o tamanho do grupo e o progresso de formação em cada saída.</p><div class="wcai-s-grid">';
         echo '<div class="wcai-s-field"><label>Capacidade máxima por saída</label><input type="number" min="1" name="wcai_schedule[capacity]" value="' . esc_attr( $values['capacity'] ) . '" required></div>';
-        echo '<div class="wcai-s-field"><label>Mínimo para confirmação</label><input type="number" min="1" name="wcai_schedule[minimum_capacity]" value="' . esc_attr( $values['minimum_capacity'] ) . '"></div>';
+        echo '<div class="wcai-s-field"><label>Mínimo para formar o grupo</label><input type="number" min="1" name="wcai_schedule[minimum_capacity]" value="' . esc_attr( $values['minimum_capacity'] ) . '"></div>';
         echo '<div class="wcai-s-field"><label>Fechar vendas</label><div><input type="number" min="0" name="wcai_schedule[cutoff_value]" value="' . esc_attr( $values['cutoff_value'] ) . '" style="width:110px;"> <select name="wcai_schedule[cutoff_unit]"><option value="hours" ' . selected( $values['cutoff_unit'], 'hours', false ) . '>horas antes</option><option value="days" ' . selected( $values['cutoff_unit'], 'days', false ) . '>dias antes</option></select></div><p class="wcai-s-note">Ex.: 2 horas antes fecha a compra às 07:00 para uma saída às 09:00.</p></div>';
         echo '<div class="wcai-s-field"><label>Duração</label><input type="number" min="1" name="wcai_schedule[duration_minutes]" value="' . esc_attr( $values['duration_minutes'] ) . '"> <span>minutos</span></div>';
         echo '</div></div>';
