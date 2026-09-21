@@ -80,13 +80,26 @@ class WCAI_Checkout {
     public function validate_fields() {
         // Validação do Billing (Titular)
         $billing_cpf = isset( $_POST['billing_cpf'] ) ? $_POST['billing_cpf'] : '';
-        if ( ! empty( $billing_cpf ) ) {
-            if ( ! WCAI_Utils::is_valid_cpf( $billing_cpf ) ) {
+        if ( empty( $billing_cpf ) ) {
+            wc_add_notice( 'CPF do titular é obrigatório.', 'error' );
+        } elseif ( ! WCAI_Utils::is_valid_cpf( $billing_cpf ) ) {
+            wc_add_notice( 'CPF de faturamento inválido.', 'error' );
+        } else {
                 wc_add_notice( 'CPF de faturamento inválido.', 'error' );
             }
             if ( WCAI_Settings::is_cpf_blocked( $billing_cpf ) ) {
                 wc_add_notice( 'Não é possível seguir com o agendamento (CPF Restrito).', 'error' );
             }
+        }
+
+        $billing_birthdate = isset( $_POST['billing_birthdate'] ) ? sanitize_text_field( wp_unslash( $_POST['billing_birthdate'] ) ) : '';
+        if ( '' === $billing_birthdate ) {
+            $order_draft = function_exists( 'WC' ) && WC()->customer ? WC()->customer->get_meta( 'billing_birthdate' ) : '';
+            $billing_birthdate = $order_draft ? $order_draft : '';
+        }
+
+        if ( ! $billing_birthdate || ! WCAI_Utils::is_valid_date( $billing_birthdate ) || ! WCAI_Utils::is_min_age( $billing_birthdate ) ) {
+            wc_add_notice( 'Data de nascimento do titular é obrigatória e deve atender à idade mínima de 7 anos.', 'error' );
         }
 
         // Validação dos Visitantes
@@ -100,7 +113,10 @@ class WCAI_Checkout {
                 $qty = $item['quantity'];
                 $departure_field = 'wcai_departure_' . sanitize_key( $item['key'] );
                 $has_departures = class_exists( 'WCAI_Reservations' ) && WCAI_Reservations::has_open_departures_for_product( $item['product_id'], $item['variation_id'] );
-                $departure_id = isset( $_POST[ $departure_field ] ) ? absint( $_POST[ $departure_field ] ) : 0;
+                $departure_id = ! empty( $item['wcai_departure_id'] ) ? absint( $item['wcai_departure_id'] ) : 0;
+                if ( ! $departure_id && isset( $_POST[ $departure_field ] ) ) {
+                    $departure_id = absint( wp_unslash( $_POST[ $departure_field ] ) );
+                }
 
                 if ( $has_departures ) {
                     if ( ! $departure_id || ! WCAI_Reservations::is_available_for_product( $departure_id, $item['product_id'], $item['variation_id'], $qty ) ) {
