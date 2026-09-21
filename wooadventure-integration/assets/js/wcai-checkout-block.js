@@ -245,7 +245,7 @@
     }
 
     function ensureNativeStepControls( sections ) {
-        if ( sections.billing && !sections.billing.nextElementSibling?.classList.contains('wcai-native-next') ) {
+        if ( sections.billing && !sections.billing.nextElementSibling && sections.billing.nextElementSibling.classList.contains('wcai-native-next') ) {
             var next = document.createElement('div');
             next.className = 'wcai-native-next';
             next.innerHTML = '<button type="button" class="button wcai-native-next-button">Continuar para participantes</button>';
@@ -257,7 +257,7 @@
             sections.billing.insertAdjacentElement('afterend', next);
         }
 
-        if ( sections.payment && !sections.payment.nextElementSibling?.classList.contains('wcai-native-back') ) {
+        if ( sections.payment && !sections.payment.nextElementSibling && sections.payment.nextElementSibling.classList.contains('wcai-native-back') ) {
             var back = document.createElement('div');
             back.className = 'wcai-native-back';
             back.innerHTML = '<button type="button" class="button wcai-native-back-button">Voltar para revisão</button>';
