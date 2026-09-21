@@ -245,26 +245,40 @@
     }
 
     function ensureNativeStepControls( sections ) {
-        if ( sections.billing && !sections.billing.nextElementSibling && sections.billing.nextElementSibling.classList.contains('wcai-native-next') ) {
-            var next = document.createElement('div');
-            next.className = 'wcai-native-next';
-            next.innerHTML = '<button type="button" class="button wcai-native-next-button">Continuar para participantes</button>';
-            next.querySelector('button').addEventListener('click', function () {
-                if (validateBillingStep()) {
-                    setStep(3);
-                }
-            });
-            sections.billing.insertAdjacentElement('afterend', next);
+        if ( sections.billing ) {
+            var next = document.querySelector('.wcai-native-next');
+
+            if (!next) {
+                next = document.createElement('div');
+                next.className = 'wcai-native-next';
+                next.innerHTML = '<button type="button" class="button wcai-native-next-button">Continuar para participantes</button>';
+                next.querySelector('button').addEventListener('click', function () {
+                    if (validateBillingStep()) {
+                        setStep(3);
+                    }
+                });
+            }
+
+            if ( next.previousElementSibling !== sections.billing ) {
+                sections.billing.insertAdjacentElement('afterend', next);
+            }
         }
 
-        if ( sections.payment && !sections.payment.nextElementSibling && sections.payment.nextElementSibling.classList.contains('wcai-native-back') ) {
-            var back = document.createElement('div');
-            back.className = 'wcai-native-back';
-            back.innerHTML = '<button type="button" class="button wcai-native-back-button">Voltar para revisão</button>';
-            back.querySelector('button').addEventListener('click', function () {
-                setStep(4);
-            });
-            sections.payment.insertAdjacentElement('beforebegin', back);
+        if ( sections.payment ) {
+            var back = document.querySelector('.wcai-native-back');
+
+            if (!back) {
+                back = document.createElement('div');
+                back.className = 'wcai-native-back';
+                back.innerHTML = '<button type="button" class="button wcai-native-back-button">Voltar para revisão</button>';
+                back.querySelector('button').addEventListener('click', function () {
+                    setStep(4);
+                });
+            }
+
+            if ( back.nextElementSibling !== sections.payment ) {
+                sections.payment.insertAdjacentElement('beforebegin', back);
+            }
         }
     }
 
