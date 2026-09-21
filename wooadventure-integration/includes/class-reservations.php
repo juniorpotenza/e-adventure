@@ -75,24 +75,86 @@ class WCAI_Reservations {
         return max( 0, $capacity - self::get_reserved_quantity( $departure_id ) );
     }
 
+    public static function is_booking_open( $departure_id ) {
+        $departure_id = absint( $departure_id );
+        $starts_at = WCAI_Data_Resolver::get_departure_start( $departure_id );
+
+        if ( ! $departure_id || ! $starts_at ) {
+            return false;
+        }
+
+        $start_timestamp = WCAI_Data_Resolver::parse_timestamp( $starts_at );
+
+        if ( ! $start_timestamp ) {
+            return false;
+        }
+
+        $cutoff_value = absint( get_post_meta( $departure_id, '_wcai_booking_cutoff_value', true ) );
+        $cutoff_unit = get_post_meta( $departure_id, '_wcai_booking_cutoff_unit', true ) ?: 'hours';
+
+        $multiplier = 'days' === $cutoff_unit ? DAY_IN_SECONDS : HOUR_IN_SECONDS;
+        $closing_timestamp = $start_timestamp - ( $cutoff_value * $multiplier );
+
+        return current_time( 'timestamp' ) < $closing_timestamp;
+    }
+
+    public static function get_booking_cutoff_label( $departure_id ) {
+        $value = absint( get_post_meta( $departure_id, '_wcai_booking_cutoff_value', true ) );
+        $unit = get_post_meta( $departure_id, '_wcai_booking_cutoff_unit', true ) ?: 'hours';
+        $starts_at = WCAI_Data_Resolver::get_departure_start( $departure_id );
+
+        if ( ! $value || ! $starts_at ) {
+            return '';
+        }
+
+        $start_timestamp = WCAI_Data_Resolver::parse_timestamp( $starts_at );
+
+        if ( ! $start_timestamp ) {
+            return '';
+        }
+
+        $seconds = 'days' === $unit ? DAY_IN_SECONDS : HOUR_IN_SECONDS;
+        $cutoff = $start_timestamp - ( $value * $seconds );
+
+        return wp_date( 'd/m/Y H:i', $cutoff );
+    }
+
     public static function get_open_departures_for_product( $product_id, $variation_id = 0 ) {
         $product_ids = array_filter( array_unique( array( absint( $product_id ), absint( $variation_id ) ) ) );
-        if ( empty( $product_ids ) ) return array();
 
-        return get_posts( array(
-            'post_type'      => WCAI_Departures::POST_TYPE,
-            'post_status'    => 'publish',
-            'posts_per_page' => -1,
-            'orderby'        => 'meta_value',
-            'meta_key'       => '_wcai_starts_at',
-            'order'          => 'ASC',
-            'meta_query'     => array(
-                'relation' => 'AND',
-                array( 'key' => '_wcai_product_id', 'value' => $product_ids, 'compare' => 'IN' ),
-                array( 'key' => '_wcai_departure_status', 'value' => array( 'open', 'confirmed' ), 'compare' => 'IN' ),
-                array( 'key' => '_wcai_starts_at', 'value' => current_time( 'Y-m-d\TH:i' ), 'compare' => '>=', 'type' => 'CHAR' ),
-            ),
-        ) );
+        if ( empty( $product_ids ) ) {
+            return array();
+        }
+
+        $departures = get_posts(
+            array(
+                'post_type' => WCAI_Departures::POST_TYPE,
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'orderby' => 'meta_value',
+                'meta_key' => '_wcai_starts_at',
+                'order' => 'ASC',
+                'meta_query' => array(
+                    'relation' => 'AND',
+                    array( 'key' => '_wcai_product_id', 'value' => $product_ids, 'compare' => 'IN' ),
+                    array( 'key' => '_wcai_departure_status', 'value' => array( 'open', 'confirmed' ), 'compare' => 'IN' ),
+                ),
+            )
+        );
+
+        $now = current_time( 'timestamp' );
+
+        return array_values(
+            array_filter(
+                $departures,
+                static function( $departure ) use ( $now ) {
+                    $start = WCAI_Data_Resolver::get_departure_start( $departure->ID );
+                    $timestamp = WCAI_Data_Resolver::parse_timestamp( $start );
+
+                    return $timestamp && $timestamp >= $now && self::is_booking_open( $departure->ID );
+                }
+            )
+        );
     }
 
     public static function has_open_departures_for_product( $product_id, $variation_id = 0 ) {
@@ -105,7 +167,7 @@ class WCAI_Reservations {
         if ( ! in_array( $departure_product, array( absint( $product_id ), absint( $variation_id ) ), true ) ) return false;
 
         $departure = get_post( $departure_id );
-        return $departure && WCAI_Departures::POST_TYPE === $departure->post_type && 'publish' === $departure->post_status && in_array( get_post_meta( $departure_id, '_wcai_departure_status', true ), array( 'open', 'confirmed' ), true ) && self::get_available_quantity( $departure_id ) >= absint( $quantity );
+        return $departure && WCAI_Departures::POST_TYPE === $departure->post_type && 'publish' === $departure->post_status && in_array( get_post_meta( $departure_id, '_wcai_departure_status', true ), array( 'open', 'confirmed' ), true ) && self::is_booking_open( $departure_id ) && self::get_available_quantity( $departure_id ) >= absint( $quantity );
     }
 
     public static function create( $departure_id, $quantity, $status = 'hold', $order_id = 0, $order_item_id = 0 ) {
@@ -121,6 +183,10 @@ class WCAI_Reservations {
         }
         if ( 'open' !== get_post_meta( $departure_id, '_wcai_departure_status', true ) && 'confirmed' !== get_post_meta( $departure_id, '_wcai_departure_status', true ) ) {
             return new WP_Error( 'wcai_departure_unavailable', 'Esta saída não está disponível para reservas.' );
+        }
+
+        if ( ! self::is_booking_open( $departure_id ) ) {
+            return new WP_Error( 'wcai_booking_closed', 'O período de compra desta saída já foi encerrado.' );
         }
 
         $lock_name = 'wcai_departure_' . $departure_id;
