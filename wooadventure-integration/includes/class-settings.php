@@ -242,7 +242,7 @@ class WCAI_Settings {
     }
 
     public function sanitize_product_ids( $value ) {
-        $ids = array_filter( array_map( 'absint', preg_split( '/[s,;]+/', (string) $value ) ) );
+        $ids = array_filter( array_map( 'absint', preg_split( '/[\\s,;]+/', (string) $value ) ) );
         return implode( ',', array_unique( $ids ) );
     }
 
