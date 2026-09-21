@@ -10,7 +10,8 @@ class WCAI_Checkout_Block {
         add_action( 'wp_enqueue_scripts', array( $this, 'register_assets' ) );
         add_action( 'woocommerce_blocks_loaded', array( $this, 'register_store_api' ) );
         add_filter( 'render_block_woocommerce/checkout-fields-block', array( $this, 'render_checkout_ui' ), 20 );
-        add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'process_checkout' ), 10, 2 );
+        add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'capture_checkout_payload' ), 10, 2 );
+        add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'process_checkout' ), 10, 1 );
     }
 
     public function register_assets() {
@@ -207,8 +208,8 @@ class WCAI_Checkout_Block {
         return $html . $block_content;
     }
 
-    public function process_checkout( $order, $request ) {
-        if ( ! $order instanceof WC_Order || ! $request instanceof WP_REST_Request ) {
+    public function capture_checkout_payload( $order, $request ) {
+        if ( ! $order instanceof WC_Order || ! $request instanceof WP_REST_Request || ! $this->order_has_target_item( $order ) ) {
             return;
         }
 
@@ -217,10 +218,30 @@ class WCAI_Checkout_Block {
         $payload = $raw ? json_decode( $raw, true ) : null;
 
         if ( ! is_array( $payload ) || empty( $payload['items'] ) || ! is_array( $payload['items'] ) ) {
-            if ( $this->order_has_target_item( $order ) ) {
-                $this->fail( 'Selecione a saída e informe os dados dos participantes.' );
-            }
             return;
+        }
+
+        if ( function_exists( 'WC' ) && WC()->session ) {
+            WC()->session->set(
+                'wcai_checkout_payload_' . absint( $order->get_id() ),
+                $payload
+            );
+        }
+    }
+
+    public function process_checkout( $order ) {
+        if ( ! $order instanceof WC_Order || ! $this->order_has_target_item( $order ) ) {
+            return;
+        }
+
+        $payload = null;
+
+        if ( function_exists( 'WC' ) && WC()->session ) {
+            $payload = WC()->session->get( 'wcai_checkout_payload_' . absint( $order->get_id() ) );
+        }
+
+        if ( ! is_array( $payload ) ) {
+            $this->fail( 'Os dados da reserva não foram recebidos. Atualize o checkout e tente novamente.' );
         }
 
         $billing_cpf = WCAI_Data_Resolver::get_billing_cpf( $order );
@@ -255,6 +276,7 @@ class WCAI_Checkout_Block {
             }
 
             $index = $this->find_submission( $payload['items'], $product_id, $variation_id, $used_submission_indexes );
+
             if ( null === $index ) {
                 $this->fail( 'Não foi possível identificar uma reserva do pedido.' );
             }
@@ -300,13 +322,19 @@ class WCAI_Checkout_Block {
             );
 
             $event_datetime = WCAI_Data_Resolver::get_departure_start( $departure_id );
+
             if ( $event_datetime ) {
                 $order->update_meta_data( 'tour_date', $event_datetime );
             }
         }
 
         $order->save();
+
+        if ( function_exists( 'WC' ) && WC()->session ) {
+            WC()->session->__unset( 'wcai_checkout_payload_' . absint( $order->get_id() ) );
+        }
     }
+
 
     private function order_has_target_item( $order ) {
         $target_ids = WCAI_Settings::get_product_ids();
