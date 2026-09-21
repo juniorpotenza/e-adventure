@@ -6,7 +6,9 @@ class WCAI_API_Integration {
     private $api_base_url = 'https://www.roca.floripa.br/api/';
 
     public function __construct() {
-        add_action( 'woocommerce_order_status_completed', array( $this, 'process_api_sync' ), 10, 1 );
+        $status = WCAI_Settings::get_trigger_status();
+        $status = $status ? sanitize_key( $status ) : 'completed';
+        add_action( 'woocommerce_order_status_' . $status, array( $this, 'process_api_sync' ), 10, 1 );
     }
 
     public static function create_tables() {
