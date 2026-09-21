@@ -68,10 +68,21 @@ class WCAI_Departures {
         $products = function_exists( 'wc_get_products' ) ? wc_get_products( array( 'limit' => -1, 'status' => 'publish', 'return' => 'objects' ) ) : array();
         $guides = get_users( array( 'role__in' => array( 'wcai_guide', 'administrator' ), 'orderby' => 'display_name' ) );
         $available = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_available_quantity( $post->ID ) : $values['capacity'];
+        $group = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_group_summary( $post->ID ) : array(
+            'capacity'             => $values['capacity'],
+            'minimum'              => $values['minimum_capacity'],
+            'reserved'             => 0,
+            'available'            => $available,
+            'remaining_to_minimum' => max( 0, $values['minimum_capacity'] ),
+            'formation_percent'   => 0,
+            'status'               => 'forming',
+            'label'                => 'Em formação',
+            'detail'               => '',
+        );
         $schedule_title = $values['schedule_id'] ? get_the_title( $values['schedule_id'] ) : '';
 
         echo '<div class="wcai-admin-booking" style="max-width:900px;">';
-        echo '<style>.wcai-admin-booking .wcai-admin-section{margin:0 0 20px;padding:18px;border:1px solid #dcdcde;border-radius:8px;background:#fff}.wcai-admin-booking h3{margin:0 0 6px;font-size:16px}.wcai-admin-booking .wcai-help{margin:0 0 16px;color:#646970}.wcai-admin-booking .wcai-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.wcai-admin-booking .wcai-field label{display:block;font-weight:600;margin-bottom:6px}.wcai-admin-booking input,.wcai-admin-booking select{max-width:100%;box-sizing:border-box}.wcai-admin-booking .wcai-wide{width:100%}.wcai-admin-booking .wcai-capacity{display:flex;gap:12px;align-items:flex-end}.wcai-admin-booking .wcai-availability{padding:10px 12px;background:#f6f7f7;border-radius:6px}.wcai-admin-booking .wcai-source{font-size:13px;padding:10px 12px;background:#f0f6fc;border-left:3px solid #2271b1}.wcai-admin-booking .wcai-source-override{background:#fff8e5;border-left-color:#c58a21}.wcai-admin-booking .wcai-source-override label{display:block!important}.wcai-admin-booking .wcai-source-override p{margin:6px 0 0}.wcai-admin-booking .wcai-note{font-size:12px;color:#646970}.wcai-admin-booking .wcai-danger{color:#b32d2e}@media(max-width:700px){.wcai-admin-booking .wcai-grid{grid-template-columns:1fr}}</style>';
+        echo '<style>.wcai-admin-booking .wcai-admin-section{margin:0 0 20px;padding:18px;border:1px solid #dcdcde;border-radius:8px;background:#fff}.wcai-admin-booking h3{margin:0 0 6px;font-size:16px}.wcai-admin-booking .wcai-help{margin:0 0 16px;color:#646970}.wcai-admin-booking .wcai-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.wcai-admin-booking .wcai-field label{display:block;font-weight:600;margin-bottom:6px}.wcai-admin-booking input,.wcai-admin-booking select{max-width:100%;box-sizing:border-box}.wcai-admin-booking .wcai-wide{width:100%}.wcai-admin-booking .wcai-capacity{display:flex;gap:12px;align-items:flex-end}.wcai-admin-booking .wcai-availability{padding:10px 12px;background:#f6f7f7;border-radius:6px}.wcai-admin-booking .wcai-group-progress{margin-top:12px;padding:12px;border:1px solid #dcdcde;border-radius:8px;background:#fff}.wcai-admin-booking .wcai-group-progress-head{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.wcai-admin-booking .wcai-group-progress-head strong{font-size:14px}.wcai-admin-booking .wcai-group-progress-head span{font-size:12px;color:#646970}.wcai-admin-booking .wcai-group-progress-bar{height:8px;margin:8px 0;border-radius:999px;background:#ececec;overflow:hidden}.wcai-admin-booking .wcai-group-progress-bar span{display:block;height:100%;border-radius:inherit;background:#222}.wcai-admin-booking .wcai-group-progress small{display:block;color:#646970;line-height:1.4}.wcai-admin-booking .wcai-source{font-size:13px;padding:10px 12px;background:#f0f6fc;border-left:3px solid #2271b1}.wcai-admin-booking .wcai-source-override{background:#fff8e5;border-left-color:#c58a21}.wcai-admin-booking .wcai-source-override label{display:block!important}.wcai-admin-booking .wcai-source-override p{margin:6px 0 0}.wcai-admin-booking .wcai-note{font-size:12px;color:#646970}.wcai-admin-booking .wcai-danger{color:#b32d2e}@media(max-width:700px){.wcai-admin-booking .wcai-grid{grid-template-columns:1fr}}</style>';
 
         echo '<div class="wcai-admin-section">';
         echo '<h3>1. Saída e produto</h3><p class="wcai-help">Esta é a ocorrência concreta que o cliente poderá reservar.</p>';
@@ -91,12 +102,27 @@ class WCAI_Departures {
         echo '</div></div>';
 
         echo '<div class="wcai-admin-section">';
-        echo '<h3>2. Capacidade e disponibilidade</h3><p class="wcai-help">Controle de vagas e da regra mínima de confirmação.</p>';
+        echo '<h3>2. Capacidade e disponibilidade</h3><p class="wcai-help">Defina o tamanho máximo da saída e quantas reservas são necessárias para formar o grupo.</p>';
         echo '<div class="wcai-grid">';
-        echo '<div class="wcai-field"><label for="wcai_capacity">Capacidade máxima</label><input id="wcai_capacity" type="number" min="1" name="wcai_departure[capacity]" value="' . esc_attr( $values['capacity'] ) . '" required><p class="wcai-note">Quantidade máxima de participantes nesta saída.</p></div>';
-        echo '<div class="wcai-field"><label for="wcai_minimum_capacity">Mínimo para confirmação</label><input id="wcai_minimum_capacity" type="number" min="1" name="wcai_departure[minimum_capacity]" value="' . esc_attr( $values['minimum_capacity'] ) . '"><p class="wcai-note">Abaixo desse número, a saída ainda pode ficar pendente de confirmação.</p></div>';
+        echo '<div class="wcai-field"><label for="wcai_capacity">Grupo máximo</label><input id="wcai_capacity" type="number" min="1" name="wcai_departure[capacity]" value="' . esc_attr( $values['capacity'] ) . '" required><p class="wcai-note">Limite de participantes desta saída.</p></div>';
+        echo '<div class="wcai-field"><label for="wcai_minimum_capacity">Mínimo para formar o grupo</label><input id="wcai_minimum_capacity" type="number" min="1" name="wcai_departure[minimum_capacity]" value="' . esc_attr( $values['minimum_capacity'] ) . '"><p class="wcai-note">Mostrado ao cliente como progresso de formação do grupo.</p></div>';
         echo '</div>';
         echo '<div class="wcai-availability"><strong>Vagas disponíveis agora:</strong> ' . esc_html( $available ) . ' de ' . esc_html( $values['capacity'] ?: 0 ) . '</div>';
+
+        echo '<div class="wcai-group-progress">';
+        if ( $group['minimum'] > 1 ) {
+            echo '<div class="wcai-group-progress-head"><strong>' . esc_html( $group['reserved'] . ' de ' . $group['minimum'] . ' participantes' ) . '</strong><span>' . esc_html( $group['label'] ) . '</span></div>';
+            echo '<div class="wcai-group-progress-bar"><span style="width:' . esc_attr( min( 100, max( 0, absint( $group['formation_percent'] ) ) ) ) . '%"></span></div>';
+            if ( $group['remaining_to_minimum'] > 0 ) {
+                echo '<small>Faltam ' . esc_html( $group['remaining_to_minimum'] ) . ' participante' . ( 1 === $group['remaining_to_minimum'] ? '' : 's' ) . ' para atingir o mínimo de formação. A saída comporta até ' . esc_html( $group['capacity'] ) . ' pessoas.</small>';
+            } else {
+                echo '<small>' . esc_html( $group['detail'] ) . ' Ainda há ' . esc_html( $group['available'] ) . ' vaga' . ( 1 === $group['available'] ? '' : 's' ) . ' disponível' . ( 1 === $group['available'] ? '' : 'is' ) . ' até o limite de ' . esc_html( $group['capacity'] ) . '.</small>';
+            }
+        } elseif ( $group['capacity'] ) {
+            echo '<div class="wcai-group-progress-head"><strong>' . esc_html( $group['reserved'] . ' de ' . $group['capacity'] . ' vagas ocupadas' ) . '</strong><span>Sem mínimo de formação</span></div>';
+            echo '<div class="wcai-group-progress-bar"><span style="width:' . esc_attr( $group['capacity'] ? min( 100, max( 0, (int) round( ( $group['reserved'] / $group['capacity'] ) * 100 ) ) ) : 0 ) . '%"></span></div>';
+        }
+        echo '</div>';
         echo '</div>';
 
         echo '<div class="wcai-admin-section">';
@@ -161,7 +187,7 @@ class WCAI_Departures {
             }
         }
 
-        WCAI_Audit_Log::log( 'departure_saved', 'departure', $post_id, array( 'status' => $status, 'capacity' => $capacity ) );
+        WCAI_Audit_Log::log( 'departure_saved', 'departure', $post_id, array( 'status' => $status, 'capacity' => $capacity, 'minimum_capacity' => $minimum ) );
     }
 
     public function set_columns( $columns ) {
