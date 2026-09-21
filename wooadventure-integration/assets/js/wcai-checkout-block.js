@@ -201,9 +201,6 @@
                 '[data-block-name="woocommerce/checkout-billing-address-block"]',
                 '.wc-block-checkout__billing-fields'
             ]) || findSectionByTerms(['endereço de cobrança', 'billing address']),
-            shipping: firstExisting([
-                '[data-block-name="woocommerce/checkout-shipping-address-block"]'
-            ]),
             payment: firstExisting([
                 '[data-block-name="woocommerce/checkout-payment-block"]',
                 '.wc-block-checkout__payment-method',
@@ -289,7 +286,6 @@
         // O Checkout Block continua sendo o responsável pelos campos e pelo pagamento.
         ensureNativeStepControls( sections );
         setHidden(sections.express, true);
-        setHidden(sections.shipping, true);
         setHidden(sections.contact, currentStep !== 2);
         setHidden(sections.billing, currentStep !== 2);
         setHidden(sections.orderNote, currentStep !== 4);
