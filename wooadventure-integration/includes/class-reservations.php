@@ -101,16 +101,22 @@ class WCAI_Reservations {
     public static function get_booking_cutoff_label( $departure_id ) {
         $value = absint( get_post_meta( $departure_id, '_wcai_booking_cutoff_value', true ) );
         $unit = get_post_meta( $departure_id, '_wcai_booking_cutoff_unit', true ) ?: 'hours';
+        $starts_at = WCAI_Data_Resolver::get_departure_start( $departure_id );
 
-        if ( ! $value ) {
+        if ( ! $value || ! $starts_at ) {
             return '';
         }
 
-        return sprintf(
-            '%d %s',
-            $value,
-            'days' === $unit ? ( 1 === $value ? 'dia' : 'dias' ) : ( 1 === $value ? 'hora' : 'horas' )
-        );
+        $start_timestamp = WCAI_Data_Resolver::parse_timestamp( $starts_at );
+
+        if ( ! $start_timestamp ) {
+            return '';
+        }
+
+        $seconds = 'days' === $unit ? DAY_IN_SECONDS : HOUR_IN_SECONDS;
+        $cutoff = $start_timestamp - ( $value * $seconds );
+
+        return wp_date( 'd/m/Y H:i', $cutoff );
     }
 
     public static function get_open_departures_for_product( $product_id, $variation_id = 0 ) {
