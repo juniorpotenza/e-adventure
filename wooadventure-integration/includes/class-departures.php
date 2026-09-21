@@ -58,6 +58,8 @@ class WCAI_Departures {
             'meeting_point'    => get_post_meta( $post->ID, '_wcai_meeting_point', true ),
             'guide_id'         => absint( get_post_meta( $post->ID, '_wcai_guide_id', true ) ),
             'status'           => get_post_meta( $post->ID, '_wcai_departure_status', true ) ?: 'draft',
+            'booking_cutoff_value' => absint( get_post_meta( $post->ID, '_wcai_booking_cutoff_value', true ) ),
+            'booking_cutoff_unit' => get_post_meta( $post->ID, '_wcai_booking_cutoff_unit', true ) ?: 'hours',
         );
         $products = function_exists( 'wc_get_products' ) ? wc_get_products( array( 'limit' => -1, 'status' => 'publish', 'return' => 'objects' ) ) : array();
         $guides = get_users( array( 'role__in' => array( 'wcai_guide', 'administrator' ), 'orderby' => 'display_name' ) );
@@ -89,6 +91,14 @@ class WCAI_Departures {
                     <option value="<?php echo esc_attr( $status ); ?>" <?php selected( $values['status'], $status ); ?>><?php echo esc_html( $label ); ?></option>
                 <?php endforeach; ?>
             </select></p>
+        <p><label><strong>Fechamento das vendas</strong></label><br>
+            <input type="number" min="0" name="wcai_departure[booking_cutoff_value]" value="<?php echo esc_attr( $values['booking_cutoff_value'] ); ?>" style="width:100px;">
+            <select name="wcai_departure[booking_cutoff_unit]">
+                <option value="hours" <?php selected( $values['booking_cutoff_unit'], 'hours' ); ?>>horas antes</option>
+                <option value="days" <?php selected( $values['booking_cutoff_unit'], 'days' ); ?>>dias antes</option>
+            </select>
+            <br><small>Também é aplicado na página do produto e na validação final da reserva.</small>
+        </p>
         <?php
     }
 
@@ -113,6 +123,14 @@ class WCAI_Departures {
         update_post_meta( $post_id, '_wcai_meeting_point', isset( $data['meeting_point'] ) ? sanitize_text_field( $data['meeting_point'] ) : '' );
         update_post_meta( $post_id, '_wcai_guide_id', isset( $data['guide_id'] ) ? absint( $data['guide_id'] ) : 0 );
         update_post_meta( $post_id, '_wcai_departure_status', $status );
+
+        $cutoff_value = absint( isset( $data['booking_cutoff_value'] ) ? $data['booking_cutoff_value'] : 0 );
+        $cutoff_unit = isset( $data['booking_cutoff_unit'] ) ? sanitize_key( $data['booking_cutoff_unit'] ) : 'hours';
+        if ( ! in_array( $cutoff_unit, array( 'hours', 'days' ), true ) ) {
+            $cutoff_unit = 'hours';
+        }
+        update_post_meta( $post_id, '_wcai_booking_cutoff_value', $cutoff_value );
+        update_post_meta( $post_id, '_wcai_booking_cutoff_unit', $cutoff_unit );
         WCAI_Audit_Log::log( 'departure_saved', 'departure', $post_id, array( 'status' => $status, 'capacity' => $capacity ) );
     }
 
