@@ -119,6 +119,7 @@
 
         old = old || {
             key: key,
+            name: item.name || 'Ingresso',
             product_id: ext.product_id,
             variation_id: ext.variation_id,
             departure_id: ext.departure_id || '',
@@ -127,6 +128,7 @@
             additional_participants: []
         };
 
+        old.name = item.name || old.name || 'Ingresso';
         old.quantity = quantity;
 
         if (!old.departure_id && ext.departure_id) {
