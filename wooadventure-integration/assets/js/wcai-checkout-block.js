@@ -201,6 +201,9 @@
                 '[data-block-name="woocommerce/checkout-billing-address-block"]',
                 '.wc-block-checkout__billing-fields'
             ]) || findSectionByTerms(['endereço de cobrança', 'billing address']),
+            shipping: firstExisting([
+                '[data-block-name="woocommerce/checkout-shipping-address-block"]'
+            ]),
             payment: firstExisting([
                 '[data-block-name="woocommerce/checkout-payment-block"]',
                 '.wc-block-checkout__payment-method',
@@ -241,18 +244,49 @@
         });
     }
 
+    function ensureNativeStepControls( sections ) {
+        if ( sections.billing && !sections.billing.nextElementSibling?.classList.contains('wcai-native-next') ) {
+            var next = document.createElement('div');
+            next.className = 'wcai-native-next';
+            next.innerHTML = '<button type="button" class="button wcai-native-next-button">Continuar para participantes</button>';
+            next.querySelector('button').addEventListener('click', function () {
+                if (validateBillingStep()) {
+                    setStep(3);
+                }
+            });
+            sections.billing.insertAdjacentElement('afterend', next);
+        }
+
+        if ( sections.payment && !sections.payment.nextElementSibling?.classList.contains('wcai-native-back') ) {
+            var back = document.createElement('div');
+            back.className = 'wcai-native-back';
+            back.innerHTML = '<button type="button" class="button wcai-native-back-button">Voltar para revisão</button>';
+            back.querySelector('button').addEventListener('click', function () {
+                setStep(4);
+            });
+            sections.payment.insertAdjacentElement('beforebegin', back);
+        }
+    }
+
     function applyNativeStepVisibility() {
         var sections = nativeSections();
 
-        // A etapa visual do WooAdventure controla apenas a ordem de apresentação.
+        // A etapa visual do WooAdventure controla a ordem de apresentação.
         // O Checkout Block continua sendo o responsável pelos campos e pelo pagamento.
+        ensureNativeStepControls( sections );
         setHidden(sections.express, true);
+        setHidden(sections.shipping, true);
         setHidden(sections.contact, currentStep !== 2);
         setHidden(sections.billing, currentStep !== 2);
         setHidden(sections.orderNote, currentStep !== 4);
         setHidden(sections.terms, currentStep !== 5);
         setHidden(sections.payment, currentStep !== 5);
         setHidden(sections.actions, currentStep !== 5);
+
+        var nativeNext = document.querySelector('.wcai-native-next');
+        var nativeBack = document.querySelector('.wcai-native-back');
+        setHidden(nativeNext, currentStep !== 2);
+        setHidden(nativeBack, currentStep !== 5);
 
         placeOrderButtons().forEach(function (button) {
             button.hidden = currentStep !== 5;
@@ -281,7 +315,10 @@
             '#wcai-checkout-wizard .wcai-wizard-actions button{padding:10px 16px;cursor:pointer}' +
             '#wcai-checkout-wizard .wcai-wizard-error{color:#b32d2e;font-size:13px;margin-top:5px}' +
             '#wcai-checkout-wizard .wcai-wizard-summary-row{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #eee}' +
-            '@media(max-width:600px){#wcai-checkout-wizard .wcai-wizard-summary-row{display:block}.wcai-wizard-progress{font-size:12px}}';
+            '.wcai-native-next,.wcai-native-back{margin:14px 0;padding:12px 0;border:1px solid #eee;border-radius:8px;background:#fafafa;text-align:right}' +
+            '.wcai-native-next-button,.wcai-native-back-button{margin-right:12px;padding:9px 14px;cursor:pointer}' +
+            '[aria-hidden="true"] .wcai-native-next-button,[aria-hidden="true"] .wcai-native-back-button{display:none}' +
+            '@media(max-width:600px){#wcai-checkout-wizard .wcai-wizard-summary-row{display:block}.wcai-wizard-progress{font-size:12px}.wcai-native-next,.wcai-native-back{text-align:stretch}.wcai-native-next-button,.wcai-native-back-button{width:100%;margin:0}}';
 
         document.head.appendChild(style);
     }
@@ -393,7 +430,23 @@
             validateAdditional();
         }
 
-        root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (currentStep === 2) {
+            setTimeout(function () {
+                var sections = nativeSections();
+                if (sections.contact) {
+                    sections.contact.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 120);
+        } else if (currentStep === 5) {
+            setTimeout(function () {
+                var sections = nativeSections();
+                if (sections.payment) {
+                    sections.payment.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 120);
+        } else {
+            root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 
     function buildStepOne(panel) {
