@@ -31,9 +31,10 @@ class WCAI_Checkout {
             if ( in_array( $item['variation_id'], $target_ids ) || in_array( $item['product_id'], $target_ids ) ) {
                 $qty = isset($item['quantity']) ? $item['quantity'] : 1;
                 $departure_field = 'wcai_departure_' . sanitize_key( $item['key'] );
+                $selected_departure = ! empty( $item['wcai_departure_id'] ) ? absint( $item['wcai_departure_id'] ) : 0;
                 $departures = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_open_departures_for_product( $item['product_id'], $item['variation_id'] ) : array();
 
-                if ( ! empty( $departures ) ) {
+                if ( ! $selected_departure && ! empty( $departures ) ) {
                     $options = array( '' => 'Selecione a data e horário' );
                     foreach ( $departures as $departure ) {
                         $starts_at = get_post_meta( $departure->ID, '_wcai_starts_at', true );
@@ -139,9 +140,15 @@ class WCAI_Checkout {
     }
 
     public function add_departure_to_order_item( $item, $cart_item_key, $values, $order ) {
+        $departure_id = ! empty( $values['wcai_departure_id'] ) ? absint( $values['wcai_departure_id'] ) : 0;
         $field = 'wcai_departure_' . sanitize_key( $cart_item_key );
-        if ( isset( $_POST[ $field ] ) && absint( $_POST[ $field ] ) ) {
-            $item->add_meta_data( '_wcai_departure_id', absint( $_POST[ $field ] ), true );
+
+        if ( ! $departure_id && isset( $_POST[ $field ] ) ) {
+            $departure_id = absint( wp_unslash( $_POST[ $field ] ) );
+        }
+
+        if ( $departure_id ) {
+            $item->add_meta_data( '_wcai_departure_id', $departure_id, true );
         }
     }
 
@@ -159,8 +166,8 @@ class WCAI_Checkout {
         // Tentamos pegar do POST (mais atual) ou do Objeto Order
         $billing_first_name = isset($_POST['billing_first_name']) ? sanitize_text_field($_POST['billing_first_name']) : $order->get_billing_first_name();
         $billing_last_name  = isset($_POST['billing_last_name']) ? sanitize_text_field($_POST['billing_last_name']) : $order->get_billing_last_name();
-        $billing_cpf        = isset($_POST['billing_cpf']) ? sanitize_text_field($_POST['billing_cpf']) : $order->get_meta('billing_cpf'); // Assumindo campo padrão BR
-        $billing_birthdate  = isset($_POST['billing_birthdate']) ? sanitize_text_field($_POST['billing_birthdate']) : $order->get_meta('billing_birthdate'); // Campo comum em plugins BR
+        $billing_cpf        = isset($_POST['billing_cpf']) ? sanitize_text_field($_POST['billing_cpf']) : WCAI_Data_Resolver::get_billing_cpf( $order );
+        $billing_birthdate  = isset($_POST['billing_birthdate']) ? sanitize_text_field($_POST['billing_birthdate']) : WCAI_Data_Resolver::get_billing_birthdate( $order );
 
         foreach ( $items as $item_id => $item ) {
             // Verifica se este item é um produto de turismo configurado
