@@ -172,16 +172,45 @@ class WCAI_Settings {
         <?php
     }
 
-    private function get_existing_order_item_meta_keys() {
+    private function get_existing_order_meta_keys() {
         global $wpdb;
-        $keys = $wpdb->get_col(
-            "SELECT DISTINCT meta_key
-             FROM {$wpdb->prefix}woocommerce_order_itemmeta
-             WHERE meta_key NOT LIKE '\_%'
-             ORDER BY meta_key ASC
-             LIMIT 50"
+
+        $results = array();
+        $seen = array();
+
+        $queries = array(
+            array( $wpdb->prefix . 'wc_orders_meta', 'Pedido' ),
+            array( $wpdb->postmeta, 'Pedido legado' ),
+            array( $wpdb->prefix . 'woocommerce_order_itemmeta', 'Item do pedido' ),
         );
-        return $keys ? $keys : array();
+
+        foreach ( $queries as $query ) {
+            $table = $query[0];
+            $label_prefix = $query[1];
+            $exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+
+            if ( $exists !== $table ) {
+                continue;
+            }
+
+            $keys = $wpdb->get_col( "SELECT DISTINCT meta_key FROM $table WHERE meta_key NOT LIKE '\\_%' ORDER BY meta_key ASC LIMIT 200" );
+
+            foreach ( $keys as $key ) {
+                $key = sanitize_key( $key );
+
+                if ( ! $key || isset( $seen[ $label_prefix . ':' . $key ] ) ) {
+                    continue;
+                }
+
+                $seen[ $label_prefix . ':' . $key ] = true;
+                $results[] = array(
+                    'value' => $key,
+                    'label' => $label_prefix . ': ' . $key,
+                );
+            }
+        }
+
+        return $results;
     }
 
     public function sanitize_text( $value ) {
