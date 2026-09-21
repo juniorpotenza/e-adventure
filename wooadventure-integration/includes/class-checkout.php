@@ -79,23 +79,20 @@ class WCAI_Checkout {
 
     public function validate_fields() {
         // Validação do Billing (Titular)
-        $billing_cpf = isset( $_POST['billing_cpf'] ) ? $_POST['billing_cpf'] : '';
+        $billing_cpf = isset( $_POST['billing_cpf'] ) ? sanitize_text_field( wp_unslash( $_POST['billing_cpf'] ) ) : '';
+
         if ( empty( $billing_cpf ) ) {
             wc_add_notice( 'CPF do titular é obrigatório.', 'error' );
         } elseif ( ! WCAI_Utils::is_valid_cpf( $billing_cpf ) ) {
             wc_add_notice( 'CPF de faturamento inválido.', 'error' );
-        } else {
-                wc_add_notice( 'CPF de faturamento inválido.', 'error' );
-            }
-            if ( WCAI_Settings::is_cpf_blocked( $billing_cpf ) ) {
-                wc_add_notice( 'Não é possível seguir com o agendamento (CPF Restrito).', 'error' );
-            }
+        } elseif ( WCAI_Settings::is_cpf_blocked( $billing_cpf ) ) {
+            wc_add_notice( 'Não é possível seguir com o agendamento (CPF Restrito).', 'error' );
         }
 
         $billing_birthdate = isset( $_POST['billing_birthdate'] ) ? sanitize_text_field( wp_unslash( $_POST['billing_birthdate'] ) ) : '';
-        if ( '' === $billing_birthdate ) {
-            $order_draft = function_exists( 'WC' ) && WC()->customer ? WC()->customer->get_meta( 'billing_birthdate' ) : '';
-            $billing_birthdate = $order_draft ? $order_draft : '';
+
+        if ( '' === $billing_birthdate && function_exists( 'WC' ) && WC()->customer ) {
+            $billing_birthdate = sanitize_text_field( WC()->customer->get_meta( 'billing_birthdate' ) );
         }
 
         if ( ! $billing_birthdate || ! WCAI_Utils::is_valid_date( $billing_birthdate ) || ! WCAI_Utils::is_min_age( $billing_birthdate ) ) {
