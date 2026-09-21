@@ -2,9 +2,10 @@
     'use strict';
 
     var NS = 'wcai-checkout';
-    var ROOT = 'wcai-checkout-integration';
+    var ROOT = 'wcai-checkout-wizard';
     var state = { items: [] };
     var signature = '';
+    var currentStep = 1;
     var validationIds = [];
 
     function cart() {
@@ -15,49 +16,56 @@
 
     function sync() {
         if (!wp.data) return;
+
         var checkout = wp.data.dispatch('wc/store/checkout');
-        var data = JSON.stringify(state);
-        if (checkout && typeof checkout.__internalSetExtensionData === 'function') {
-            checkout.__internalSetExtensionData(NS, { data: data });
-        } else if (checkout && typeof checkout.setExtensionData === 'function') {
+        var payload = {
+            items: state.items.map(function (item) {
+                return {
+                    key: item.key,
+                    product_id: item.product_id,
+                    variation_id: item.variation_id,
+                    departure_id: item.departure_id,
+                    additional_participants: item.additional_participants
+                };
+            })
+        };
+        var data = JSON.stringify(payload);
+
+        if (checkout && typeof checkout.setExtensionData === 'function') {
             checkout.setExtensionData(NS, 'data', data);
+        } else if (checkout && typeof checkout.__internalSetExtensionData === 'function') {
+            checkout.__internalSetExtensionData(NS, { data: data });
         }
     }
 
-    function validation(errors) {
-        var store = wp.data.dispatch('wc/store/validation');
+    function setValidationErrors(errors) {
+        var store = wp.data && wp.data.dispatch ? wp.data.dispatch('wc/store/validation') : null;
         if (!store) return;
+
         if (typeof store.clearValidationError === 'function') {
-            validationIds.forEach(function (id) { store.clearValidationError(id); });
+            validationIds.forEach(function (id) {
+                store.clearValidationError(id);
+            });
         }
+
         validationIds = errors ? Object.keys(errors) : [];
-        if (validationIds.length && typeof store.setValidationErrors === 'function') store.setValidationErrors(errors);
+
+        if (validationIds.length && typeof store.setValidationErrors === 'function') {
+            store.setValidationErrors(errors);
+        }
     }
 
-    function error(errors, id, message) {
+    function addError(errors, id, message) {
         errors[id] = { message: message, hidden: true };
     }
 
-    function validate() {
-        var errors = {};
-        state.items.forEach(function (item, n) {
-            var p = item.participants;
-            if (!item.departure_id) error(errors, 'wcai-departure-' + n, 'Selecione a data e o horário da atividade.');
-            if (!p[0].cpf) error(errors, 'wcai-cpf-0-' + n, 'Informe o CPF do titular.');
-            if (!p[0].birthdate) error(errors, 'wcai-birth-0-' + n, 'Informe a data de nascimento do titular.');
-            for (var i = 1; i < item.quantity; i++) {
-                if (!p[i].name) error(errors, 'wcai-name-' + i + '-' + n, 'Informe o nome do visitante ' + (i + 1) + '.');
-                if (!p[i].cpf) error(errors, 'wcai-cpf-' + i + '-' + n, 'Informe o CPF do visitante ' + (i + 1) + '.');
-                if (!p[i].birthdate) error(errors, 'wcai-birth-' + i + '-' + n, 'Informe a data de nascimento do visitante ' + (i + 1) + '.');
-            }
-        });
-        validation(errors);
+    function digits(value) {
+        return String(value || '').replace(/\D/g, '');
     }
-
-    function digits(value) { return String(value || '').replace(/\D/g, ''); }
 
     function cpfMask(value) {
         var v = digits(value).slice(0, 11);
+
         if (v.length <= 3) return v;
         if (v.length <= 6) return v.slice(0, 3) + '.' + v.slice(3);
         if (v.length <= 9) return v.slice(0, 3) + '.' + v.slice(3, 6) + '.' + v.slice(6);
@@ -66,6 +74,7 @@
 
     function dateMask(value) {
         var v = digits(value).slice(0, 8);
+
         if (v.length <= 2) return v;
         if (v.length <= 4) return v.slice(0, 2) + '/' + v.slice(2);
         return v.slice(0, 2) + '/' + v.slice(2, 4) + '/' + v.slice(4);
@@ -73,40 +82,509 @@
 
     function inputField(label, value, placeholder, mask, onChange) {
         var wrap = document.createElement('div');
-        wrap.className = 'wcai-field';
-        var l = document.createElement('label');
-        l.textContent = label;
-        wrap.appendChild(l);
+        wrap.className = 'wcai-wizard-field';
+
+        var labelEl = document.createElement('label');
+        labelEl.textContent = label;
+        wrap.appendChild(labelEl);
+
         var input = document.createElement('input');
         input.type = 'text';
         input.value = value || '';
         input.placeholder = placeholder || '';
+        input.autocomplete = 'off';
+
         input.addEventListener('input', function () {
             var valueNow = mask ? mask(input.value) : input.value;
             input.value = valueNow;
             onChange(valueNow);
             sync();
-            validate();
+            updateLocalValidation();
         });
+
         wrap.appendChild(input);
+
         return wrap;
     }
 
     function itemState(item) {
-        var ext = item.extensions[NS];
+        var ext = item.extensions && item.extensions[NS] ? item.extensions[NS] : {};
         var key = String(item.key || item.id || (ext.product_id + ':' + ext.variation_id));
-        var old = state.items.filter(function (x) { return x.key === key; })[0];
+        var old = state.items.filter(function (entry) {
+            return entry.key === key;
+        })[0];
+
         var quantity = parseInt(ext.quantity || item.quantity || 1, 10) || 1;
-        old = old || { key: key, product_id: ext.product_id, variation_id: ext.variation_id, departure_id: '', participants: [] };
+        var additionalCount = Math.max(0, quantity - 1);
+
+        old = old || {
+            key: key,
+            product_id: ext.product_id,
+            variation_id: ext.variation_id,
+            departure_id: ext.departure_id || '',
+            departure_label: ext.departure_label || '',
+            quantity: quantity,
+            additional_participants: []
+        };
+
         old.quantity = quantity;
-        for (var i = 0; i < quantity; i++) if (!old.participants[i]) old.participants[i] = {};
-        old.participants = old.participants.slice(0, quantity);
+
+        if (!old.departure_id && ext.departure_id) {
+            old.departure_id = String(ext.departure_id);
+        }
+
+        if (!old.departure_label && ext.departure_label) {
+            old.departure_label = ext.departure_label;
+        }
+
+        for (var i = 0; i < additionalCount; i++) {
+            if (!old.additional_participants[i]) {
+                old.additional_participants[i] = {};
+            }
+        }
+
+        old.additional_participants = old.additional_participants.slice(0, additionalCount);
+
         return old;
+    }
+
+    function findSectionByTerms(terms) {
+        var headings = Array.prototype.slice.call(document.querySelectorAll('h1,h2,h3,h4,h5,legend'));
+        var heading = headings.filter(function (element) {
+            var text = (element.textContent || '').trim().toLowerCase();
+            return terms.some(function (term) {
+                return text.indexOf(term.toLowerCase()) !== -1;
+            });
+        })[0];
+
+        if (!heading) return null;
+
+        var node = heading;
+        var guard = 0;
+
+        while (node && node.parentElement && guard < 8) {
+            if (
+                node.matches &&
+                (
+                    node.matches('[class*="checkout-step"]')
+                    || node.matches('fieldset')
+                    || node.matches('section')
+                )
+            ) {
+                return node;
+            }
+
+            node = node.parentElement;
+            guard++;
+        }
+
+        return heading.parentElement;
+    }
+
+    function nativeSections() {
+        return {
+            contact: findSectionByTerms(['informações de contato', 'contact information']),
+            billing: findSectionByTerms(['endereço de cobrança', 'billing address']),
+            payment: findSectionByTerms(['pagamento', 'payment']),
+        };
+    }
+
+    function setHidden(node, hidden) {
+        if (!node) return;
+        node.hidden = hidden;
+        if (hidden) {
+            node.setAttribute('aria-hidden', 'true');
+        } else {
+            node.removeAttribute('aria-hidden');
+        }
+    }
+
+    function placeOrderButtons() {
+        var candidates = Array.prototype.slice.call(document.querySelectorAll('button,a'));
+        return candidates.filter(function (element) {
+            var text = (element.textContent || '').trim().toLowerCase();
+            return text.indexOf('fazer pedido') !== -1 || text.indexOf('place order') !== -1;
+        });
+    }
+
+    function applyNativeStepVisibility() {
+        var sections = nativeSections();
+
+        setHidden(sections.contact, currentStep !== 2);
+        setHidden(sections.billing, currentStep !== 2);
+        setHidden(sections.payment, currentStep !== 5);
+
+        placeOrderButtons().forEach(function (button) {
+            button.hidden = currentStep !== 5;
+        });
+    }
+
+    function styleWizard() {
+        if (document.getElementById('wcai-wizard-style')) return;
+
+        var style = document.createElement('style');
+        style.id = 'wcai-wizard-style';
+        style.textContent =
+            '#wcai-checkout-wizard{margin:0 0 28px;padding:20px;border:1px solid #ddd;border-radius:8px;background:#fff}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress span{padding:8px 10px;border-radius:999px;background:#f1f1f1;font-size:13px}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress span.is-active{font-weight:700;background:#222;color:#fff}' +
+            '#wcai-checkout-wizard .wcai-wizard-panel{display:none}' +
+            '#wcai-checkout-wizard .wcai-wizard-panel.is-active{display:block}' +
+            '#wcai-checkout-wizard .wcai-wizard-item{padding:16px;margin:0 0 16px;border:1px solid #e2e2e2;border-radius:6px}' +
+            '#wcai-checkout-wizard .wcai-wizard-person{padding:14px;margin:12px 0;border:1px solid #eee;border-radius:6px;background:#fafafa}' +
+            '#wcai-checkout-wizard .wcai-wizard-field{margin:0 0 12px}' +
+            '#wcai-checkout-wizard .wcai-wizard-field label{display:block;font-weight:600;margin-bottom:6px}' +
+            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard select{width:100%;padding:10px;box-sizing:border-box}' +
+            '#wcai-checkout-wizard .wcai-wizard-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}' +
+            '#wcai-checkout-wizard .wcai-wizard-actions button{padding:10px 16px;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-wizard-error{color:#b32d2e;font-size:13px;margin-top:5px}' +
+            '#wcai-checkout-wizard .wcai-wizard-summary-row{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #eee}' +
+            '@media(max-width:600px){#wcai-checkout-wizard .wcai-wizard-summary-row{display:block}.wcai-wizard-progress{font-size:12px}}';
+
+        document.head.appendChild(style);
+    }
+
+    function validateAdditional() {
+        var errors = {};
+
+        state.items.forEach(function (item, itemIndex) {
+            item.additional_participants.forEach(function (participant, index) {
+                var number = index + 2;
+
+                if (!participant.name) {
+                    addError(errors, 'wcai-name-' + itemIndex + '-' + index, 'Informe o nome completo do participante ' + number + '.');
+                }
+
+                if (!participant.cpf) {
+                    addError(errors, 'wcai-cpf-' + itemIndex + '-' + index, 'Informe o CPF do participante ' + number + '.');
+                }
+
+                if (!participant.birthdate) {
+                    addError(errors, 'wcai-birth-' + itemIndex + '-' + index, 'Informe a data de nascimento do participante ' + number + '.');
+                }
+            });
+        });
+
+        setValidationErrors(errors);
+        return Object.keys(errors).length === 0;
+    }
+
+    function validateDeparture() {
+        return state.items.every(function (item) {
+            return !!item.departure_id;
+        });
+    }
+
+    function readBillingCustomFields() {
+        var cpf = document.querySelector('input[name="billing_cpf"]');
+        var birthdate = document.querySelector('input[name="billing_birthdate"]');
+
+        return {
+            cpf: cpf ? cpf.value.trim() : '',
+            birthdate: birthdate ? birthdate.value.trim() : '',
+        };
+    }
+
+    function validateBillingStep() {
+        var billing = readBillingCustomFields();
+
+        if (billing.cpf && billing.birthdate) {
+            return true;
+        }
+
+        var sections = nativeSections();
+        if (sections.billing) {
+            sections.billing.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        return false;
+    }
+
+    function updateLocalValidation() {
+        if (currentStep === 3) {
+            validateAdditional();
+        }
+    }
+
+    function button(text, onClick, secondary) {
+        var buttonEl = document.createElement('button');
+        buttonEl.type = 'button';
+        buttonEl.textContent = text;
+        if (secondary) buttonEl.className = 'wcai-wizard-secondary';
+        buttonEl.addEventListener('click', onClick);
+        return buttonEl;
+    }
+
+    function actions(nextText, nextHandler, previousHandler) {
+        var wrap = document.createElement('div');
+        wrap.className = 'wcai-wizard-actions';
+
+        if (previousHandler) {
+            wrap.appendChild(button('Voltar', previousHandler, true));
+        }
+
+        if (nextHandler) {
+            wrap.appendChild(button(nextText || 'Continuar', nextHandler, false));
+        }
+
+        return wrap;
+    }
+
+    function setStep(step) {
+        currentStep = Math.max(1, Math.min(5, step));
+
+        var root = document.getElementById(ROOT);
+        if (!root) return;
+
+        Array.prototype.slice.call(root.querySelectorAll('[data-wcai-step]')).forEach(function (panel) {
+            var active = parseInt(panel.getAttribute('data-wcai-step'), 10) === currentStep;
+            panel.classList.toggle('is-active', active);
+        });
+
+        Array.prototype.slice.call(root.querySelectorAll('[data-step-label]')).forEach(function (label) {
+            label.classList.toggle('is-active', parseInt(label.getAttribute('data-step-label'), 10) === currentStep);
+        });
+
+        applyNativeStepVisibility();
+
+        if (currentStep === 3) {
+            validateAdditional();
+        }
+
+        root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function buildStepOne(panel) {
+        panel.innerHTML = '';
+
+        var title = document.createElement('h3');
+        title.textContent = '1. Confira sua reserva';
+        panel.appendChild(title);
+
+        state.items.forEach(function (item) {
+            var box = document.createElement('div');
+            box.className = 'wcai-wizard-item';
+
+            var name = document.createElement('strong');
+            name.textContent = item.name || 'Ingresso';
+            box.appendChild(name);
+
+            var row = document.createElement('div');
+            row.className = 'wcai-wizard-summary-row';
+
+            var label = document.createElement('span');
+            label.textContent = 'Saída';
+            row.appendChild(label);
+
+            if (item.departure_label) {
+                var value = document.createElement('strong');
+                value.textContent = item.departure_label;
+                row.appendChild(value);
+            } else {
+                var select = document.createElement('select');
+                var blank = document.createElement('option');
+                blank.value = '';
+                blank.textContent = 'Selecione uma data e horário';
+                select.appendChild(blank);
+
+                var ext = item.extensions || {};
+                var dataItem = cart().items.filter(function (cartItem) {
+                    return String(cartItem.key || cartItem.id) === String(item.key);
+                })[0];
+
+                var departures = dataItem && dataItem.extensions && dataItem.extensions[NS] ? dataItem.extensions[NS].departures : [];
+
+                (departures || []).forEach(function (departure) {
+                    var option = document.createElement('option');
+                    option.value = departure.id;
+                    option.textContent = departure.label + ' — ' + departure.available + ' vaga' + (departure.available === 1 ? '' : 's');
+                    select.appendChild(option);
+                });
+
+                select.addEventListener('change', function () {
+                    item.departure_id = select.value;
+                    var selected = departures.filter(function (entry) {
+                        return String(entry.id) === String(select.value);
+                    })[0];
+                    item.departure_label = selected ? selected.label : '';
+                    sync();
+                    buildStepOne(panel);
+                });
+
+                row.appendChild(select);
+            }
+
+            box.appendChild(row);
+
+            var qtyRow = document.createElement('div');
+            qtyRow.className = 'wcai-wizard-summary-row';
+            qtyRow.innerHTML = '<span>Participantes</span><strong>' + item.quantity + '</strong>';
+            box.appendChild(qtyRow);
+
+            panel.appendChild(box);
+        });
+
+        panel.appendChild(
+            actions('Continuar', function () {
+                if (!validateDeparture()) return;
+                setStep(2);
+            })
+        );
+    }
+
+    function buildStepTwo(panel) {
+        panel.innerHTML = '';
+
+        var title = document.createElement('h3');
+        title.textContent = '2. Seus dados';
+        panel.appendChild(title);
+
+        var text = document.createElement('p');
+        text.textContent = 'O titular já é identificado pelos dados de faturamento. Preencha nome, contato, CPF e data de nascimento no bloco de faturamento abaixo.';
+        panel.appendChild(text);
+
+        panel.appendChild(
+            actions('Continuar', function () {
+                if (!validateBillingStep()) return;
+                setStep(3);
+            }, function () {
+                setStep(1);
+            })
+        );
+    }
+
+    function buildStepThree(panel) {
+        panel.innerHTML = '';
+
+        var title = document.createElement('h3');
+        title.textContent = '3. Participantes adicionais';
+        panel.appendChild(title);
+
+        var hasAdditional = false;
+
+        state.items.forEach(function (item) {
+            if (!item.additional_participants.length) return;
+
+            hasAdditional = true;
+
+            var itemBox = document.createElement('div');
+            itemBox.className = 'wcai-wizard-item';
+
+            var heading = document.createElement('h4');
+            heading.textContent = item.name + ' — ' + item.additional_participants.length + ' participante(s) adicional(is)';
+            itemBox.appendChild(heading);
+
+            item.additional_participants.forEach(function (person, index) {
+                var personBox = document.createElement('div');
+                personBox.className = 'wcai-wizard-person';
+
+                var personTitle = document.createElement('h5');
+                personTitle.textContent = 'Participante ' + (index + 2);
+                personBox.appendChild(personTitle);
+
+                personBox.appendChild(
+                    inputField('Nome completo', person.name, 'Nome completo', null, function (value) {
+                        person.name = value;
+                    })
+                );
+
+                personBox.appendChild(
+                    inputField('CPF', person.cpf, '000.000.000-00', cpfMask, function (value) {
+                        person.cpf = value;
+                    })
+                );
+
+                personBox.appendChild(
+                    inputField('Data de nascimento', person.birthdate, 'dd/mm/aaaa', dateMask, function (value) {
+                        person.birthdate = value;
+                    })
+                );
+
+                itemBox.appendChild(personBox);
+            });
+
+            panel.appendChild(itemBox);
+        });
+
+        if (!hasAdditional) {
+            var none = document.createElement('p');
+            none.textContent = 'Como sua reserva possui apenas um participante, não há dados adicionais para preencher.';
+            panel.appendChild(none);
+        }
+
+        panel.appendChild(
+            actions('Continuar', function () {
+                if (!validateAdditional()) return;
+                buildStepFour(document.querySelector('#' + ROOT + ' [data-wcai-step="4"]'));
+                setStep(4);
+            }, function () {
+                setStep(2);
+            })
+        );
+    }
+
+    function buildStepFour(panel) {
+        panel.innerHTML = '';
+
+        var title = document.createElement('h3');
+        title.textContent = '4. Revise sua reserva';
+        panel.appendChild(title);
+
+        state.items.forEach(function (item) {
+            var box = document.createElement('div');
+            box.className = 'wcai-wizard-item';
+
+            var h = document.createElement('strong');
+            h.textContent = item.name + ' — ' + item.quantity + ' participante(s)';
+            box.appendChild(h);
+
+            var date = document.createElement('p');
+            date.textContent = 'Saída: ' + (item.departure_label || 'não selecionada');
+            box.appendChild(date);
+
+            var additional = document.createElement('p');
+            additional.textContent = 'Participantes adicionais: ' + item.additional_participants.length;
+            box.appendChild(additional);
+
+            panel.appendChild(box);
+        });
+
+        var note = document.createElement('p');
+        note.textContent = 'No próximo passo o pagamento será exibido pelo WooCommerce. O titular já foi identificado pelos dados de faturamento.';
+        panel.appendChild(note);
+
+        panel.appendChild(
+            actions('Ir para pagamento', function () {
+                setStep(5);
+            }, function () {
+                setStep(3);
+            })
+        );
+    }
+
+    function buildStepFive(panel) {
+        panel.innerHTML = '';
+
+        var title = document.createElement('h3');
+        title.textContent = '5. Pagamento';
+        panel.appendChild(title);
+
+        var note = document.createElement('p');
+        note.textContent = 'Confira a forma de pagamento abaixo e finalize seu pedido.';
+        panel.appendChild(note);
+
+        panel.appendChild(
+            actions(null, null, function () {
+                setStep(4);
+            })
+        );
     }
 
     function render() {
         var root = document.getElementById(ROOT);
         var data = cart();
+
         if (!root || !data || !Array.isArray(data.items)) return;
 
         var targets = data.items.filter(function (item) {
@@ -114,111 +592,64 @@
         });
 
         state.items = targets.map(itemState);
-        root.innerHTML = '';
 
         if (!targets.length) {
             root.style.display = 'none';
-            sync();
-            validation({});
+            setValidationErrors({});
             return;
         }
 
         root.style.display = '';
-        var h = document.createElement('h3');
-        h.textContent = 'Dados da atividade';
-        root.appendChild(h);
-        var intro = document.createElement('p');
-        intro.textContent = 'Selecione sua saída e informe os dados de todos os participantes.';
-        root.appendChild(intro);
 
-        targets.forEach(function (item, n) {
-            var ext = item.extensions[NS];
-            var s = state.items[n];
-            var box = document.createElement('div');
-            box.className = 'wcai-item-box';
-
-            var title = document.createElement('h4');
-            title.textContent = (item.name || 'Ingresso') + ' — ' + s.quantity + ' participante(s)';
-            box.appendChild(title);
-
-            var depWrap = document.createElement('div');
-            depWrap.className = 'wcai-field';
-            var depLabel = document.createElement('label');
-            depLabel.textContent = 'Data e horário da atividade';
-            depWrap.appendChild(depLabel);
-            var select = document.createElement('select');
-            var blank = document.createElement('option');
-            blank.value = '';
-            blank.textContent = 'Selecione a data e horário';
-            select.appendChild(blank);
-
-            (ext.departures || []).forEach(function (d) {
-                var o = document.createElement('option');
-                o.value = d.id;
-                o.textContent = d.label + ' (' + d.available + ' vaga' + (d.available === 1 ? '' : 's') + ')';
-                if (String(s.departure_id) === String(d.id)) o.selected = true;
-                select.appendChild(o);
-            });
-
-            select.addEventListener('change', function () {
-                s.departure_id = select.value;
-                sync();
-                validate();
-            });
-            depWrap.appendChild(select);
-            box.appendChild(depWrap);
-
-            if (!ext.departures || !ext.departures.length) {
-                var unavailable = document.createElement('p');
-                unavailable.className = 'wcai-error';
-                unavailable.textContent = 'Não há saídas disponíveis para este ingresso no momento.';
-                box.appendChild(unavailable);
-            }
-
-            for (var i = 0; i < s.quantity; i++) {
-                let person = s.participants[i];
-                var personBox = document.createElement('div');
-                personBox.className = 'wcai-person';
-                var ph = document.createElement('h5');
-                ph.textContent = i === 0 ? 'Participante 1 — Titular' : 'Visitante ' + (i + 1);
-                personBox.appendChild(ph);
-
-                if (i > 0) {
-                    personBox.appendChild(inputField('Nome completo', person.name, 'Nome completo', null, function (v) { person.name = v; }));
-                }
-                personBox.appendChild(inputField('CPF', person.cpf, '000.000.000-00', cpfMask, function (v) { person.cpf = v; }));
-                personBox.appendChild(inputField('Data de nascimento', person.birthdate, 'dd/mm/aaaa', dateMask, function (v) { person.birthdate = v; }));
-                box.appendChild(personBox);
-            }
-
-            root.appendChild(box);
-        });
-
+        styleWizard();
+        buildStepOne(root.querySelector('[data-wcai-step="1"]'));
+        buildStepTwo(root.querySelector('[data-wcai-step="2"]'));
+        buildStepThree(root.querySelector('[data-wcai-step="3"]'));
+        buildStepFour(root.querySelector('[data-wcai-step="4"]'));
+        buildStepFive(root.querySelector('[data-wcai-step="5"]'));
         sync();
-        validate();
+        setStep(currentStep);
     }
 
     function sig(data) {
         if (!data || !Array.isArray(data.items)) return '';
+
         return data.items.map(function (item) {
-            var e = item.extensions && item.extensions[NS];
-            if (!e) return 'x:' + (item.key || item.id);
-            return [item.key || item.id, e.product_id, e.variation_id, e.quantity, JSON.stringify(e.departures || [])].join('|');
+            var ext = item.extensions && item.extensions[NS];
+            if (!ext) return 'x:' + (item.key || item.id);
+
+            return [
+                item.key || item.id,
+                ext.product_id,
+                ext.variation_id,
+                ext.quantity,
+                ext.departure_id,
+                JSON.stringify(ext.departures || [])
+            ].join('|');
         }).join('||');
     }
 
     function boot() {
-        if (!document.getElementById(ROOT) || !wp.data) return;
+        if (!document.getElementById(ROOT) || !window.wp || !wp.data) return;
+
         function update() {
             var data = cart();
             var next = sig(data);
+
             if (next !== signature) {
                 signature = next;
                 render();
             }
         }
+
         update();
         wp.data.subscribe(update, 'wc/store/cart');
+
+        var observer = new MutationObserver(function () {
+            applyNativeStepVisibility();
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
     }
 
     if (document.readyState === 'loading') {
