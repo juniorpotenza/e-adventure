@@ -183,11 +183,41 @@
         return heading.parentElement;
     }
 
+    function firstExisting(selectors) {
+        for (var i = 0; i < selectors.length; i++) {
+            var node = document.querySelector(selectors[i]);
+            if (node) return node;
+        }
+        return null;
+    }
+
     function nativeSections() {
         return {
-            contact: findSectionByTerms(['informações de contato', 'contact information']),
-            billing: findSectionByTerms(['endereço de cobrança', 'billing address']),
-            payment: findSectionByTerms(['pagamento', 'payment']),
+            contact: firstExisting([
+                '[data-block-name="woocommerce/checkout-contact-information-block"]',
+                '.wc-block-checkout__contact-fields'
+            ]) || findSectionByTerms(['informações de contato', 'contact information']),
+            billing: firstExisting([
+                '[data-block-name="woocommerce/checkout-billing-address-block"]',
+                '.wc-block-checkout__billing-fields'
+            ]) || findSectionByTerms(['endereço de cobrança', 'billing address']),
+            payment: firstExisting([
+                '[data-block-name="woocommerce/checkout-payment-block"]',
+                '.wc-block-checkout__payment-method',
+                '.wc-block-checkout__payment-methods'
+            ]) || findSectionByTerms(['pagamento', 'payment']),
+            terms: firstExisting([
+                '[data-block-name="woocommerce/checkout-terms-block"]'
+            ]),
+            actions: firstExisting([
+                '[data-block-name="woocommerce/checkout-actions-block"]'
+            ]),
+            orderNote: firstExisting([
+                '[data-block-name="woocommerce/checkout-order-note-block"]'
+            ]),
+            express: firstExisting([
+                '[data-block-name="woocommerce/checkout-express-payment-block"]'
+            ])
         };
     }
 
@@ -212,9 +242,15 @@
     function applyNativeStepVisibility() {
         var sections = nativeSections();
 
+        // A etapa visual do WooAdventure controla apenas a ordem de apresentação.
+        // O Checkout Block continua sendo o responsável pelos campos e pelo pagamento.
+        setHidden(sections.express, true);
         setHidden(sections.contact, currentStep !== 2);
         setHidden(sections.billing, currentStep !== 2);
+        setHidden(sections.orderNote, currentStep !== 4);
+        setHidden(sections.terms, currentStep !== 5);
         setHidden(sections.payment, currentStep !== 5);
+        setHidden(sections.actions, currentStep !== 5);
 
         placeOrderButtons().forEach(function (button) {
             button.hidden = currentStep !== 5;
@@ -233,6 +269,7 @@
             '#wcai-checkout-wizard .wcai-wizard-progress span.is-active{font-weight:700;background:#222;color:#fff}' +
             '#wcai-checkout-wizard .wcai-wizard-panel{display:none}' +
             '#wcai-checkout-wizard .wcai-wizard-panel.is-active{display:block}' +
+            '#wcai-checkout-wizard + .wp-block-woocommerce-checkout-fields-block{margin-top:0}' +
             '#wcai-checkout-wizard .wcai-wizard-item{padding:16px;margin:0 0 16px;border:1px solid #e2e2e2;border-radius:6px}' +
             '#wcai-checkout-wizard .wcai-wizard-person{padding:14px;margin:12px 0;border:1px solid #eee;border-radius:6px;background:#fafafa}' +
             '#wcai-checkout-wizard .wcai-wizard-field{margin:0 0 12px}' +
