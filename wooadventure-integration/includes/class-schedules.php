@@ -80,138 +80,54 @@ class WCAI_Schedules {
             'status' => get_post_meta( $post->ID, '_wcai_schedule_status', true ) ?: 'active',
         );
 
-        $products = function_exists( 'wc_get_products' ) ? wc_get_products(
-            array(
-                'limit' => -1,
-                'status' => 'publish',
-                'return' => 'objects',
-            )
-        ) : array();
+        $products = function_exists( 'wc_get_products' ) ? wc_get_products( array( 'limit' => -1, 'status' => 'publish', 'return' => 'objects' ) ) : array();
+        $guides = get_users( array( 'role__in' => array( 'wcai_guide', 'administrator' ), 'orderby' => 'display_name' ) );
+        $weekdays = array( 1 => 'Segunda', 2 => 'Terça', 3 => 'Quarta', 4 => 'Quinta', 5 => 'Sexta', 6 => 'Sábado', 7 => 'Domingo' );
 
-        $guides = get_users(
-            array(
-                'role__in' => array( 'wcai_guide', 'administrator' ),
-                'orderby' => 'display_name',
-            )
-        );
+        echo '<div class="wcai-schedule-admin" style="max-width:980px;">';
+        echo '<style>.wcai-schedule-admin .wcai-s-section{margin:0 0 18px;padding:18px;border:1px solid #dcdcde;border-radius:8px;background:#fff}.wcai-schedule-admin h3{margin:0 0 6px;font-size:16px}.wcai-schedule-admin .wcai-s-help{margin:0 0 16px;color:#646970}.wcai-schedule-admin .wcai-s-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.wcai-schedule-admin .wcai-s-field label{display:block;font-weight:600;margin-bottom:6px}.wcai-schedule-admin .wcai-s-field input,.wcai-schedule-admin .wcai-s-field select,.wcai-schedule-admin .wcai-s-field textarea{max-width:100%;box-sizing:border-box}.wcai-schedule-admin .wcai-s-wide{width:100%}.wcai-schedule-admin .wcai-s-days{display:flex;flex-wrap:wrap;gap:8px}.wcai-schedule-admin .wcai-s-day{padding:8px 10px;border:1px solid #dcdcde;border-radius:6px;background:#f6f7f7}.wcai-schedule-admin .wcai-s-note{font-size:12px;color:#646970}.wcai-schedule-admin .wcai-s-highlight{padding:12px;background:#f0f6fc;border-left:3px solid #2271b1}@media(max-width:700px){.wcai-schedule-admin .wcai-s-grid{grid-template-columns:1fr}}</style>';
 
-        $weekdays = array(
-            1 => 'Segunda',
-            2 => 'Terça',
-            3 => 'Quarta',
-            4 => 'Quinta',
-            5 => 'Sexta',
-            6 => 'Sábado',
-            7 => 'Domingo',
-        );
-        ?>
-        <p>
-            <label for="wcai_schedule_product"><strong>Produto</strong></label><br>
-            <select id="wcai_schedule_product" name="wcai_schedule[product_id]" required>
-                <option value="">Selecione um produto</option>
-                <?php foreach ( $products as $product ) : ?>
-                    <option value="<?php echo esc_attr( $product->get_id() ); ?>" <?php selected( $values['product_id'], $product->get_id() ); ?>>
-                        <?php echo esc_html( $product->get_name() ); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </p>
+        echo '<div class="wcai-s-section"><h3>1. O que será agendado?</h3><p class="wcai-s-help">Defina o produto e a regra que irá gerar as saídas individuais.</p><div class="wcai-s-grid">';
+        echo '<div class="wcai-s-field"><label>Produto</label><select name="wcai_schedule[product_id]" required><option value="">Selecione um produto</option>';
+        foreach ( $products as $product ) {
+            echo '<option value="' . esc_attr( $product->get_id() ) . '" ' . selected( $values['product_id'], $product->get_id(), false ) . '>' . esc_html( $product->get_name() ) . '</option>';
+        }
+        echo '</select></div>';
+        echo '<div class="wcai-s-field"><label>Tipo de recorrência</label><select name="wcai_schedule[recurrence]"><option value="once" ' . selected( $values['recurrence'], 'once', false ) . '>Uma única data</option><option value="weekly" ' . selected( $values['recurrence'], 'weekly', false ) . '>Semanal — dias da semana</option><option value="monthly" ' . selected( $values['recurrence'], 'monthly', false ) . '>Mensal — dia do mês</option></select></div>';
+        echo '</div></div>';
 
-        <p>
-            <label for="wcai_schedule_recurrence"><strong>Recorrência</strong></label><br>
-            <select id="wcai_schedule_recurrence" name="wcai_schedule[recurrence]">
-                <option value="once" <?php selected( $values['recurrence'], 'once' ); ?>>Única</option>
-                <option value="weekly" <?php selected( $values['recurrence'], 'weekly' ); ?>>Semanal — dias da semana</option>
-                <option value="monthly" <?php selected( $values['recurrence'], 'monthly' ); ?>>Mensal — dia do mês</option>
-            </select>
-        </p>
+        echo '<div class="wcai-s-section"><h3>2. Período e recorrência</h3><p class="wcai-s-help">O sistema transforma esta regra em várias Saídas. Alterações futuras preservam reservas já realizadas.</p><div class="wcai-s-grid">';
+        echo '<div class="wcai-s-field"><label>Data inicial</label><input type="date" name="wcai_schedule[start_date]" value="' . esc_attr( $values['start_date'] ) . '" required></div>';
+        echo '<div class="wcai-s-field"><label>Data final</label><input type="date" name="wcai_schedule[end_date]" value="' . esc_attr( $values['end_date'] ) . '" required></div>';
+        echo '<div class="wcai-s-field"><label>Horário de início</label><input type="time" name="wcai_schedule[start_time]" value="' . esc_attr( $values['start_time'] ) . '" required></div>';
+        echo '<div class="wcai-s-field"><label>Dia do mês</label><input type="number" min="1" max="31" name="wcai_schedule[month_day]" value="' . esc_attr( $values['month_day'] ?: 1 ) . '"><p class="wcai-s-note">Usado somente para recorrência mensal.</p></div>';
+        echo '</div><p><strong>Dias da semana</strong></p><div class="wcai-s-days">';
+        foreach ( $weekdays as $day => $label ) {
+            echo '<label class="wcai-s-day"><input type="checkbox" name="wcai_schedule[weekdays][]" value="' . esc_attr( $day ) . '" ' . checked( in_array( (string) $day, array_map( 'strval', $values['weekdays'] ), true ), true, false ) . '> ' . esc_html( $label ) . '</label>';
+        }
+        echo '</div></div>';
 
-        <p>
-            <label><strong>Período</strong></label><br>
-            <input type="date" name="wcai_schedule[start_date]" value="<?php echo esc_attr( $values['start_date'] ); ?>" required>
-            <span> até </span>
-            <input type="date" name="wcai_schedule[end_date]" value="<?php echo esc_attr( $values['end_date'] ); ?>" required>
-        </p>
+        echo '<div class="wcai-s-section"><h3>3. Booking e capacidade</h3><p class="wcai-s-help">Estas regras serão copiadas para cada saída gerada.</p><div class="wcai-s-grid">';
+        echo '<div class="wcai-s-field"><label>Capacidade máxima por saída</label><input type="number" min="1" name="wcai_schedule[capacity]" value="' . esc_attr( $values['capacity'] ) . '" required></div>';
+        echo '<div class="wcai-s-field"><label>Mínimo para confirmação</label><input type="number" min="1" name="wcai_schedule[minimum_capacity]" value="' . esc_attr( $values['minimum_capacity'] ) . '"></div>';
+        echo '<div class="wcai-s-field"><label>Fechar vendas</label><div><input type="number" min="0" name="wcai_schedule[cutoff_value]" value="' . esc_attr( $values['cutoff_value'] ) . '" style="width:110px;"> <select name="wcai_schedule[cutoff_unit]"><option value="hours" ' . selected( $values['cutoff_unit'], 'hours', false ) . '>horas antes</option><option value="days" ' . selected( $values['cutoff_unit'], 'days', false ) . '>dias antes</option></select></div><p class="wcai-s-note">Ex.: 2 horas antes fecha a compra às 07:00 para uma saída às 09:00.</p></div>';
+        echo '<div class="wcai-s-field"><label>Duração</label><input type="number" min="1" name="wcai_schedule[duration_minutes]" value="' . esc_attr( $values['duration_minutes'] ) . '"> <span>minutos</span></div>';
+        echo '</div></div>';
 
-        <p>
-            <strong>Dias da semana</strong><br>
-            <?php foreach ( $weekdays as $day => $label ) : ?>
-                <label style="margin-right:12px;">
-                    <input type="checkbox" name="wcai_schedule[weekdays][]" value="<?php echo esc_attr( $day ); ?>" <?php checked( in_array( (string) $day, array_map( 'strval', $values['weekdays'] ), true ) ); ?>>
-                    <?php echo esc_html( $label ); ?>
-                </label>
-            <?php endforeach; ?>
-            <br><small>Usado quando a recorrência for semanal.</small>
-        </p>
+        echo '<div class="wcai-s-section"><h3>4. Operação</h3><div class="wcai-s-grid">';
+        echo '<div class="wcai-s-field"><label>Ponto de encontro</label><input class="wcai-s-wide" type="text" name="wcai_schedule[meeting_point]" value="' . esc_attr( $values['meeting_point'] ) . '"></div>';
+        echo '<div class="wcai-s-field"><label>Guia responsável</label><select name="wcai_schedule[guide_id]"><option value="">Não definido</option>';
+        foreach ( $guides as $guide ) {
+            echo '<option value="' . esc_attr( $guide->ID ) . '" ' . selected( $values['guide_id'], $guide->ID, false ) . '>' . esc_html( $guide->display_name ) . '</option>';
+        }
+        echo '</select></div>';
+        echo '<div class="wcai-s-field"><label>Status da programação</label><select name="wcai_schedule[status]"><option value="active" ' . selected( $values['status'], 'active', false ) . '>Ativa</option><option value="paused" ' . selected( $values['status'], 'paused', false ) . '>Pausada</option><option value="draft" ' . selected( $values['status'], 'draft', false ) . '>Rascunho</option></select></div>';
+        echo '</div></div>';
 
-        <p>
-            <label for="wcai_schedule_month_day"><strong>Dia do mês</strong></label><br>
-            <input id="wcai_schedule_month_day" type="number" min="1" max="31" name="wcai_schedule[month_day]" value="<?php echo esc_attr( $values['month_day'] ?: 1 ); ?>">
-            <small>Usado quando a recorrência for mensal.</small>
-        </p>
+        echo '<div class="wcai-s-section"><h3>5. Exceções</h3><p class="wcai-s-help">Use para bloquear feriados, férias ou dias específicos sem alterar a regra principal.</p><textarea name="wcai_schedule[exceptions]" rows="5" class="large-text code" placeholder="25/12/2026&#10;01/01/2027">' . esc_textarea( $values['exceptions'] ) . '</textarea><p class="wcai-s-note">Aceita DD/MM/AAAA ou AAAA-MM-DD, uma data por linha.</p></div>';
 
-        <p>
-            <label><strong>Horário</strong></label><br>
-            <input type="time" name="wcai_schedule[start_time]" value="<?php echo esc_attr( $values['start_time'] ); ?>" required>
-        </p>
-
-        <p>
-            <label><strong>Duração (minutos)</strong></label><br>
-            <input type="number" min="1" name="wcai_schedule[duration_minutes]" value="<?php echo esc_attr( $values['duration_minutes'] ); ?>">
-        </p>
-
-        <p>
-            <label><strong>Capacidade</strong></label><br>
-            <input type="number" min="1" name="wcai_schedule[capacity]" value="<?php echo esc_attr( $values['capacity'] ); ?>" required>
-        </p>
-
-        <p>
-            <label><strong>Mínimo para confirmação</strong></label><br>
-            <input type="number" min="1" name="wcai_schedule[minimum_capacity]" value="<?php echo esc_attr( $values['minimum_capacity'] ); ?>">
-        </p>
-
-        <p>
-            <label><strong>Ponto de encontro</strong></label><br>
-            <input class="widefat" type="text" name="wcai_schedule[meeting_point]" value="<?php echo esc_attr( $values['meeting_point'] ); ?>">
-        </p>
-
-        <p>
-            <label><strong>Guia responsável</strong></label><br>
-            <select name="wcai_schedule[guide_id]">
-                <option value="">Não definido</option>
-                <?php foreach ( $guides as $guide ) : ?>
-                    <option value="<?php echo esc_attr( $guide->ID ); ?>" <?php selected( $values['guide_id'], $guide->ID ); ?>>
-                        <?php echo esc_html( $guide->display_name ); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </p>
-
-        <p>
-            <label><strong>Fechamento das vendas</strong></label><br>
-            <input type="number" min="0" name="wcai_schedule[cutoff_value]" value="<?php echo esc_attr( $values['cutoff_value'] ); ?>" style="width:100px;">
-            <select name="wcai_schedule[cutoff_unit]">
-                <option value="hours" <?php selected( $values['cutoff_unit'], 'hours' ); ?>>horas antes</option>
-                <option value="days" <?php selected( $values['cutoff_unit'], 'days' ); ?>>dias antes</option>
-            </select>
-            <br><small>0 mantém a venda aberta até o horário da saída, respeitando as vagas.</small>
-        </p>
-
-        <p>
-            <label><strong>Exceções</strong></label><br>
-            <textarea name="wcai_schedule[exceptions]" rows="4" class="large-text code" placeholder="25/12/2026&#10;01/01/2027"><?php echo esc_textarea( $values['exceptions'] ); ?></textarea>
-            <br><small>Uma data por linha. Essas datas não gerarão saídas.</small>
-        </p>
-
-        <p>
-            <label><strong>Status da programação</strong></label><br>
-            <select name="wcai_schedule[status]">
-                <option value="active" <?php selected( $values['status'], 'active' ); ?>>Ativa</option>
-                <option value="paused" <?php selected( $values['status'], 'paused' ); ?>>Pausada</option>
-                <option value="draft" <?php selected( $values['status'], 'draft' ); ?>>Rascunho</option>
-            </select>
-        </p>
-        <?php
+        echo '<div class="wcai-s-highlight"><strong>Como funciona:</strong> ao salvar, o sistema cria ou atualiza as Saídas individuais para cada ocorrência. O cliente escolhe uma dessas Saídas na página do produto; capacidade, prazo de compra e disponibilidade são revalidados no checkout.</div>';
+        echo '</div>';
     }
 
     public function save_schedule( $post_id, $post ) {
