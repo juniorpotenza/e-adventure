@@ -26,6 +26,8 @@ class WCAI_Settings {
         register_setting( 'wcai_settings_group', 'wcai_product_ids', array( 'sanitize_callback' => array( $this, 'sanitize_product_ids' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_blocked_cpfs', array( 'sanitize_callback' => array( $this, 'sanitize_blocked_cpfs' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_date_meta_key', array( 'sanitize_callback' => array( $this, 'sanitize_meta_key' ) ) );
+        register_setting( 'wcai_settings_group', 'wcai_event_date_source', array( 'sanitize_callback' => array( $this, 'sanitize_event_date_source' ) ) );
+        register_setting( 'wcai_settings_group', 'wcai_event_date_meta_key', array( 'sanitize_callback' => array( $this, 'sanitize_meta_key' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_seq_enabled', array( 'sanitize_callback' => array( $this, 'sanitize_seq_enabled' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_seq_prefix', array( 'sanitize_callback' => array( $this, 'sanitize_text' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_seq_suffix', array( 'sanitize_callback' => array( $this, 'sanitize_text' ) ) );
@@ -39,8 +41,9 @@ class WCAI_Settings {
             wp_die( esc_html__( 'Você não tem permissão para acessar estas configurações.', 'wcai' ), 403 );
         }
 
-        $existing_keys = $this->get_existing_order_item_meta_keys();
-        $current_date_key = get_option( 'wcai_date_meta_key', 'tour_date' );
+        $existing_keys = $this->get_existing_order_meta_keys();
+        $current_date_key = get_option( 'wcai_event_date_meta_key', get_option( 'wcai_date_meta_key', 'tour_date' ) );
+        $current_date_source = get_option( 'wcai_event_date_source', 'departure' );
         $current_trigger = get_option( 'wcai_trigger_status', 'completed' );
         $wc_statuses = wc_get_order_statuses();
 
@@ -87,17 +90,30 @@ class WCAI_Settings {
                         <td><input type="text" name="wcai_product_ids" value="<?php echo esc_attr( get_option( 'wcai_product_ids' ) ); ?>" class="regular-text" /></td>
                     </tr>
                     <tr valign="top">
-                        <th scope="row">Campo da Data</th>
+                        <th scope="row">Fonte da data do passeio/evento</th>
                         <td>
-                            <select name="wcai_date_meta_key" class="regular-text">
+                            <select name="wcai_event_date_source" class="regular-text">
+                                <option value="departure" <?php selected( $current_date_source, 'departure' ); ?>>Saída selecionada (recomendado)</option>
+                                <option value="order_meta" <?php selected( $current_date_source, 'order_meta' ); ?>>Meta do pedido</option>
+                                <option value="item_meta" <?php selected( $current_date_source, 'item_meta' ); ?>>Meta do item do pedido</option>
+                            </select>
+                            <p class="description">Novas instalações usam a própria Saída. As opções legadas continuam disponíveis para compatibilidade com pedidos antigos.</p>
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row">Campo legado da data</th>
+                        <td>
+                            <select name="wcai_event_date_meta_key" class="regular-text">
                                 <option value="">-- Selecione --</option>
                                 <?php foreach ( $existing_keys as $key ) : ?>
-                                    <option value="<?php echo esc_attr( $key ); ?>" <?php selected( $current_date_key, $key ); ?>>
-                                        <?php echo esc_html( $key ); ?>
+                                    <option value="<?php echo esc_attr( $key['value'] ); ?>" <?php selected( $current_date_key, $key['value'] ); ?>>
+                                        <?php echo esc_html( $key['label'] ); ?>
                                     </option>
                                 <?php endforeach; ?>
-                                <option value="tour_date" <?php selected( $current_date_key, 'tour_date' ); ?>>tour_date</option>
+                                <option value="tour_date" <?php selected( $current_date_key, 'tour_date' ); ?>>tour_date — compatibilidade</option>
                             </select>
+                            <p class="description">Selecione a meta somente quando a fonte acima for uma opção legada. A lista consulta metas de pedido e item disponíveis no banco.</p>
+                            <input type="hidden" name="wcai_date_meta_key" value="<?php echo esc_attr( $current_date_key ); ?>">
                         </td>
                     </tr>
                     <tr valign="top">
@@ -206,6 +222,11 @@ class WCAI_Settings {
         return $value ?: 'tour_date';
     }
 
+    public function sanitize_event_date_source( $value ) {
+        $value = sanitize_key( $value );
+        return in_array( $value, array( 'departure', 'order_meta', 'item_meta' ), true ) ? $value : 'departure';
+    }
+
     public function sanitize_seq_enabled( $value ) {
         return 'yes' === $value ? 'yes' : 'no';
     }
@@ -270,7 +291,9 @@ class WCAI_Settings {
     }
 
     public static function get_carta_oferta() { return get_option( 'wcai_carta_oferta', '' ); }
-    public static function get_date_meta_key() { return get_option( 'wcai_date_meta_key', 'tour_date' ); }
+    public static function get_date_meta_key() { return get_option( 'wcai_event_date_meta_key', get_option( 'wcai_date_meta_key', 'tour_date' ) ); }
+    public static function get_event_date_source() { return get_option( 'wcai_event_date_source', 'departure' ); }
+    public static function get_event_date_meta_key() { return self::get_date_meta_key(); }
     public static function get_token() { return self::get_carta_oferta(); }
     public static function get_trigger_status() { return get_option( 'wcai_trigger_status', 'completed' ); }
 
