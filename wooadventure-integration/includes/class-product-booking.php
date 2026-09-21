@@ -10,7 +10,6 @@ class WCAI_Product_Booking {
         add_filter( 'woocommerce_add_to_cart_validation', array( $this, 'validate_add_to_cart' ), 10, 5 );
         add_filter( 'woocommerce_add_cart_item_data', array( $this, 'add_cart_item_data' ), 10, 4 );
         add_filter( 'woocommerce_get_item_data', array( $this, 'render_cart_item_data' ), 10, 2 );
-        add_action( 'woocommerce_before_calculate_totals', array( $this, 'validate_cart_departures' ), 5 );
     }
 
     private function is_target_product( $product_id, $variation_id = 0 ) {
@@ -123,34 +122,5 @@ class WCAI_Product_Booking {
         return $item_data;
     }
 
-    public function validate_cart_departures( $cart ) {
-        if ( is_admin() && ! wp_doing_ajax() ) {
-            return;
-        }
 
-        if ( ! $cart || ! is_object( $cart ) ) {
-            return;
-        }
-
-        foreach ( $cart->get_cart() as $item ) {
-            $product_id = absint( isset( $item['product_id'] ) ? $item['product_id'] : 0 );
-            $variation_id = absint( isset( $item['variation_id'] ) ? $item['variation_id'] : 0 );
-
-            if ( ! $this->is_target_product( $product_id, $variation_id ) ) {
-                continue;
-            }
-
-            $departure_id = absint( isset( $item['wcai_departure_id'] ) ? $item['wcai_departure_id'] : 0 );
-            if ( ! $departure_id ) {
-                continue;
-            }
-
-            $quantity = max( 1, absint( $item['quantity'] ) );
-
-            if ( class_exists( 'WCAI_Reservations' ) && ! WCAI_Reservations::is_available_for_product( $departure_id, $product_id, $variation_id, $quantity ) ) {
-                wc_add_notice( 'Uma das saídas selecionadas não está mais disponível. Volte ao produto e selecione outra data.', 'error' );
-                break;
-            }
-        }
-    }
 }
