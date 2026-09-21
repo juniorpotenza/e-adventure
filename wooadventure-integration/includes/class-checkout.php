@@ -115,10 +115,8 @@ class WCAI_Checkout {
                     $departure_id = absint( wp_unslash( $_POST[ $departure_field ] ) );
                 }
 
-                if ( $has_departures ) {
-                    if ( ! $departure_id || ! WCAI_Reservations::is_available_for_product( $departure_id, $item['product_id'], $item['variation_id'], $qty ) ) {
-                        wc_add_notice( 'Selecione uma saída disponível com vagas suficientes.', 'error' );
-                    }
+                if ( ! $departure_id || ! WCAI_Reservations::is_available_for_product( $departure_id, $item['product_id'], $item['variation_id'], $qty ) ) {
+                    wc_add_notice( 'Selecione uma saída disponível com vagas suficientes e dentro do prazo de compra.', 'error' );
                 }
                 if ( $qty > 1 ) {
                     for ( $i = 2; $i <= $qty; $i++ ) {
