@@ -237,18 +237,29 @@
             contact: firstExisting([
                 '[data-block-name="woocommerce/checkout-contact-information-block"]',
                 '.wc-block-checkout__contact-fields'
-            ]) || findSectionByTerms(['informações de contato', 'contact information']),
+            ]),
             billing: firstExisting([
                 '[data-block-name="woocommerce/checkout-billing-address-block"]',
                 '.wc-block-checkout__billing-fields'
-            ]) || findSectionByTerms(['endereço de cobrança', 'billing address']),
+            ]),
+            shippingAddress: firstExisting([
+                '[data-block-name="woocommerce/checkout-shipping-address-block"]'
+            ]),
+            shippingMethods: firstExisting([
+                '[data-block-name="woocommerce/checkout-shipping-methods-block"]'
+            ]),
+            shippingMethod: firstExisting([
+                '[data-block-name="woocommerce/checkout-shipping-method-block"]'
+            ]),
+            pickup: firstExisting([
+                '[data-block-name="woocommerce/checkout-pickup-options-block"]'
+            ]),
             payment: firstExisting([
                 '[data-block-name="woocommerce/checkout-payment-block"]',
-                '.wc-block-checkout__payment-method',
-                '.wc-block-checkout__payment-methods',
                 '.wc-block-components-checkout-payment-methods',
-                '[class*="checkout-payment"]'
-            ]) || findSectionByTerms(['pagamento', 'payment']),
+                '.wc-block-checkout__payment-method',
+                '.wc-block-checkout__payment-methods'
+            ]),
             terms: firstExisting([
                 '[data-block-name="woocommerce/checkout-terms-block"]'
             ]),
@@ -277,10 +288,11 @@
     function placeOrderButtons() {
         var candidates = Array.prototype.slice.call(
             document.querySelectorAll(
+                '[data-block-name="woocommerce/checkout-actions-block"] button,' +
+                '[data-block-name="woocommerce/checkout-actions-block"] a,' +
                 '.wc-block-components-checkout-place-order-button,' +
-                'button.wc-block-components-checkout-place-order-button,' +
                 '#place_order,' +
-                'button,a'
+                'button[name="woocommerce_checkout_place_order"]'
             )
         );
         var seen = [];
@@ -288,23 +300,33 @@
         return candidates.filter(function (element) {
             if (seen.indexOf(element) !== -1) return false;
             seen.push(element);
-
-            if (
-                element.matches &&
-                (
-                    element.matches('.wc-block-components-checkout-place-order-button') ||
-                    element.matches('#place_order')
-                )
-            ) {
-                return true;
-            }
-
-            var text = (element.textContent || '').trim().toLowerCase();
-            return text.indexOf('fazer pedido') !== -1 ||
-                text.indexOf('finalizar pedido') !== -1 ||
-                text.indexOf('finalizar compra') !== -1 ||
-                text.indexOf('place order') !== -1;
+            return true;
         });
+    }
+
+    function isPlaceOrderElement(target) {
+        var element = target && target.closest ? target.closest(
+            '[data-block-name="woocommerce/checkout-actions-block"] button,' +
+            '[data-block-name="woocommerce/checkout-actions-block"] a,' +
+            '.wc-block-components-checkout-place-order-button,' +
+            '#place_order,' +
+            'button[name="woocommerce_checkout_place_order"]'
+        ) : null;
+
+        if (element) return true;
+
+        var text = target && target.textContent ? target.textContent.trim().toLowerCase() : '';
+        return text.indexOf('fazer pedido') !== -1 ||
+            text.indexOf('finalizar pedido') !== -1 ||
+            text.indexOf('finalizar compra') !== -1 ||
+            text.indexOf('place order') !== -1;
+    }
+
+    function setCheckoutStageClass() {
+        if (!document.body) return;
+
+        document.body.classList.toggle('wcai-checkout-before-payment', currentStep !== 5);
+        document.body.classList.toggle('wcai-checkout-payment-step', currentStep === 5);
     }
 
     function ensureNativeStepControls( sections ) {
@@ -313,9 +335,16 @@
 
             if (!next) {
                 next = document.createElement('div');
-                next.className = 'wcai-native-next';
-                next.innerHTML = '<button type="button" class="button wcai-native-next-button">Continuar para participantes</button>';
-                next.querySelector('button').addEventListener('click', function () {
+                next.className = 'wcai-native-next wcai-native-stage-actions';
+                next.innerHTML =
+                    '<button type="button" class="button wcai-native-back-to-reservation">Voltar para reserva</button>' +
+                    '<button type="button" class="button wcai-native-next-button">Continuar para participantes</button>';
+
+                next.querySelector('.wcai-native-back-to-reservation').addEventListener('click', function () {
+                    setStep(1);
+                });
+
+                next.querySelector('.wcai-native-next-button').addEventListener('click', function () {
                     if (validateBillingStep()) {
                         setStep(3);
                     }
@@ -332,7 +361,7 @@
 
             if (!back) {
                 back = document.createElement('div');
-                back.className = 'wcai-native-back';
+                back.className = 'wcai-native-back wcai-native-stage-actions';
                 back.innerHTML = '<button type="button" class="button wcai-native-back-button">Voltar para revisão</button>';
                 back.querySelector('button').addEventListener('click', function () {
                     setStep(4);
@@ -348,10 +377,17 @@
     function applyNativeStepVisibility() {
         var sections = nativeSections();
 
-        // A etapa visual do WooAdventure controla a ordem de apresentação.
-        // O Checkout Block continua sendo o responsável pelos campos e pelo pagamento.
+        // O WooAdventure usa os blocos nativos apenas como conteúdo das etapas
+        // "Seus dados" e "Pagamento". Os demais blocos permanecem fora do fluxo.
         ensureNativeStepControls( sections );
+        setCheckoutStageClass();
+
         setHidden(sections.express, true);
+        setHidden(sections.shippingAddress, true);
+        setHidden(sections.shippingMethods, true);
+        setHidden(sections.shippingMethod, true);
+        setHidden(sections.pickup, true);
+
         setHidden(sections.contact, currentStep !== 2);
         setHidden(sections.billing, currentStep !== 2);
         setHidden(sections.orderNote, currentStep !== 4);
@@ -365,11 +401,16 @@
         setHidden(nativeBack, currentStep !== 5);
 
         placeOrderButtons().forEach(function (button) {
-            button.hidden = currentStep !== 5;
-            if (currentStep !== 5) {
+            if ( currentStep !== 5 ) {
+                button.hidden = true;
                 button.setAttribute('aria-hidden', 'true');
+                button.setAttribute('tabindex', '-1');
+                button.style.setProperty('display', 'none', 'important');
             } else {
+                button.hidden = false;
                 button.removeAttribute('aria-hidden');
+                button.removeAttribute('tabindex');
+                button.style.removeProperty('display');
             }
         });
     }
@@ -408,9 +449,12 @@
             '#wcai-checkout-wizard .wcai-reservation-summary span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#888}' +
             '#wcai-checkout-wizard .wcai-reservation-summary strong{display:block;margin-top:3px;font-size:13px}' +
             '#wcai-checkout-wizard .wcai-warning{padding:11px 12px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
-            '.wcai-native-next,.wcai-native-back{margin:12px 0;padding:10px 0;border:1px solid #eee;border-radius:8px;background:#fafafa;text-align:right}' +
-            '.wcai-native-next-button,.wcai-native-back-button{margin-right:12px;padding:9px 14px;border-radius:7px;cursor:pointer}' +
-            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(3,minmax(0,1fr))}#wcai-checkout-wizard .wcai-wizard-progress span:nth-child(n+4){display:none}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-next,.wcai-native-back{text-align:stretch}.wcai-native-next-button,.wcai-native-back-button{width:100%;margin:0}}';
+            '.wcai-native-stage-actions{display:flex;justify-content:flex-end;gap:8px;align-items:center;margin:14px 0;padding:10px 0;border-top:1px solid #eee}' +
+            '.wcai-native-stage-actions button{min-height:40px;padding:9px 15px;border:1px solid #222;border-radius:8px;cursor:pointer;background:#fff;color:#222}' +
+            '.wcai-native-stage-actions .wcai-native-next-button{background:#222;color:#fff}' +
+            '.wcai-checkout-before-payment [data-block-name="woocommerce/checkout-actions-block"]{display:none!important}' +
+            '.wcai-checkout-before-payment .wc-block-components-checkout-place-order-button,.wcai-checkout-before-payment #place_order,.wcai-checkout-before-payment button[name="woocommerce_checkout_place_order"]{display:none!important;visibility:hidden!important;pointer-events:none!important}' +
+            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(3,minmax(0,1fr))}#wcai-checkout-wizard .wcai-wizard-progress span:nth-child(n+4){display:none}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-stage-actions{display:grid;grid-template-columns:1fr;gap:7px}.wcai-native-stage-actions button{width:100%}}';
 
         document.head.appendChild(style);
     }
@@ -566,6 +610,13 @@
 
         applyNativeStepVisibility();
 
+        if (currentStep !== 5) {
+            placeOrderButtons().forEach(function (button) {
+                button.hidden = true;
+                button.style.setProperty('display', 'none', 'important');
+            });
+        }
+
         if (currentStep === 3) {
             validateAdditional();
         }
@@ -593,7 +644,7 @@
         panel.innerHTML = '';
 
         var title = document.createElement('h3');
-        title.textContent = '1. Confira sua reserva';
+        title.textContent = 'Confira sua reserva';
         panel.appendChild(title);
 
         state.items.forEach(function (item) {
@@ -649,28 +700,19 @@
         panel.innerHTML = '';
 
         var title = document.createElement('h3');
-        title.textContent = '2. Seus dados';
+        title.textContent = 'Seus dados';
         panel.appendChild(title);
 
         var text = document.createElement('p');
-        text.textContent = 'O titular já é identificado pelos dados de faturamento. Preencha nome, contato, CPF e data de nascimento no bloco de faturamento abaixo.';
+        text.textContent = 'Os dados abaixo pertencem ao titular da reserva. Preencha os campos do checkout e depois avance para os participantes.';
         panel.appendChild(text);
-
-        panel.appendChild(
-            actions('Continuar', function () {
-                if (!validateBillingStep()) return;
-                setStep(3);
-            }, function () {
-                setStep(1);
-            })
-        );
     }
 
     function buildStepThree(panel) {
         panel.innerHTML = '';
 
         var title = document.createElement('h3');
-        title.textContent = '3. Dados dos demais participantes';
+        title.textContent = 'Dados dos demais participantes';
         panel.appendChild(title);
 
         var text = document.createElement('p');
@@ -753,7 +795,7 @@
         panel.innerHTML = '';
 
         var title = document.createElement('h3');
-        title.textContent = '4. Revise sua reserva';
+        title.textContent = 'Revise sua reserva';
         panel.appendChild(title);
 
         state.items.forEach(function (item) {
@@ -792,18 +834,12 @@
         panel.innerHTML = '';
 
         var title = document.createElement('h3');
-        title.textContent = '5. Pagamento';
+        title.textContent = 'Pagamento';
         panel.appendChild(title);
 
         var note = document.createElement('p');
-        note.textContent = 'Confira a forma de pagamento abaixo e finalize seu pedido.';
+        note.textContent = 'Escolha a forma de pagamento abaixo. O botão Finalizar pedido aparece somente nesta etapa.';
         panel.appendChild(note);
-
-        panel.appendChild(
-            actions(null, null, function () {
-                setStep(4);
-            })
-        );
     }
 
     function render() {
@@ -883,6 +919,14 @@
 
         var observeTarget = document.querySelector('.wc-block-checkout') || document.body;
         observer.observe(observeTarget, { childList: true, subtree: true });
+
+        document.addEventListener('click', function (event) {
+            if (currentStep !== 5 && isPlaceOrderElement(event.target)) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                return false;
+            }
+        }, true);
     }
 
     if (document.readyState === 'loading') {
