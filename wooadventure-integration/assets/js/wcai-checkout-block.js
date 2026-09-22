@@ -34,7 +34,7 @@
         var data = JSON.stringify(payload);
 
         if (checkout && typeof checkout.setExtensionData === 'function') {
-            checkout.setExtensionData(NS, 'data', data);
+            checkout.setExtensionData(NS, { data: data });
         } else if (checkout && typeof checkout.__internalSetExtensionData === 'function') {
             checkout.__internalSetExtensionData(NS, { data: data });
         }
@@ -275,10 +275,35 @@
     }
 
     function placeOrderButtons() {
-        var candidates = Array.prototype.slice.call(document.querySelectorAll('button,a'));
+        var candidates = Array.prototype.slice.call(
+            document.querySelectorAll(
+                '.wc-block-components-checkout-place-order-button,' +
+                'button.wc-block-components-checkout-place-order-button,' +
+                '#place_order,' +
+                'button,a'
+            )
+        );
+        var seen = [];
+
         return candidates.filter(function (element) {
+            if (seen.indexOf(element) !== -1) return false;
+            seen.push(element);
+
+            if (
+                element.matches &&
+                (
+                    element.matches('.wc-block-components-checkout-place-order-button') ||
+                    element.matches('#place_order')
+                )
+            ) {
+                return true;
+            }
+
             var text = (element.textContent || '').trim().toLowerCase();
-            return text.indexOf('fazer pedido') !== -1 || text.indexOf('place order') !== -1;
+            return text.indexOf('fazer pedido') !== -1 ||
+                text.indexOf('finalizar pedido') !== -1 ||
+                text.indexOf('finalizar compra') !== -1 ||
+                text.indexOf('place order') !== -1;
         });
     }
 
@@ -341,6 +366,11 @@
 
         placeOrderButtons().forEach(function (button) {
             button.hidden = currentStep !== 5;
+            if (currentStep !== 5) {
+                button.setAttribute('aria-hidden', 'true');
+            } else {
+                button.removeAttribute('aria-hidden');
+            }
         });
     }
 
@@ -441,19 +471,52 @@
         };
     }
 
+    function firstMissingRequiredField(section) {
+        if (!section) return null;
+
+        var fields = Array.prototype.slice.call(
+            section.querySelectorAll('input,select,textarea')
+        );
+
+        return fields.filter(function (field) {
+            if (!field || field.disabled) return false;
+
+            var style = window.getComputedStyle(field);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+
+            return field.required || field.getAttribute('aria-required') === 'true';
+        }).filter(function (field) {
+            return !String(field.value || '').trim();
+        })[0] || null;
+    }
+
     function validateBillingStep() {
         var billing = readBillingCustomFields();
-
-        if (billing.cpf && billing.birthdate) {
-            return true;
-        }
-
+        var customCpf = document.querySelector('input[name="billing_cpf"]');
+        var customBirthdate = document.querySelector('input[name="billing_birthdate"]');
         var sections = nativeSections();
-        if (sections.billing) {
-            sections.billing.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        if (customCpf && !billing.cpf) {
+            customCpf.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            customCpf.focus();
+            return false;
         }
 
-        return false;
+        if (customBirthdate && !billing.birthdate) {
+            customBirthdate.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            customBirthdate.focus();
+            return false;
+        }
+
+        var missing = firstMissingRequiredField(sections.billing) || firstMissingRequiredField(sections.contact);
+
+        if (missing) {
+            missing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            missing.focus();
+            return false;
+        }
+
+        return true;
     }
 
     function updateLocalValidation() {
