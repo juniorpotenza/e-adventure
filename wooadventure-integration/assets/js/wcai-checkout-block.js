@@ -449,9 +449,12 @@
             '#wcai-checkout-wizard .wcai-reservation-summary span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#888}' +
             '#wcai-checkout-wizard .wcai-reservation-summary strong{display:block;margin-top:3px;font-size:13px}' +
             '#wcai-checkout-wizard .wcai-warning{padding:11px 12px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
-            '.wcai-native-next,.wcai-native-back{margin:12px 0;padding:10px 0;border:1px solid #eee;border-radius:8px;background:#fafafa;text-align:right}' +
-            '.wcai-native-next-button,.wcai-native-back-button{margin-right:12px;padding:9px 14px;border-radius:7px;cursor:pointer}' +
-            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(3,minmax(0,1fr))}#wcai-checkout-wizard .wcai-wizard-progress span:nth-child(n+4){display:none}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-next,.wcai-native-back{text-align:stretch}.wcai-native-next-button,.wcai-native-back-button{width:100%;margin:0}}';
+            '.wcai-native-stage-actions{display:flex;justify-content:flex-end;gap:8px;align-items:center;margin:14px 0;padding:10px 0;border-top:1px solid #eee}' +
+            '.wcai-native-stage-actions button{min-height:40px;padding:9px 15px;border:1px solid #222;border-radius:8px;cursor:pointer;background:#fff;color:#222}' +
+            '.wcai-native-stage-actions .wcai-native-next-button{background:#222;color:#fff}' +
+            '.wcai-checkout-before-payment [data-block-name="woocommerce/checkout-actions-block"]{display:none!important}' +
+            '.wcai-checkout-before-payment .wc-block-components-checkout-place-order-button,.wcai-checkout-before-payment #place_order,.wcai-checkout-before-payment button[name="woocommerce_checkout_place_order"]{display:none!important;visibility:hidden!important;pointer-events:none!important}' +
+            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(3,minmax(0,1fr))}#wcai-checkout-wizard .wcai-wizard-progress span:nth-child(n+4){display:none}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-stage-actions{display:grid;grid-template-columns:1fr;gap:7px}.wcai-native-stage-actions button{width:100%}}';
 
         document.head.appendChild(style);
     }
