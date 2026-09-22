@@ -25,6 +25,8 @@
                     product_id: item.product_id,
                     variation_id: item.variation_id,
                     departure_id: item.departure_id,
+                    adults: item.adults,
+                    children: item.children,
                     additional_participants: item.additional_participants
                 };
             })
@@ -107,6 +109,35 @@
         return wrap;
     }
 
+    function selectField(label, value, options, onChange) {
+        var wrap = document.createElement('div');
+        wrap.className = 'wcai-wizard-field';
+
+        var labelEl = document.createElement('label');
+        labelEl.textContent = label;
+        wrap.appendChild(labelEl);
+
+        var select = document.createElement('select');
+        options.forEach(function (option) {
+            var optionEl = document.createElement('option');
+            optionEl.value = option.value;
+            optionEl.textContent = option.label;
+            if (String(option.value) === String(value)) {
+                optionEl.selected = true;
+            }
+            select.appendChild(optionEl);
+        });
+
+        select.addEventListener('change', function () {
+            onChange(select.value);
+            sync();
+            updateLocalValidation();
+        });
+
+        wrap.appendChild(select);
+        return wrap;
+    }
+
     function itemState(item) {
         var ext = item.extensions && item.extensions[NS] ? item.extensions[NS] : {};
         var key = String(item.key || item.id || (ext.product_id + ':' + ext.variation_id));
@@ -115,6 +146,8 @@
         })[0];
 
         var quantity = parseInt(ext.quantity || item.quantity || 1, 10) || 1;
+        var adults = Math.max(1, parseInt(ext.adults || quantity, 10) || quantity);
+        var children = Math.max(0, parseInt(ext.children || 0, 10) || 0);
         var additionalCount = Math.max(0, quantity - 1);
 
         old = old || {
@@ -125,11 +158,15 @@
             departure_id: ext.departure_id || '',
             departure_label: ext.departure_label || '',
             quantity: quantity,
+            adults: adults,
+            children: children,
             additional_participants: []
         };
 
         old.name = item.name || old.name || 'Ingresso';
         old.quantity = quantity;
+        old.adults = adults;
+        old.children = children;
 
         if (!old.departure_id && ext.departure_id) {
             old.departure_id = String(ext.departure_id);
@@ -142,6 +179,10 @@
         for (var i = 0; i < additionalCount; i++) {
             if (!old.additional_participants[i]) {
                 old.additional_participants[i] = {};
+            }
+
+            if (!old.additional_participants[i].type) {
+                old.additional_participants[i].type = i < Math.max(0, adults - 1) ? 'adult' : 'child';
             }
         }
 
@@ -309,26 +350,37 @@
         var style = document.createElement('style');
         style.id = 'wcai-wizard-style';
         style.textContent =
-            '#wcai-checkout-wizard{margin:0 0 28px;padding:20px;border:1px solid #ddd;border-radius:8px;background:#fff}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span{padding:8px 10px;border-radius:999px;background:#f1f1f1;font-size:13px}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span.is-active{font-weight:700;background:#222;color:#fff}' +
-            '#wcai-checkout-wizard .wcai-wizard-panel{display:none}' +
+            '#wcai-checkout-wizard{margin:0 0 22px;padding:0;border:0;background:transparent}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin:0 0 16px}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress span{position:relative;padding:9px 7px;border:1px solid #e4e4e4;border-radius:9px;background:#fff;color:#777;font-size:11px;text-align:center}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress span.is-active{border-color:#222;background:#222;color:#fff;font-weight:800}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress span:not(.is-active){opacity:.78}' +
+            '#wcai-checkout-wizard .wcai-wizard-panel{display:none;padding:18px;border:1px solid #e5e5e5;border-radius:14px;background:#fff;box-shadow:0 7px 24px rgba(0,0,0,.045)}' +
             '#wcai-checkout-wizard .wcai-wizard-panel.is-active{display:block}' +
-            '#wcai-checkout-wizard + .wp-block-woocommerce-checkout-fields-block{margin-top:0}' +
-            '#wcai-checkout-wizard .wcai-wizard-item{padding:16px;margin:0 0 16px;border:1px solid #e2e2e2;border-radius:6px}' +
-            '#wcai-checkout-wizard .wcai-wizard-person{padding:14px;margin:12px 0;border:1px solid #eee;border-radius:6px;background:#fafafa}' +
-            '#wcai-checkout-wizard .wcai-wizard-field{margin:0 0 12px}' +
-            '#wcai-checkout-wizard .wcai-wizard-field label{display:block;font-weight:600;margin-bottom:6px}' +
-            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard select{width:100%;padding:10px;box-sizing:border-box}' +
-            '#wcai-checkout-wizard .wcai-wizard-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}' +
-            '#wcai-checkout-wizard .wcai-wizard-actions button{padding:10px 16px;cursor:pointer}' +
-            '#wcai-checkout-wizard .wcai-wizard-error{color:#b32d2e;font-size:13px;margin-top:5px}' +
-            '#wcai-checkout-wizard .wcai-wizard-summary-row{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid #eee}' +
-            '.wcai-native-next,.wcai-native-back{margin:14px 0;padding:12px 0;border:1px solid #eee;border-radius:8px;background:#fafafa;text-align:right}' +
-            '.wcai-native-next-button,.wcai-native-back-button{margin-right:12px;padding:9px 14px;cursor:pointer}' +
-            '[aria-hidden="true"] .wcai-native-next-button,[aria-hidden="true"] .wcai-native-back-button{display:none}' +
-            '@media(max-width:600px){#wcai-checkout-wizard .wcai-wizard-summary-row{display:block}.wcai-wizard-progress{font-size:12px}.wcai-native-next,.wcai-native-back{text-align:stretch}.wcai-native-next-button,.wcai-native-back-button{width:100%;margin:0}}';
+            '#wcai-checkout-wizard h3{margin:0 0 8px;font-size:18px}' +
+            '#wcai-checkout-wizard h4{margin:0 0 10px;font-size:14px}' +
+            '#wcai-checkout-wizard h5{margin:0 0 10px;font-size:13px}' +
+            '#wcai-checkout-wizard p{font-size:12px;line-height:1.5;color:#666}' +
+            '#wcai-checkout-wizard .wcai-wizard-item{padding:14px;margin:0 0 12px;border:1px solid #e5e5e5;border-radius:11px;background:#fff}' +
+            '#wcai-checkout-wizard .wcai-wizard-person{padding:13px;margin:10px 0;border:1px solid #eee;border-radius:9px;background:#fafafa}' +
+            '#wcai-checkout-wizard .wcai-wizard-field{margin:0 0 10px}' +
+            '#wcai-checkout-wizard .wcai-wizard-field label{display:block;font-weight:700;margin-bottom:5px;font-size:11px}' +
+            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard .wcai-wizard-field select{width:100%;padding:9px 10px;box-sizing:border-box;border:1px solid #d9d9d9;border-radius:7px;background:#fff}' +
+            '#wcai-checkout-wizard .wcai-wizard-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:17px}' +
+            '#wcai-checkout-wizard .wcai-wizard-actions button{min-height:40px;padding:9px 16px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-wizard-actions button:not(.wcai-wizard-secondary){background:#222;color:#fff}' +
+            '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
+            '#wcai-checkout-wizard .wcai-wizard-error{color:#b32d2e;font-size:12px;margin-top:5px}' +
+            '#wcai-checkout-wizard .wcai-wizard-summary-row{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid #eee;font-size:12px}' +
+            '#wcai-checkout-wizard .wcai-wizard-summary-row:last-child{border-bottom:0}' +
+            '#wcai-checkout-wizard .wcai-reservation-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}' +
+            '#wcai-checkout-wizard .wcai-reservation-summary>div{padding:11px 12px;border:1px solid #ededed;border-radius:9px;background:#fafafa}' +
+            '#wcai-checkout-wizard .wcai-reservation-summary span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#888}' +
+            '#wcai-checkout-wizard .wcai-reservation-summary strong{display:block;margin-top:3px;font-size:13px}' +
+            '#wcai-checkout-wizard .wcai-warning{padding:11px 12px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
+            '.wcai-native-next,.wcai-native-back{margin:12px 0;padding:10px 0;border:1px solid #eee;border-radius:8px;background:#fafafa;text-align:right}' +
+            '.wcai-native-next-button,.wcai-native-back-button{margin-right:12px;padding:9px 14px;border-radius:7px;cursor:pointer}' +
+            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(3,minmax(0,1fr))}#wcai-checkout-wizard .wcai-wizard-progress span:nth-child(n+4){display:none}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-next,.wcai-native-back{text-align:stretch}.wcai-native-next-button,.wcai-native-back-button{width:100%;margin:0}}
 
         document.head.appendChild(style);
     }
@@ -337,8 +389,19 @@
         var errors = {};
 
         state.items.forEach(function (item, itemIndex) {
+            var additionalAdults = 0;
+            var additionalChildren = 0;
+
             item.additional_participants.forEach(function (participant, index) {
                 var number = index + 2;
+
+                if (participant.type === 'child') {
+                    additionalChildren++;
+                } else if (participant.type === 'adult') {
+                    additionalAdults++;
+                } else {
+                    addError(errors, 'wcai-type-' + itemIndex + '-' + index, 'Selecione adulto ou criança para o participante ' + number + '.');
+                }
 
                 if (!participant.name) {
                     addError(errors, 'wcai-name-' + itemIndex + '-' + index, 'Informe o nome completo do participante ' + number + '.');
@@ -352,6 +415,10 @@
                     addError(errors, 'wcai-birth-' + itemIndex + '-' + index, 'Informe a data de nascimento do participante ' + number + '.');
                 }
             });
+
+            if (additionalAdults !== Math.max(0, item.adults - 1) || additionalChildren !== item.children) {
+                addError(errors, 'wcai-category-count-' + itemIndex, 'A distribuição entre adultos e crianças não corresponde à reserva escolhida.');
+            }
         });
 
         setValidationErrors(errors);
@@ -474,57 +541,35 @@
             name.textContent = item.name || 'Ingresso';
             box.appendChild(name);
 
-            var row = document.createElement('div');
-            row.className = 'wcai-wizard-summary-row';
+            var summary = document.createElement('div');
+            summary.className = 'wcai-reservation-summary';
 
-            var label = document.createElement('span');
-            label.textContent = 'Saída';
-            row.appendChild(label);
+            var departureBox = document.createElement('div');
+            var departureLabel = document.createElement('span');
+            departureLabel.textContent = 'Saída';
+            departureBox.appendChild(departureLabel);
+            var departureValue = document.createElement('strong');
+            departureValue.textContent = item.departure_label || 'Data e horário não selecionados';
+            departureBox.appendChild(departureValue);
+            summary.appendChild(departureBox);
 
-            if (item.departure_label) {
-                var value = document.createElement('strong');
-                value.textContent = item.departure_label;
-                row.appendChild(value);
-            } else {
-                var select = document.createElement('select');
-                var blank = document.createElement('option');
-                blank.value = '';
-                blank.textContent = 'Selecione uma data e horário';
-                select.appendChild(blank);
+            var peopleBox = document.createElement('div');
+            var peopleLabel = document.createElement('span');
+            peopleLabel.textContent = 'Participantes';
+            peopleBox.appendChild(peopleLabel);
+            var peopleValue = document.createElement('strong');
+            peopleValue.textContent = item.adults + ' adulto' + (item.adults === 1 ? '' : 's') + (item.children ? ' + ' + item.children + ' criança' + (item.children === 1 ? '' : 's') : '');
+            peopleBox.appendChild(peopleValue);
+            summary.appendChild(peopleBox);
 
-                var ext = item.extensions || {};
-                var dataItem = cart().items.filter(function (cartItem) {
-                    return String(cartItem.key || cartItem.id) === String(item.key);
-                })[0];
+            box.appendChild(summary);
 
-                var departures = dataItem && dataItem.extensions && dataItem.extensions[NS] ? dataItem.extensions[NS].departures : [];
-
-                (departures || []).forEach(function (departure) {
-                    var option = document.createElement('option');
-                    option.value = departure.id;
-                    option.textContent = departure.label + ' — ' + departure.available + ' vaga' + (departure.available === 1 ? '' : 's');
-                    select.appendChild(option);
-                });
-
-                select.addEventListener('change', function () {
-                    item.departure_id = select.value;
-                    var selected = departures.filter(function (entry) {
-                        return String(entry.id) === String(select.value);
-                    })[0];
-                    item.departure_label = selected ? selected.label : '';
-                    sync();
-                    buildStepOne(panel);
-                });
-
-                row.appendChild(select);
+            if (!item.departure_id) {
+                var warning = document.createElement('div');
+                warning.className = 'wcai-warning';
+                warning.textContent = 'A saída não foi definida. Volte à página do passeio e escolha a data e o horário antes de continuar.';
+                box.appendChild(warning);
             }
-
-            box.appendChild(row);
-
-            var qtyRow = document.createElement('div');
-            qtyRow.className = 'wcai-wizard-summary-row';
-            qtyRow.innerHTML = '<span>Participantes</span><strong>' + item.quantity + '</strong>';
-            box.appendChild(qtyRow);
 
             panel.appendChild(box);
         });
@@ -562,12 +607,16 @@
         panel.innerHTML = '';
 
         var title = document.createElement('h3');
-        title.textContent = '3. Participantes adicionais';
+        title.textContent = '3. Dados dos demais participantes';
         panel.appendChild(title);
+
+        var text = document.createElement('p');
+        text.textContent = 'O titular é considerado o primeiro adulto. Confira a categoria de cada participante adicional para manter a reserva correta.';
+        panel.appendChild(text);
 
         var hasAdditional = false;
 
-        state.items.forEach(function (item) {
+        state.items.forEach(function (item, itemIndex) {
             if (!item.additional_participants.length) return;
 
             hasAdditional = true;
@@ -586,6 +635,15 @@
                 var personTitle = document.createElement('h5');
                 personTitle.textContent = 'Participante ' + (index + 2);
                 personBox.appendChild(personTitle);
+
+                personBox.appendChild(
+                    selectField('Categoria', person.type || 'adult', [
+                        { value: 'adult', label: 'Adulto' },
+                        { value: 'child', label: 'Criança' }
+                    ], function (value) {
+                        person.type = value;
+                    })
+                );
 
                 personBox.appendChild(
                     inputField('Nome completo', person.name, 'Nome completo', null, function (value) {
@@ -613,7 +671,7 @@
 
         if (!hasAdditional) {
             var none = document.createElement('p');
-            none.textContent = 'Como sua reserva possui apenas um participante, não há dados adicionais para preencher.';
+            none.textContent = 'Esta reserva possui apenas o titular. Não há dados adicionais para preencher.';
             panel.appendChild(none);
         }
 
@@ -647,9 +705,9 @@
             date.textContent = 'Saída: ' + (item.departure_label || 'não selecionada');
             box.appendChild(date);
 
-            var additional = document.createElement('p');
-            additional.textContent = 'Participantes adicionais: ' + item.additional_participants.length;
-            box.appendChild(additional);
+            var participants = document.createElement('p');
+            participants.textContent = item.adults + ' adulto' + (item.adults === 1 ? '' : 's') + (item.children ? ' + ' + item.children + ' criança' + (item.children === 1 ? '' : 's') : '') + ' · ' + item.quantity + ' participante' + (item.quantity === 1 ? '' : 's');
+            box.appendChild(participants);
 
             panel.appendChild(box);
         });
@@ -749,11 +807,19 @@
         update();
         wp.data.subscribe(update, 'wc/store/cart');
 
+        var visibilityTimer = null;
         var observer = new MutationObserver(function () {
-            applyNativeStepVisibility();
+            if ( visibilityTimer ) {
+                clearTimeout(visibilityTimer);
+            }
+
+            visibilityTimer = setTimeout(function () {
+                applyNativeStepVisibility();
+            }, 60);
         });
 
-        observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+        var observeTarget = document.querySelector('.wc-block-checkout') || document.body;
+        observer.observe(observeTarget, { childList: true, subtree: true });
     }
 
     if (document.readyState === 'loading') {
