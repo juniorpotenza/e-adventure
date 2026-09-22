@@ -380,7 +380,7 @@
             '#wcai-checkout-wizard .wcai-warning{padding:11px 12px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
             '.wcai-native-next,.wcai-native-back{margin:12px 0;padding:10px 0;border:1px solid #eee;border-radius:8px;background:#fafafa;text-align:right}' +
             '.wcai-native-next-button,.wcai-native-back-button{margin-right:12px;padding:9px 14px;border-radius:7px;cursor:pointer}' +
-            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(3,minmax(0,1fr))}#wcai-checkout-wizard .wcai-wizard-progress span:nth-child(n+4){display:none}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-next,.wcai-native-back{text-align:stretch}.wcai-native-next-button,.wcai-native-back-button{width:100%;margin:0}}
+            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(3,minmax(0,1fr))}#wcai-checkout-wizard .wcai-wizard-progress span:nth-child(n+4){display:none}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-next,.wcai-native-back{text-align:stretch}.wcai-native-next-button,.wcai-native-back-button{width:100%;margin:0}}';
 
         document.head.appendChild(style);
     }
