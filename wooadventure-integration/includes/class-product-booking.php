@@ -564,6 +564,8 @@ class WCAI_Product_Booking {
                 var current = selectedDepartureId ? departures.filter(function(item){ return String(item.id) === String(selectedDepartureId); })[0] : null;
                 var available = current ? Math.max(0, parseInt(current.available, 10) || 0) : null;
                 var capacityReached = null !== available && total >= available;
+                var childPlus = participantRoot.querySelector('[data-participant-row="children"] [data-participant-action="plus"]');
+                var childMinus = participantRoot.querySelector('[data-participant-row="children"] [data-participant-action="minus"]');
                 var adultPlus = participantRoot.querySelector('[data-participant-row="adults"] [data-participant-action="plus"]');
 
                 if ( childPlus ) {
