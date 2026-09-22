@@ -75,6 +75,51 @@ class WCAI_Reservations {
         return max( 0, $capacity - self::get_reserved_quantity( $departure_id ) );
     }
 
+    public static function get_group_summary( $departure_id ) {
+        $departure_id = absint( $departure_id );
+        $capacity = absint( get_post_meta( $departure_id, '_wcai_capacity', true ) );
+        $minimum = absint( get_post_meta( $departure_id, '_wcai_minimum_capacity', true ) );
+        $reserved = self::get_reserved_quantity( $departure_id );
+        $available = max( 0, $capacity - $reserved );
+        $remaining_to_minimum = $minimum > 0 ? max( 0, $minimum - $reserved ) : 0;
+        $formation_percent = $minimum > 0 ? min( 100, (int) round( ( $reserved / $minimum ) * 100 ) ) : 100;
+
+        if ( ! $minimum ) {
+            $status = 'open';
+            $label = 'Reservas abertas';
+            $detail = '';
+        } elseif ( $reserved < $minimum ) {
+            $status = 'forming';
+            $label = 'Em formação';
+            $detail = sprintf(
+                'Faltam %d participante%s para atingir o mínimo de %d.',
+                $remaining_to_minimum,
+                1 === $remaining_to_minimum ? '' : 's',
+                $minimum
+            );
+        } else {
+            $status = 'minimum_met';
+            $label = 'Mínimo atingido';
+            $detail = sprintf(
+                'O mínimo de %d participante%s já foi atingido.',
+                $minimum,
+                1 === $minimum ? '' : 's'
+            );
+        }
+
+        return array(
+            'capacity'            => $capacity,
+            'minimum'             => $minimum,
+            'reserved'             => $reserved,
+            'available'           => $available,
+            'remaining_to_minimum'=> $remaining_to_minimum,
+            'formation_percent'   => $formation_percent,
+            'status'              => $status,
+            'label'               => $label,
+            'detail'              => $detail,
+        );
+    }
+
     public static function is_booking_open( $departure_id ) {
         $departure_id = absint( $departure_id );
         $starts_at = WCAI_Data_Resolver::get_departure_start( $departure_id );
