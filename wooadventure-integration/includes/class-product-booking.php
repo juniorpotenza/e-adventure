@@ -561,20 +561,37 @@ class WCAI_Product_Booking {
                 if ( totalLabel ) totalLabel.textContent = total + ( 1 === total ? ' participante' : ' participantes' );
                 if ( childRow ) childRow.hidden = !childEnabled;
 
-                var childPlus = childRow ? childRow.querySelector('[data-participant-action="plus"]') : null;
-                var childMinus = childRow ? childRow.querySelector('[data-participant-action="minus"]') : null;
-                if ( childPlus ) childPlus.disabled = !childEnabled || children >= childMax;
-                if ( childMinus ) childMinus.disabled = !childEnabled || children <= 0;
+                var current = selectedDepartureId ? departures.filter(function(item){ return String(item.id) === String(selectedDepartureId); })[0] : null;
+                var available = current ? Math.max(0, parseInt(current.available, 10) || 0) : null;
+                var capacityReached = null !== available && total >= available;
+                var adultPlus = participantRoot.querySelector('[data-participant-row="adults"] [data-participant-action="plus"]');
+
+                if ( childPlus ) {
+                    childPlus.disabled = !childEnabled || children >= childMax || capacityReached;
+                    childPlus.title = capacityReached ? 'Limite de vagas atingido' : ( children >= childMax ? 'Limite de crianças por reserva atingido' : 'Adicionar criança' );
+                }
+                if ( childMinus ) {
+                    childMinus.disabled = !childEnabled || children <= 0;
+                    childMinus.title = childMinus.disabled ? 'Nenhuma criança para remover' : 'Remover criança';
+                }
+
+                if ( adultPlus ) {
+                    adultPlus.disabled = null !== available && ( capacityReached || !current.booking_open );
+                    adultPlus.title = capacityReached ? 'Limite de vagas atingido' : ( current && !current.booking_open ? 'Vendas encerradas' : 'Adicionar adulto' );
+                }
 
                 var adultMinus = participantRoot.querySelector('[data-participant-row="adults"] [data-participant-action="minus"]');
-                if ( adultMinus ) adultMinus.disabled = adults <= 1;
+                if ( adultMinus ) {
+                    adultMinus.disabled = adults <= 1;
+                    adultMinus.title = adultMinus.disabled ? 'A reserva precisa ter pelo menos 1 adulto' : 'Remover adulto';
+                }
 
                 if ( availability ) {
-                    var current = selectedDepartureId ? departures.filter(function(item){ return String(item.id) === String(selectedDepartureId); })[0] : null;
                     if ( current ) {
-                        availability.textContent = parseInt(current.available, 10) >= total
-                            ? (parseInt(current.available, 10) - total) + ' vagas restantes após sua reserva'
-                            : 'Quantidade acima das vagas disponíveis';
+                        var remainingAfterReservation = Math.max(0, available - total);
+                        availability.textContent = remainingAfterReservation > 0
+                            ? remainingAfterReservation + ' vagas restantes após sua reserva'
+                            : 'Limite de vagas atingido para esta saída';
                     } else {
                         availability.textContent = 'Escolha o horário';
                     }
@@ -792,6 +809,7 @@ class WCAI_Product_Booking {
 
                     selectedDeparture.hidden = false;
                     input.dispatchEvent(new Event('change', { bubbles: true }));
+                    updateParticipantUI();
                     enableAddToCart();
                 });
 
@@ -934,7 +952,12 @@ class WCAI_Product_Booking {
                     if ( 'minus' === button.getAttribute('data-participant-action') ) {
                         current = 'adults' === type ? Math.max(1, current - 1) : Math.max(0, current - 1);
                     } else {
+                        var selected = selectedDepartureId ? departures.filter(function(item){ return String(item.id) === String(selectedDepartureId); })[0] : null;
+                        var available = selected ? Math.max(0, parseInt(selected.available, 10) || 0) : null;
+
                         if ( 'children' === type && current >= max ) return;
+                        if ( null !== available && quantity() >= available ) return;
+
                         current += 1;
                     }
 
