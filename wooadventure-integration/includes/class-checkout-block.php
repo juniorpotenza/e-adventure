@@ -88,6 +88,8 @@ class WCAI_Checkout_Block {
                 'product_id' => $product_id,
                 'variation_id' => $variation_id,
                 'quantity' => $quantity,
+                'adults' => max( 1, $quantity ),
+                'children' => 0,
                 'departure_id' => 0,
                 'departure_label' => '',
                 'departures' => array(),
@@ -95,6 +97,8 @@ class WCAI_Checkout_Block {
         }
 
         $selected_departure_id = absint( isset( $cart_item['wcai_departure_id'] ) ? $cart_item['wcai_departure_id'] : 0 );
+        $adults = max( 1, absint( isset( $cart_item['wcai_adults'] ) ? $cart_item['wcai_adults'] : $quantity ) );
+        $children = max( 0, absint( isset( $cart_item['wcai_children'] ) ? $cart_item['wcai_children'] : 0 ) );
         $departures = array();
 
         if ( class_exists( 'WCAI_Reservations' ) ) {
@@ -137,6 +141,8 @@ class WCAI_Checkout_Block {
             'product_id' => $product_id,
             'variation_id' => $variation_id,
             'quantity' => $quantity,
+            'adults' => $adults,
+            'children' => $children,
             'departure_id' => $selected_departure_id,
             'departure_label' => sanitize_text_field( $selected_label ),
             'departures' => $departures,
@@ -149,6 +155,8 @@ class WCAI_Checkout_Block {
             'product_id' => array( 'type' => 'integer', 'context' => array( 'view', 'edit' ), 'readonly' => true ),
             'variation_id' => array( 'type' => 'integer', 'context' => array( 'view', 'edit' ), 'readonly' => true ),
             'quantity' => array( 'type' => 'integer', 'context' => array( 'view', 'edit' ), 'readonly' => true ),
+            'adults' => array( 'type' => 'integer', 'context' => array( 'view', 'edit' ), 'readonly' => true ),
+            'children' => array( 'type' => 'integer', 'context' => array( 'view', 'edit' ), 'readonly' => true ),
             'departure_id' => array( 'type' => 'integer', 'context' => array( 'view', 'edit' ), 'readonly' => true ),
             'departure_label' => array( 'type' => 'string', 'context' => array( 'view', 'edit' ), 'readonly' => true ),
             'departures' => array(
@@ -284,6 +292,13 @@ class WCAI_Checkout_Block {
             $used_submission_indexes[] = $index;
             $data = is_array( $payload['items'][ $index ] ) ? $payload['items'][ $index ] : array();
             $quantity = max( 1, absint( $item->get_quantity() ) );
+            $adults = max( 1, absint( isset( $data['adults'] ) ? $data['adults'] : $item->get_meta( 'Adultos', true ) ) );
+            $children = max( 0, absint( isset( $data['children'] ) ? $data['children'] : $item->get_meta( 'Crianças', true ) ) );
+
+            if ( $adults + $children !== $quantity ) {
+                $this->fail( 'A quantidade de adultos e crianças não corresponde ao total da reserva.' );
+            }
+
             $departure_id = absint( isset( $data['departure_id'] ) ? $data['departure_id'] : 0 );
 
             if ( ! $departure_id ) {
@@ -298,9 +313,11 @@ class WCAI_Checkout_Block {
                 ? $data['additional_participants']
                 : array();
 
-            $this->validate_additional_participants( $additional, $quantity, $billing_cpf );
+            $this->validate_additional_participants( $additional, $quantity, $billing_cpf, $product_id, $adults, $children );
 
             $item->update_meta_data( '_wcai_departure_id', $departure_id, true );
+            $item->update_meta_data( 'Adultos', $adults, true );
+            $item->update_meta_data( 'Crianças', $children, true );
             $item->save();
 
             $reservation = WCAI_Reservations::create( $departure_id, $quantity, 'pending', $order->get_id(), $item_id );
@@ -368,14 +385,21 @@ class WCAI_Checkout_Block {
         return null;
     }
 
-    private function validate_additional_participants( $participants, $quantity, $billing_cpf ) {
+    private function validate_additional_participants( $participants, $quantity, $billing_cpf, $product_id = 0, $adults = 1, $children = 0 ) {
         $expected = max( 0, $quantity - 1 );
+        $expected_additional_adults = max( 0, absint( $adults ) - 1 );
+        $expected_children = absint( $children );
 
         if ( count( $participants ) !== $expected ) {
             $this->fail( 'Informe os dados de todos os participantes adicionais.' );
         }
 
         $cpfs = $billing_cpf ? array( $billing_cpf ) : array();
+        $additional_adults = 0;
+        $additional_children = 0;
+        $age_min = max( 7, absint( get_post_meta( $product_id, '_wcai_tour_age_min', true ) ) );
+        $children_allowed = 'yes' === get_post_meta( $product_id, '_wcai_tour_children_allowed', true );
+        $child_age_max = absint( get_post_meta( $product_id, '_wcai_tour_children_age_max', true ) );
 
         foreach ( $participants as $index => $participant ) {
             if ( ! is_array( $participant ) ) {
@@ -384,8 +408,19 @@ class WCAI_Checkout_Block {
 
             $position = $index + 2;
             $name = isset( $participant['name'] ) ? sanitize_text_field( $participant['name'] ) : '';
-            $cpf = preg_replace( '/\\D+/', '', (string) ( isset( $participant['cpf'] ) ? $participant['cpf'] : '' ) );
+            $cpf = preg_replace( '/\D+/', '', (string) ( isset( $participant['cpf'] ) ? $participant['cpf'] : '' ) );
             $birthdate = sanitize_text_field( isset( $participant['birthdate'] ) ? $participant['birthdate'] : '' );
+            $type = isset( $participant['type'] ) ? sanitize_key( $participant['type'] ) : 'adult';
+
+            if ( ! in_array( $type, array( 'adult', 'child' ), true ) ) {
+                $this->fail( sprintf( 'A categoria do participante %d é inválida.', $position ) );
+            }
+
+            if ( 'child' === $type ) {
+                $additional_children++;
+            } else {
+                $additional_adults++;
+            }
 
             if ( ! $name ) {
                 $this->fail( sprintf( 'Informe o nome completo do participante %d.', $position ) );
@@ -405,9 +440,30 @@ class WCAI_Checkout_Block {
 
             $cpfs[] = $cpf;
 
-            if ( ! WCAI_Utils::is_valid_date( $birthdate ) || ! WCAI_Utils::is_min_age( $birthdate ) ) {
-                $this->fail( sprintf( 'A data de nascimento do participante %d é inválida ou não atende à idade mínima.', $position ) );
+            if ( ! WCAI_Utils::is_valid_date( $birthdate ) ) {
+                $this->fail( sprintf( 'A data de nascimento do participante %d é inválida.', $position ) );
             }
+
+            $birth = DateTime::createFromFormat( 'd/m/Y', $birthdate );
+            $age = $birth ? ( new DateTime() )->diff( $birth )->y : 0;
+
+            if ( $age < $age_min ) {
+                $this->fail( sprintf( 'O participante %d não atende à idade mínima de %d anos.', $position, $age_min ) );
+            }
+
+            if ( 'child' === $type ) {
+                if ( ! $children_allowed ) {
+                    $this->fail( 'Este passeio não permite crianças.' );
+                }
+
+                if ( $child_age_max && $age > $child_age_max ) {
+                    $this->fail( sprintf( 'O participante %d ultrapassa a idade máxima de %d anos para a categoria criança.', $position, $child_age_max ) );
+                }
+            }
+        }
+
+        if ( $additional_adults !== $expected_additional_adults || $additional_children !== $expected_children ) {
+            $this->fail( 'A quantidade de adultos e crianças informada nos participantes não corresponde à reserva.' );
         }
     }
 
