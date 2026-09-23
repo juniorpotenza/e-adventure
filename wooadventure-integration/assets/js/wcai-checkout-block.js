@@ -419,6 +419,17 @@
         setHidden(nativeBack, currentStep !== 5);
         setHidden(stage5Header, currentStep !== 5);
 
+        if (sections.actions) {
+            Array.prototype.slice.call(sections.actions.querySelectorAll('a,button')).forEach(function (element) {
+                var isPlaceOrder = placeOrderButtons().indexOf(element) !== -1;
+                if (!isPlaceOrder) {
+                    element.style.setProperty('display', 'none', 'important');
+                    element.setAttribute('aria-hidden', 'true');
+                    element.setAttribute('tabindex', '-1');
+                }
+            });
+        }
+
         placeOrderButtons().forEach(function (button) {
             if ( currentStep !== 5 ) {
                 button.hidden = true;
@@ -608,6 +619,10 @@
 
         if (previousHandler) {
             wrap.appendChild(button('Voltar', previousHandler, true));
+        } else {
+            var spacer = document.createElement('span');
+            spacer.setAttribute('aria-hidden', 'true');
+            wrap.appendChild(spacer);
         }
 
         if (nextHandler) {
@@ -728,7 +743,7 @@
         panel.innerHTML = '';
 
         var title = document.createElement('h3');
-        title.textContent = 'Dados dos demais participantes';
+        title.textContent = '3. Participantes';
         panel.appendChild(title);
 
         var text = document.createElement('p');
@@ -797,7 +812,7 @@
         }
 
         panel.appendChild(
-            actions('Continuar', function () {
+            actions('Continuar para revisão', function () {
                 if (!validateAdditional()) return;
                 buildStepFour(document.querySelector('#' + ROOT + ' [data-wcai-step="4"]'));
                 setStep(4);
@@ -811,7 +826,7 @@
         panel.innerHTML = '';
 
         var title = document.createElement('h3');
-        title.textContent = 'Revise sua reserva';
+        title.textContent = '4. Revisão';
         panel.appendChild(title);
 
         state.items.forEach(function (item) {
@@ -838,7 +853,7 @@
         panel.appendChild(note);
 
         panel.appendChild(
-            actions('Ir para pagamento', function () {
+            actions('Continuar para pagamento', function () {
                 setStep(5);
             }, function () {
                 setStep(3);
