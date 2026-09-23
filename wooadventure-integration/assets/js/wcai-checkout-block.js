@@ -286,40 +286,25 @@
     }
 
     function placeOrderButtons() {
-        var candidates = Array.prototype.slice.call(
+        return Array.prototype.slice.call(
             document.querySelectorAll(
-                '[data-block-name="woocommerce/checkout-actions-block"] button,' +
-                '[data-block-name="woocommerce/checkout-actions-block"] a,' +
                 '.wc-block-components-checkout-place-order-button,' +
                 '#place_order,' +
                 'button[name="woocommerce_checkout_place_order"]'
             )
         );
-        var seen = [];
-
-        return candidates.filter(function (element) {
-            if (seen.indexOf(element) !== -1) return false;
-            seen.push(element);
-            return true;
-        });
     }
 
     function isPlaceOrderElement(target) {
-        var element = target && target.closest ? target.closest(
-            '[data-block-name="woocommerce/checkout-actions-block"] button,' +
-            '[data-block-name="woocommerce/checkout-actions-block"] a,' +
-            '.wc-block-components-checkout-place-order-button,' +
-            '#place_order,' +
-            'button[name="woocommerce_checkout_place_order"]'
-        ) : null;
-
-        if (element) return true;
-
-        var text = target && target.textContent ? target.textContent.trim().toLowerCase() : '';
-        return text.indexOf('fazer pedido') !== -1 ||
-            text.indexOf('finalizar pedido') !== -1 ||
-            text.indexOf('finalizar compra') !== -1 ||
-            text.indexOf('place order') !== -1;
+        return !!(
+            target &&
+            target.closest &&
+            target.closest(
+                '.wc-block-components-checkout-place-order-button,' +
+                '#place_order,' +
+                'button[name="woocommerce_checkout_place_order"]'
+            )
+        );
     }
 
     function setCheckoutStageClass() {
@@ -330,7 +315,22 @@
     }
 
     function ensureNativeStepControls( sections ) {
-        if ( sections.billing ) {
+        if ( sections.contact ) {
+            var contactHeader = document.querySelector('.wcai-native-stage-header[data-wcai-native-stage="2"]');
+
+            if (!contactHeader) {
+                contactHeader = document.createElement('div');
+                contactHeader.className = 'wcai-native-stage-header';
+                contactHeader.setAttribute('data-wcai-native-stage', '2');
+                contactHeader.innerHTML =
+                    '<span class="wcai-native-stage-number">2</span>' +
+                    '<div><strong>Seus dados</strong><small>Informe os dados do titular. Esses dados serão usados na reserva.</small></div>';
+            }
+
+            if ( contactHeader.nextElementSibling !== sections.contact ) {
+                sections.contact.insertAdjacentElement('beforebegin', contactHeader);
+            }
+
             var next = document.querySelector('.wcai-native-next');
 
             if (!next) {
@@ -357,12 +357,27 @@
         }
 
         if ( sections.payment ) {
+            var paymentHeader = document.querySelector('.wcai-native-stage-header[data-wcai-native-stage="5"]');
+
+            if (!paymentHeader) {
+                paymentHeader = document.createElement('div');
+                paymentHeader.className = 'wcai-native-stage-header wcai-payment-stage-header';
+                paymentHeader.setAttribute('data-wcai-native-stage', '5');
+                paymentHeader.innerHTML =
+                    '<span class="wcai-native-stage-number">5</span>' +
+                    '<div><strong>Pagamento</strong><small>Escolha a forma de pagamento e finalize sua reserva.</small></div>';
+            }
+
+            if ( paymentHeader.nextElementSibling !== sections.payment ) {
+                sections.payment.insertAdjacentElement('beforebegin', paymentHeader);
+            }
+
             var back = document.querySelector('.wcai-native-back');
 
             if (!back) {
                 back = document.createElement('div');
-                back.className = 'wcai-native-back wcai-native-stage-actions';
-                back.innerHTML = '<button type="button" class="button wcai-native-back-button">Voltar para revisão</button>';
+                back.className = 'wcai-native-back';
+                back.innerHTML = '<button type="button" class="wcai-native-back-button">Voltar para revisão</button>';
                 back.querySelector('button').addEventListener('click', function () {
                     setStep(4);
                 });
@@ -373,7 +388,6 @@
             }
         }
     }
-
     function applyNativeStepVisibility() {
         var sections = nativeSections();
 
@@ -397,8 +411,13 @@
 
         var nativeNext = document.querySelector('.wcai-native-next');
         var nativeBack = document.querySelector('.wcai-native-back');
+        var stage2Header = document.querySelector('.wcai-native-stage-header[data-wcai-native-stage="2"]');
+        var stage5Header = document.querySelector('.wcai-native-stage-header[data-wcai-native-stage="5"]');
+
+        setHidden(stage2Header, currentStep !== 2);
         setHidden(nativeNext, currentStep !== 2);
         setHidden(nativeBack, currentStep !== 5);
+        setHidden(stage5Header, currentStep !== 5);
 
         placeOrderButtons().forEach(function (button) {
             if ( currentStep !== 5 ) {
@@ -421,40 +440,45 @@
         var style = document.createElement('style');
         style.id = 'wcai-wizard-style';
         style.textContent =
-            '#wcai-checkout-wizard{margin:0 0 22px;padding:0;border:0;background:transparent}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin:0 0 16px}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span{position:relative;padding:9px 7px;border:1px solid #e4e4e4;border-radius:9px;background:#fff;color:#777;font-size:11px;text-align:center}' +
+            '#wcai-checkout-wizard{margin:0 0 14px;padding:0;border:0;background:transparent}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin:0 0 12px}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress span{display:flex;align-items:center;justify-content:center;min-height:32px;padding:5px 6px;border:1px solid #e2e2e2;border-radius:8px;background:#fff;color:#777;font-size:10px;text-align:center;cursor:default;box-sizing:border-box}' +
             '#wcai-checkout-wizard .wcai-wizard-progress span.is-active{border-color:#222;background:#222;color:#fff;font-weight:800}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span:not(.is-active){opacity:.78}' +
-            '#wcai-checkout-wizard .wcai-wizard-panel{display:none;padding:18px;border:1px solid #e5e5e5;border-radius:14px;background:#fff;box-shadow:0 7px 24px rgba(0,0,0,.045)}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress span.is-complete{color:#222;border-color:#cfcfcf;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress span.is-complete:before{content:"✓";margin-right:4px;font-weight:900}' +
+            '#wcai-checkout-wizard .wcai-wizard-panel{display:none;padding:14px;border:1px solid #e5e5e5;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(0,0,0,.035)}' +
             '#wcai-checkout-wizard .wcai-wizard-panel.is-active{display:block}' +
-            '#wcai-checkout-wizard h3{margin:0 0 8px;font-size:18px}' +
-            '#wcai-checkout-wizard h4{margin:0 0 10px;font-size:14px}' +
-            '#wcai-checkout-wizard h5{margin:0 0 10px;font-size:13px}' +
+            '#wcai-checkout-wizard h3{margin:0 0 7px;font-size:17px}' +
+            '#wcai-checkout-wizard h4{margin:0 0 9px;font-size:14px}' +
+            '#wcai-checkout-wizard h5{margin:0 0 9px;font-size:13px}' +
             '#wcai-checkout-wizard p{font-size:12px;line-height:1.5;color:#666}' +
-            '#wcai-checkout-wizard .wcai-wizard-item{padding:14px;margin:0 0 12px;border:1px solid #e5e5e5;border-radius:11px;background:#fff}' +
-            '#wcai-checkout-wizard .wcai-wizard-person{padding:13px;margin:10px 0;border:1px solid #eee;border-radius:9px;background:#fafafa}' +
-            '#wcai-checkout-wizard .wcai-wizard-field{margin:0 0 10px}' +
-            '#wcai-checkout-wizard .wcai-wizard-field label{display:block;font-weight:700;margin-bottom:5px;font-size:11px}' +
-            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard .wcai-wizard-field select{width:100%;padding:9px 10px;box-sizing:border-box;border:1px solid #d9d9d9;border-radius:7px;background:#fff}' +
-            '#wcai-checkout-wizard .wcai-wizard-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:17px}' +
-            '#wcai-checkout-wizard .wcai-wizard-actions button{min-height:40px;padding:9px 16px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-wizard-item{padding:12px;margin:0 0 10px;border:1px solid #e5e5e5;border-radius:10px;background:#fff}' +
+            '#wcai-checkout-wizard .wcai-wizard-person{padding:11px;margin:9px 0;border:1px solid #eee;border-radius:9px;background:#fafafa}' +
+            '#wcai-checkout-wizard .wcai-wizard-field{margin:0 0 9px}' +
+            '#wcai-checkout-wizard .wcai-wizard-field label{display:block;font-weight:700;margin-bottom:4px;font-size:11px}' +
+            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard .wcai-wizard-field select{width:100%;padding:8px 9px;box-sizing:border-box;border:1px solid #d9d9d9;border-radius:7px;background:#fff}' +
+            '#wcai-checkout-wizard .wcai-wizard-actions{display:flex;justify-content:space-between;gap:9px;margin-top:14px;padding-top:11px;border-top:1px solid #eee}' +
+            '#wcai-checkout-wizard .wcai-wizard-actions button{min-height:38px;padding:8px 14px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
             '#wcai-checkout-wizard .wcai-wizard-actions button:not(.wcai-wizard-secondary){background:#222;color:#fff}' +
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
             '#wcai-checkout-wizard .wcai-wizard-error{color:#b32d2e;font-size:12px;margin-top:5px}' +
-            '#wcai-checkout-wizard .wcai-wizard-summary-row{display:flex;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid #eee;font-size:12px}' +
-            '#wcai-checkout-wizard .wcai-wizard-summary-row:last-child{border-bottom:0}' +
-            '#wcai-checkout-wizard .wcai-reservation-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}' +
-            '#wcai-checkout-wizard .wcai-reservation-summary>div{padding:11px 12px;border:1px solid #ededed;border-radius:9px;background:#fafafa}' +
-            '#wcai-checkout-wizard .wcai-reservation-summary span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#888}' +
-            '#wcai-checkout-wizard .wcai-reservation-summary strong{display:block;margin-top:3px;font-size:13px}' +
-            '#wcai-checkout-wizard .wcai-warning{padding:11px 12px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
-            '.wcai-native-stage-actions{display:flex;justify-content:flex-end;gap:8px;align-items:center;margin:14px 0;padding:10px 0;border-top:1px solid #eee}' +
-            '.wcai-native-stage-actions button{min-height:40px;padding:9px 15px;border:1px solid #222;border-radius:8px;cursor:pointer;background:#fff;color:#222}' +
+            '#wcai-checkout-wizard .wcai-reservation-summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}' +
+            '#wcai-checkout-wizard .wcai-reservation-summary>div{padding:9px 10px;border:1px solid #ededed;border-radius:8px;background:#fafafa}' +
+            '#wcai-checkout-wizard .wcai-reservation-summary span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#888}' +
+            '#wcai-checkout-wizard .wcai-reservation-summary strong{display:block;margin-top:3px;font-size:12px}' +
+            '#wcai-checkout-wizard .wcai-warning{padding:10px 11px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
+            '.wcai-native-stage-header{display:flex;align-items:flex-start;gap:10px;margin:0 0 10px;padding:12px 13px;border:1px solid #e5e5e5;border-radius:11px;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.025)}' +
+            '.wcai-native-stage-number{display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex:0 0 26px;border-radius:50%;background:#222;color:#fff;font-size:11px;font-weight:800}' +
+            '.wcai-native-stage-header strong{display:block;font-size:15px}' +
+            '.wcai-native-stage-header small{display:block;margin-top:2px;font-size:10px;color:#777;line-height:1.4}' +
+            '.wcai-native-stage-actions{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:10px 0 14px;padding:10px 0;border-top:1px solid #eee}' +
+            '.wcai-native-stage-actions button{min-height:38px;padding:8px 13px;border:0;border-radius:7px;cursor:pointer;background:transparent;color:#555;font-weight:600}' +
             '.wcai-native-stage-actions .wcai-native-next-button{background:#222;color:#fff}' +
+            '.wcai-native-back{margin:9px 0;padding:0;text-align:left}' +
+            '.wcai-native-back-button{padding:5px 0;border:0;background:transparent;color:#666;font-size:11px;cursor:pointer;text-decoration:underline}' +
             '.wcai-checkout-before-payment [data-block-name="woocommerce/checkout-actions-block"]{display:none!important}' +
             '.wcai-checkout-before-payment .wc-block-components-checkout-place-order-button,.wcai-checkout-before-payment #place_order,.wcai-checkout-before-payment button[name="woocommerce_checkout_place_order"]{display:none!important;visibility:hidden!important;pointer-events:none!important}' +
-            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(3,minmax(0,1fr))}#wcai-checkout-wizard .wcai-wizard-progress span:nth-child(n+4){display:none}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-stage-actions{display:grid;grid-template-columns:1fr;gap:7px}.wcai-native-stage-actions button{width:100%}}';
+            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}#wcai-checkout-wizard .wcai-wizard-progress span{min-height:29px;padding:4px 3px;font-size:8px}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-stage-actions{display:flex;gap:6px}.wcai-native-stage-actions button{width:auto}.wcai-native-stage-actions .wcai-native-next-button{flex:1}.wcai-native-stage-actions .wcai-native-back-to-reservation{padding-left:0}}';
 
         document.head.appendChild(style);
     }
@@ -605,7 +629,11 @@
         });
 
         Array.prototype.slice.call(root.querySelectorAll('[data-step-label]')).forEach(function (label) {
-            label.classList.toggle('is-active', parseInt(label.getAttribute('data-step-label'), 10) === currentStep);
+            var labelStep = parseInt(label.getAttribute('data-step-label'), 10);
+            label.classList.toggle('is-active', labelStep === currentStep);
+            label.classList.toggle('is-complete', labelStep < currentStep);
+            label.setAttribute('aria-current', labelStep === currentStep ? 'step' : 'false');
+            label.setAttribute('tabindex', labelStep < currentStep ? '0' : '-1');
         });
 
         applyNativeStepVisibility();
@@ -623,16 +651,16 @@
 
         if (currentStep === 2) {
             setTimeout(function () {
-                var sections = nativeSections();
-                if (sections.contact) {
-                    sections.contact.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                var header = document.querySelector('.wcai-native-stage-header[data-wcai-native-stage="2"]');
+                if (header) {
+                    header.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             }, 120);
         } else if (currentStep === 5) {
             setTimeout(function () {
-                var sections = nativeSections();
-                if (sections.payment) {
-                    sections.payment.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                var header = document.querySelector('.wcai-native-stage-header[data-wcai-native-stage="5"]');
+                if (header) {
+                    header.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             }, 120);
         } else {
@@ -644,7 +672,7 @@
         panel.innerHTML = '';
 
         var title = document.createElement('h3');
-        title.textContent = 'Confira sua reserva';
+        title.textContent = '1. Reserva';
         panel.appendChild(title);
 
         state.items.forEach(function (item) {
@@ -689,23 +717,11 @@
         });
 
         panel.appendChild(
-            actions('Continuar', function () {
+            actions('Continuar para seus dados', function () {
                 if (!validateDeparture()) return;
                 setStep(2);
             })
         );
-    }
-
-    function buildStepTwo(panel) {
-        panel.innerHTML = '';
-
-        var title = document.createElement('h3');
-        title.textContent = 'Seus dados';
-        panel.appendChild(title);
-
-        var text = document.createElement('p');
-        text.textContent = 'Os dados abaixo pertencem ao titular da reserva. Preencha os campos do checkout e depois avance para os participantes.';
-        panel.appendChild(text);
     }
 
     function buildStepThree(panel) {
@@ -830,18 +846,6 @@
         );
     }
 
-    function buildStepFive(panel) {
-        panel.innerHTML = '';
-
-        var title = document.createElement('h3');
-        title.textContent = 'Pagamento';
-        panel.appendChild(title);
-
-        var note = document.createElement('p');
-        note.textContent = 'Escolha a forma de pagamento abaixo. O botão Finalizar pedido aparece somente nesta etapa.';
-        panel.appendChild(note);
-    }
-
     function render() {
         var root = document.getElementById(ROOT);
         var data = cart();
@@ -864,10 +868,8 @@
 
         styleWizard();
         buildStepOne(root.querySelector('[data-wcai-step="1"]'));
-        buildStepTwo(root.querySelector('[data-wcai-step="2"]'));
         buildStepThree(root.querySelector('[data-wcai-step="3"]'));
         buildStepFour(root.querySelector('[data-wcai-step="4"]'));
-        buildStepFive(root.querySelector('[data-wcai-step="5"]'));
         sync();
         setStep(currentStep);
     }
@@ -919,6 +921,16 @@
 
         var observeTarget = document.querySelector('.wc-block-checkout') || document.body;
         observer.observe(observeTarget, { childList: true, subtree: true });
+
+        Array.prototype.slice.call(document.querySelectorAll('[data-step-label]')).forEach(function (label) {
+            label.addEventListener('click', function () {
+                var targetStep = parseInt(label.getAttribute('data-step-label'), 10);
+
+                if (targetStep < currentStep) {
+                    setStep(targetStep);
+                }
+            });
+        });
 
         document.addEventListener('click', function (event) {
             if (currentStep !== 5 && isPlaceOrderElement(event.target)) {
