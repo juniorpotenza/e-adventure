@@ -207,11 +207,15 @@ class WCAI_Checkout_Block {
         $html .= '<span data-step-label="5">5. Pagamento</span>';
         $html .= '</div>';
         $html .= '<div data-wcai-step="1" class="wcai-wizard-panel is-active"></div>';
-        $html .= '<div data-wcai-step="2" class="wcai-wizard-panel"></div>';
         $html .= '<div data-wcai-step="3" class="wcai-wizard-panel"></div>';
         $html .= '<div data-wcai-step="4" class="wcai-wizard-panel"></div>';
-        $html .= '<div data-wcai-step="5" class="wcai-wizard-panel"></div>';
         $html .= '</div>';
+        $html .= '<style id="wcai-checkout-gate-style">' .
+            'body:not(.wcai-checkout-payment-step) .wc-block-components-checkout-place-order-button,' .
+            'body:not(.wcai-checkout-payment-step) #place_order,' .
+            'body:not(.wcai-checkout-payment-step) button[name="woocommerce_checkout_place_order"]' .
+            '{display:none !important;visibility:hidden !important;pointer-events:none !important;}' .
+            '</style>';
 
         return $html . $block_content;
     }
