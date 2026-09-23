@@ -207,10 +207,8 @@ class WCAI_Checkout_Block {
         $html .= '<span data-step-label="5">5. Pagamento</span>';
         $html .= '</div>';
         $html .= '<div data-wcai-step="1" class="wcai-wizard-panel is-active"></div>';
-        $html .= '<div data-wcai-step="2" class="wcai-wizard-panel"></div>';
         $html .= '<div data-wcai-step="3" class="wcai-wizard-panel"></div>';
         $html .= '<div data-wcai-step="4" class="wcai-wizard-panel"></div>';
-        $html .= '<div data-wcai-step="5" class="wcai-wizard-panel"></div>';
         $html .= '</div>';
 
         return $html . $block_content;
