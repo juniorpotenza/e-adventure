@@ -34,7 +34,7 @@
         var data = JSON.stringify(payload);
 
         if (checkout && typeof checkout.setExtensionData === 'function') {
-            checkout.setExtensionData(NS, { data: data });
+            checkout.setExtensionData(NS, 'data', data);
         } else if (checkout && typeof checkout.__internalSetExtensionData === 'function') {
             checkout.__internalSetExtensionData(NS, { data: data });
         }
@@ -315,34 +315,14 @@
     }
 
     function ensureNativeStepControls( sections ) {
-        if ( sections.contact ) {
-            var contactHeader = document.querySelector('.wcai-native-stage-header[data-wcai-native-stage="2"]');
-
-            if (!contactHeader) {
-                contactHeader = document.createElement('div');
-                contactHeader.className = 'wcai-native-stage-header';
-                contactHeader.setAttribute('data-wcai-native-stage', '2');
-                contactHeader.innerHTML =
-                    '<span class="wcai-native-stage-number">2</span>' +
-                    '<div><strong>Seus dados</strong><small>Informe os dados do titular. Esses dados serão usados na reserva.</small></div>';
-            }
-
-            if ( contactHeader.nextElementSibling !== sections.contact ) {
-                sections.contact.insertAdjacentElement('beforebegin', contactHeader);
-            }
-
+        if ( sections.contact && sections.billing ) {
             var next = document.querySelector('.wcai-native-next');
 
             if (!next) {
                 next = document.createElement('div');
                 next.className = 'wcai-native-next wcai-native-stage-actions';
                 next.innerHTML =
-                    '<button type="button" class="button wcai-native-back-to-reservation">Voltar para reserva</button>' +
                     '<button type="button" class="button wcai-native-next-button">Continuar para participantes</button>';
-
-                next.querySelector('.wcai-native-back-to-reservation').addEventListener('click', function () {
-                    setStep(1);
-                });
 
                 next.querySelector('.wcai-native-next-button').addEventListener('click', function () {
                     if (validateBillingStep()) {
@@ -357,21 +337,6 @@
         }
 
         if ( sections.payment ) {
-            var paymentHeader = document.querySelector('.wcai-native-stage-header[data-wcai-native-stage="5"]');
-
-            if (!paymentHeader) {
-                paymentHeader = document.createElement('div');
-                paymentHeader.className = 'wcai-native-stage-header wcai-payment-stage-header';
-                paymentHeader.setAttribute('data-wcai-native-stage', '5');
-                paymentHeader.innerHTML =
-                    '<span class="wcai-native-stage-number">5</span>' +
-                    '<div><strong>Pagamento</strong><small>Escolha a forma de pagamento e finalize sua reserva.</small></div>';
-            }
-
-            if ( paymentHeader.nextElementSibling !== sections.payment ) {
-                sections.payment.insertAdjacentElement('beforebegin', paymentHeader);
-            }
-
             var back = document.querySelector('.wcai-native-back');
 
             if (!back) {
@@ -388,6 +353,7 @@
             }
         }
     }
+
     function applyNativeStepVisibility() {
         var sections = nativeSections();
 
@@ -411,13 +377,9 @@
 
         var nativeNext = document.querySelector('.wcai-native-next');
         var nativeBack = document.querySelector('.wcai-native-back');
-        var stage2Header = document.querySelector('.wcai-native-stage-header[data-wcai-native-stage="2"]');
-        var stage5Header = document.querySelector('.wcai-native-stage-header[data-wcai-native-stage="5"]');
 
-        setHidden(stage2Header, currentStep !== 2);
         setHidden(nativeNext, currentStep !== 2);
         setHidden(nativeBack, currentStep !== 5);
-        setHidden(stage5Header, currentStep !== 5);
 
         if (sections.actions) {
             Array.prototype.slice.call(sections.actions.querySelectorAll('a,button')).forEach(function (element) {
@@ -478,18 +440,13 @@
             '#wcai-checkout-wizard .wcai-reservation-summary span{display:block;font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#888}' +
             '#wcai-checkout-wizard .wcai-reservation-summary strong{display:block;margin-top:3px;font-size:12px}' +
             '#wcai-checkout-wizard .wcai-warning{padding:10px 11px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
-            '.wcai-native-stage-header{display:flex;align-items:flex-start;gap:10px;margin:0 0 10px;padding:12px 13px;border:1px solid #e5e5e5;border-radius:11px;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.025)}' +
-            '.wcai-native-stage-number{display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex:0 0 26px;border-radius:50%;background:#222;color:#fff;font-size:11px;font-weight:800}' +
-            '.wcai-native-stage-header strong{display:block;font-size:15px}' +
-            '.wcai-native-stage-header small{display:block;margin-top:2px;font-size:10px;color:#777;line-height:1.4}' +
-            '.wcai-native-stage-actions{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:10px 0 14px;padding:10px 0;border-top:1px solid #eee}' +
-            '.wcai-native-stage-actions button{min-height:38px;padding:8px 13px;border:0;border-radius:7px;cursor:pointer;background:transparent;color:#555;font-weight:600}' +
-            '.wcai-native-stage-actions .wcai-native-next-button{background:#222;color:#fff}' +
+            '.wcai-native-stage-actions{display:flex;justify-content:flex-end;gap:8px;align-items:center;margin:10px 0 14px;padding:10px 0;border-top:1px solid #eee}' +
+            '.wcai-native-stage-actions button{min-height:38px;padding:8px 13px;border:0;border-radius:7px;cursor:pointer;background:#222;color:#fff;font-weight:700}' +
             '.wcai-native-back{margin:9px 0;padding:0;text-align:left}' +
             '.wcai-native-back-button{padding:5px 0;border:0;background:transparent;color:#666;font-size:11px;cursor:pointer;text-decoration:underline}' +
             '.wcai-checkout-before-payment [data-block-name="woocommerce/checkout-actions-block"]{display:none!important}' +
             '.wcai-checkout-before-payment .wc-block-components-checkout-place-order-button,.wcai-checkout-before-payment #place_order,.wcai-checkout-before-payment button[name="woocommerce_checkout_place_order"]{display:none!important;visibility:hidden!important;pointer-events:none!important}' +
-            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}#wcai-checkout-wizard .wcai-wizard-progress span{min-height:29px;padding:4px 3px;font-size:8px}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-stage-actions{display:flex;gap:6px}.wcai-native-stage-actions button{width:auto}.wcai-native-stage-actions .wcai-native-next-button{flex:1}.wcai-native-stage-actions .wcai-native-back-to-reservation{padding-left:0}}';
+            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}#wcai-checkout-wizard .wcai-wizard-progress span{min-height:29px;padding:4px 3px;font-size:8px}#wcai-checkout-wizard .wcai-reservation-summary{grid-template-columns:1fr}.wcai-native-stage-actions{justify-content:stretch}.wcai-native-stage-actions button{width:100%}}';
 
         document.head.appendChild(style);
     }
