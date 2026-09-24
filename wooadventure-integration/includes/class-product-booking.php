@@ -536,7 +536,11 @@ class WCAI_Product_Booking {
         echo '</div>';
 
         echo '<div class="wcai-booking-section">';
-        echo '<div class="wcai-booking-section-title"><span>1</span><div><strong>Escolha a data</strong><small>As datas indicam a disponibilidade da saída.</small></div></div>';
+        echo '<div class="wcai-booking-section-title"><span>1</span><div><strong>Escolha sua saída</strong><small>Primeiro escolha a data. Depois selecione o horário e ajuste os participantes.</small></div></div>';
+
+        echo '<div class="wcai-booking-grid">';
+
+        echo '<div class="wcai-calendar-column">';
         echo '<div class="wcai-calendar" data-wcai-calendar data-product-id="' . esc_attr( $product->get_id() ) . '" data-child-enabled="' . esc_attr( $child_enabled ? '1' : '0' ) . '" data-child-max="' . esc_attr( $child_max ) . '" data-ajax-url="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '" data-nonce="' . esc_attr( wp_create_nonce( 'wcai_calendar_availability' ) ) . '" data-departures="' . esc_attr( wp_json_encode( $calendar_departures ) ) . '">';
         echo '<div class="wcai-calendar-toolbar">';
         echo '<button type="button" class="wcai-calendar-nav" data-calendar-prev aria-label="Mês anterior">&lsaquo;</button>';
@@ -567,17 +571,19 @@ class WCAI_Product_Booking {
         echo '</div>';
 
         echo '<section class="wcai-participant-picker" data-wcai-participants data-child-enabled="' . esc_attr( $child_enabled ? '1' : '0' ) . '" data-child-max="' . esc_attr( $child_max ) . '">';
-        echo '<div class="wcai-booking-section-title"><span>3</span><div><strong>Quem vai participar?</strong><small>Informe adultos e crianças. A quantidade total reserva as vagas da saída.</small></div></div>';
+        echo '<div class="wcai-booking-section-title"><span>3</span><div><strong>Quem vai participar?</strong><small>1 vaga por participante. O titular da reserva já conta como adulto.</small></div></div>';
         echo '<div class="wcai-participant-rows">';
         echo '<div class="wcai-participant-row" data-participant-row="adults"><div><strong>Adultos</strong><small>Inclui o titular da reserva</small></div><div class="wcai-stepper"><button type="button" data-participant-action="minus" aria-label="Diminuir adultos">−</button><strong data-participant-value="adults">1</strong><button type="button" data-participant-action="plus" aria-label="Aumentar adultos">+</button></div></div>';
         echo '<div class="wcai-participant-row" data-participant-row="children"><div><strong>Crianças</strong><small>' . esc_html( ! empty( $profile['children_age_max'] ) ? 'Até ' . absint( $profile['children_age_max'] ) . ' anos' : 'Conforme as regras do passeio' ) . '</small></div><div class="wcai-stepper"><button type="button" data-participant-action="minus" aria-label="Diminuir crianças">−</button><strong data-participant-value="children">0</strong><button type="button" data-participant-action="plus" aria-label="Aumentar crianças">+</button></div></div>';
         echo '</div>';
-        echo '<div class="wcai-participant-total"><div><strong data-participant-total>1 participante</strong><small>As vagas são calculadas por pessoa.</small></div><div class="wcai-participant-badge" data-participant-availability>Escolha o horário</div></div>';
+        echo '<div class="wcai-participant-total"><div><strong data-participant-total>1 participante</strong><small>Vagas calculadas pela saída escolhida.</small></div><div class="wcai-participant-badge" data-participant-availability>Escolha o horário</div></div>';
         echo '<input type="hidden" name="wcai_adults" value="1" data-participant-input="adults">';
         echo '<input type="hidden" name="wcai_children" value="0" data-participant-input="children">';
         echo '</section>';
 
-        echo '<p class="wcai-booking-note">O calendário fica apenas para escolher a data. O horário mostra formação do grupo, vagas restantes e detalhes da saída. O carrinho e o checkout exibem somente o resumo escolhido.</p>';
+        echo '</div>';
+
+        echo '<p class="wcai-booking-note"><strong>Como funciona:</strong> data → horário → participantes. O carrinho e o checkout recebem somente a saída e a quantidade escolhidas aqui.</p>';
         echo '</section>';
 
         $this->enqueue_styles();
