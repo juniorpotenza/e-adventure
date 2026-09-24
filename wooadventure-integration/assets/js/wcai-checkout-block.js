@@ -286,13 +286,27 @@
     }
 
     function placeOrderButtons() {
-        return Array.prototype.slice.call(
+        var explicit = Array.prototype.slice.call(
             document.querySelectorAll(
                 '.wc-block-components-checkout-place-order-button,' +
                 '#place_order,' +
                 'button[name="woocommerce_checkout_place_order"]'
             )
         );
+
+        var textButtons = Array.prototype.slice.call(
+            document.querySelectorAll('.wc-block-checkout button, .wc-block-checkout a, button, a')
+        ).filter(function (element) {
+            var text = (element.textContent || '').trim().toLowerCase();
+            return text === 'finalizar pedido' ||
+                text === 'fazer pedido' ||
+                text === 'place order' ||
+                text === 'finalizar compra';
+        });
+
+        return explicit.concat(textButtons.filter(function (element) {
+            return explicit.indexOf(element) === -1;
+        }));
     }
 
     function isPlaceOrderElement(target) {
@@ -315,7 +329,7 @@
     }
 
     function ensureNativeStepControls( sections ) {
-        if ( sections.contact && sections.billing ) {
+        if ( sections.billing ) {
             var next = document.querySelector('.wcai-native-next');
 
             if (!next) {
