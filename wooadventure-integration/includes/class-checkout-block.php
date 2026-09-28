@@ -8,10 +8,62 @@ class WCAI_Checkout_Block {
 
     public function __construct() {
         add_action( 'wp_enqueue_scripts', array( $this, 'register_assets' ) );
+        add_action( 'woocommerce_init', array( $this, 'register_additional_checkout_fields' ), 20 );
+        add_action( 'woocommerce_set_additional_field_value', array( $this, 'sync_identity_field' ), 10, 4 );
         add_action( 'woocommerce_blocks_loaded', array( $this, 'register_store_api' ) );
         add_filter( 'render_block_woocommerce/checkout-fields-block', array( $this, 'render_checkout_ui' ), 20 );
         add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'capture_checkout_payload' ), 10, 2 );
         add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'process_checkout' ), 10, 1 );
+    }
+
+    public function register_additional_checkout_fields() {
+        if ( ! function_exists( 'woocommerce_register_additional_checkout_field' ) ) {
+            return;
+        }
+
+        woocommerce_register_additional_checkout_field(
+            array(
+                'id'         => 'wcai/billing-cpf',
+                'label'      => __( 'CPF do titular', 'wooadventure-integration' ),
+                'location'   => 'contact',
+                'type'       => 'text',
+                'required'   => true,
+                'attributes' => array(
+                    'inputmode' => 'numeric',
+                    'autocomplete' => 'off',
+                    'placeholder' => '000.000.000-00',
+                ),
+            )
+        );
+
+        woocommerce_register_additional_checkout_field(
+            array(
+                'id'         => 'wcai/billing-birthdate',
+                'label'      => __( 'Data de nascimento do titular', 'wooadventure-integration' ),
+                'location'   => 'contact',
+                'type'       => 'text',
+                'required'   => true,
+                'attributes' => array(
+                    'inputmode' => 'numeric',
+                    'autocomplete' => 'bday',
+                    'placeholder' => 'dd/mm/aaaa',
+                ),
+            )
+        );
+    }
+
+    public function sync_identity_field( $key, $value, $group, $wc_object ) {
+        if ( ! $wc_object || ! is_object( $wc_object ) ) {
+            return;
+        }
+
+        if ( 'wcai/billing-cpf' === $key ) {
+            $wc_object->update_meta_data( 'billing_cpf', preg_replace( '/\\D+/', '', (string) $value ) );
+        }
+
+        if ( 'wcai/billing-birthdate' === $key ) {
+            $wc_object->update_meta_data( 'billing_birthdate', sanitize_text_field( (string) $value ) );
+        }
     }
 
     public function register_assets() {
@@ -203,10 +255,10 @@ class WCAI_Checkout_Block {
         $html .= '<span data-step-label="1" class="is-active">1. Reserva</span>';
         $html .= '<span data-step-label="2">2. Seus dados</span>';
         $html .= '<span data-step-label="3">3. Participantes</span>';
-        $html .= '<span data-step-label="4">4. Revisão</span>';
-        $html .= '<span data-step-label="5">5. Pagamento</span>';
+        $html .= '<span data-step-label="4">4. Revisão e pagamento</span>';
         $html .= '</div>';
         $html .= '<div data-wcai-step="1" class="wcai-wizard-panel is-active"></div>';
+        $html .= '<div data-wcai-step="2" class="wcai-wizard-panel"></div>';
         $html .= '<div data-wcai-step="3" class="wcai-wizard-panel"></div>';
         $html .= '<div data-wcai-step="4" class="wcai-wizard-panel"></div>';
         $html .= '</div>';
