@@ -264,31 +264,6 @@
         }
     }
 
-    function nativePlaceOrderButton() {
-        var selectors = [
-            '.wc-block-components-checkout-place-order-button',
-            '#place_order',
-            'button[name="woocommerce_checkout_place_order"]'
-        ];
-
-        for (var i = 0; i < selectors.length; i++) {
-            var button = document.querySelector(selectors[i]);
-            if (button) return button;
-        }
-
-        var textButtons = Array.prototype.slice.call(
-            document.querySelectorAll('.wc-block-checkout button, button')
-        );
-
-        return textButtons.filter(function (element) {
-            var text = (element.textContent || '').trim().toLowerCase();
-            return text === 'finalizar pedido' ||
-                text === 'fazer pedido' ||
-                text === 'place order' ||
-                text === 'finalizar compra';
-        })[0] || null;
-    }
-
     function setCheckoutStageClass() {
         if (!document.body) return;
 
@@ -296,91 +271,30 @@
         document.body.classList.toggle('wcai-checkout-payment-step', currentStep === 4);
     }
 
-    function ensurePaymentProxy(sections) {
-        if (!sections.actions && !sections.payment) return null;
+    function setCheckoutStageClass() {
+        if (!document.body) return;
 
-        var proxy = document.querySelector('.wcai-place-order-proxy');
-
-        if (!proxy) {
-            proxy = document.createElement('div');
-            proxy.className = 'wcai-place-order-proxy';
-            proxy.innerHTML =
-                '<div class="wcai-place-order-proxy-note">Revise os dados e a forma de pagamento antes de finalizar.</div>' +
-                '<button type="button" class="wcai-place-order-proxy-button">Finalizar pedido</button>';
-
-            proxy.querySelector('button').addEventListener('click', function () {
-                var nativeButton = nativePlaceOrderButton();
-
-                if (!nativeButton) {
-                    return;
-                }
-
-                if (nativeButton.disabled || nativeButton.getAttribute('aria-disabled') === 'true') {
-                    nativeButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    return;
-                }
-
-                nativeButton.click();
-            });
+        for (var i = 1; i <= 4; i++) {
+            document.body.classList.toggle('wcai-checkout-step-' + i, currentStep === i);
         }
 
-        var anchor = sections.actions || sections.payment;
-
-        if (anchor && proxy.previousElementSibling !== anchor) {
-            anchor.insertAdjacentElement('afterend', proxy);
-        }
-
-        return proxy;
+        document.body.classList.toggle('wcai-checkout-before-payment', currentStep !== 4);
+        document.body.classList.toggle('wcai-checkout-payment-step', currentStep === 4);
     }
 
-    function updatePlaceOrderProxy() {
-        var proxy = document.querySelector('.wcai-place-order-proxy');
-        if (!proxy) return;
+    function clearCheckoutStageClasses() {
+        if (!document.body) return;
 
-        var button = proxy.querySelector('button');
-        var nativeButton = nativePlaceOrderButton();
+        for (var i = 1; i <= 4; i++) {
+            document.body.classList.remove('wcai-checkout-step-' + i);
+        }
 
-        if (!button) return;
-
-        button.disabled = currentStep !== 4 || !nativeButton || nativeButton.disabled || nativeButton.getAttribute('aria-disabled') === 'true';
+        document.body.classList.remove('wcai-checkout-before-payment');
+        document.body.classList.remove('wcai-checkout-payment-step');
     }
 
     function applyNativeStepVisibility() {
-        var sections = nativeSections();
-        var proxy = ensurePaymentProxy(sections);
-
         setCheckoutStageClass();
-
-        setHidden(sections.express, true);
-        setHidden(sections.shippingAddress, true);
-        setHidden(sections.shippingMethods, true);
-        setHidden(sections.shippingMethod, true);
-        setHidden(sections.pickup, true);
-        setHidden(sections.orderNote, true);
-
-        setHidden(sections.contact, currentStep !== 2);
-        setHidden(sections.billing, currentStep !== 2);
-        setHidden(sections.payment, currentStep !== 4);
-        setHidden(sections.terms, currentStep !== 4);
-
-        if (sections.actions) {
-            sections.actions.classList.toggle('wcai-native-actions-hidden', currentStep !== 4);
-        }
-
-        if (proxy) {
-            proxy.hidden = currentStep !== 4;
-            proxy.setAttribute('aria-hidden', currentStep !== 4 ? 'true' : 'false');
-        }
-
-        var nativeButton = nativePlaceOrderButton();
-
-        if (nativeButton) {
-            nativeButton.classList.add('wcai-native-place-order-hidden');
-            nativeButton.setAttribute('aria-hidden', 'true');
-            nativeButton.setAttribute('tabindex', '-1');
-        }
-
-        updatePlaceOrderProxy();
     }
 
     function styleWizard() {
@@ -391,7 +305,7 @@
         style.textContent =
             '#wcai-checkout-wizard{margin:0 0 14px;padding:0;border:0;background:transparent}' +
             '#wcai-checkout-wizard .wcai-wizard-progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0 0 12px}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span{display:flex;align-items:center;justify-content:center;min-height:31px;padding:5px 6px;border:1px solid #e2e2e2;border-radius:8px;background:#fff;color:#777;font-size:10px;text-align:center;box-sizing:border-box}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress span{display:flex;align-items:center;justify-content:center;min-height:31px;padding:5px 6px;border:1px solid #e2e2e2;border-radius:8px;background:#fff;color:#777;font-size:10px;text-align:center;box-sizing:border-box;cursor:default}' +
             '#wcai-checkout-wizard .wcai-wizard-progress span.is-active{border-color:#222;background:#222;color:#fff;font-weight:800}' +
             '#wcai-checkout-wizard .wcai-wizard-progress span.is-complete{color:#222;border-color:#cfcfcf;cursor:pointer}' +
             '#wcai-checkout-wizard .wcai-wizard-progress span.is-complete:before{content:"✓";margin-right:4px;font-weight:900}' +
@@ -416,12 +330,45 @@
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary:only-child{margin-right:auto}' +
             '#wcai-checkout-wizard .wcai-warning{padding:10px 11px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
-            '.wcai-native-actions-hidden{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important}' +
-            '.wcai-native-place-order-hidden{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important}' +
-            '.wcai-place-order-proxy{margin:12px 0 18px;padding:12px 0;border-top:1px solid #eee}' +
-            '.wcai-place-order-proxy-note{margin-bottom:9px;font-size:11px;line-height:1.4;color:#777}' +
-            '.wcai-place-order-proxy-button{display:block;width:100%;min-height:44px;padding:9px 14px;border:0;border-radius:8px;background:#222;color:#fff;font-weight:800;cursor:pointer}' +
-            '.wcai-place-order-proxy-button:disabled{opacity:.5;cursor:not-allowed}' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-contact-information-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-billing-address-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-payment-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-terms-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-actions-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-payment-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-terms-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-actions-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-contact-information-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-billing-address-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-payment-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-terms-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-actions-block"],' +
+            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-contact-information-block"],' +
+            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-billing-address-block"],' +
+            'body:not(.wcai-checkout-step-4) .wc-block-components-checkout-place-order-button,' +
+            'body:not(.wcai-checkout-step-4) #place_order,' +
+            'body:not(.wcai-checkout-step-4) button[name="woocommerce_checkout_place_order"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-order-note-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-order-note-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-order-note-block"]{display:none!important;visibility:hidden!important;pointer-events:none!important}' +
+            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-payment-block"],' +
+            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-terms-block"],' +
+            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-actions-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-contact-information-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-billing-address-block"]{display:block}' +
+            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-actions-block"] .wc-block-components-checkout-place-order-button{display:block;width:100%;min-height:44px;font-weight:800;border-radius:8px}' +
             '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{gap:3px}#wcai-checkout-wizard .wcai-wizard-progress span{min-height:29px;padding:4px 3px;font-size:8px}}';
 
         document.head.appendChild(style);
@@ -559,7 +506,6 @@
         if (currentStep === 3) {
             validateAdditional();
         }
-        updatePlaceOrderProxy();
     }
 
     function button(text, onClick, secondary) {
@@ -838,7 +784,7 @@
         });
 
         var note = document.createElement('p');
-        note.textContent = 'A forma de pagamento e os termos da compra aparecem logo abaixo. Depois de conferir, use apenas o botão Finalizar pedido desta etapa.';
+        note.textContent = 'Confira a saída e os participantes. Abaixo estão a forma de pagamento, os termos e o botão Finalizar pedido.';
         panel.appendChild(note);
 
         panel.appendChild(
@@ -864,6 +810,7 @@
 
         if (!targets.length) {
             root.style.display = 'none';
+            clearCheckoutStageClasses();
             setValidationErrors({});
             return;
         }
@@ -920,39 +867,20 @@
         update();
         wp.data.subscribe(update, 'wc/store/cart');
 
-        var observerTimer = null;
-        var observer = new MutationObserver(function () {
-            if (observerTimer) clearTimeout(observerTimer);
-
-            observerTimer = setTimeout(function () {
-                applyNativeStepVisibility();
-            }, 50);
-        });
-
-        var observeTarget = document.querySelector('.wc-block-checkout') || document.body;
-        observer.observe(observeTarget, { childList: true, subtree: true });
-
         document.addEventListener('click', function (event) {
             var target = event.target;
             if (!target || !target.closest) return;
 
             var label = target.closest('[data-step-label]');
 
-            if (label) {
-                var targetStep = parseInt(label.getAttribute('data-step-label'), 10);
+            if (!label) return;
 
-                if (targetStep < currentStep) {
-                    setStep(targetStep);
-                }
+            var targetStep = parseInt(label.getAttribute('data-step-label'), 10);
 
-                return;
+            if (targetStep < currentStep) {
+                setStep(targetStep);
             }
-
-            if (currentStep < 4 && target.closest('.wc-block-components-checkout-place-order-button,#place_order,button[name="woocommerce_checkout_place_order"]')) {
-                event.preventDefault();
-                event.stopImmediatePropagation();
-            }
-        }, true);
+        });
     }
 
     if (document.readyState === 'loading') {
