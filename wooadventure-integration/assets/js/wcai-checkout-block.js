@@ -319,31 +319,44 @@
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary:only-child{margin-right:auto}' +
             '#wcai-checkout-wizard .wcai-warning{padding:10px 11px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
-            'body.wcai-checkout-step-1 .wc-block-checkout__contact-fields,' +
-            'body.wcai-checkout-step-1 .wc-block-checkout__billing-fields,' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-payment-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-payment-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-4 .wc-block-checkout__contact-fields,' +
-            'body.wcai-checkout-step-4 .wc-block-checkout__billing-fields,' +
-            'body:not(.wcai-checkout-step-4) .wc-block-components-checkout-place-order-button,' +
-            'body:not(.wcai-checkout-step-4) #place_order,' +
-            'body:not(.wcai-checkout-step-4) button[name="woocommerce_checkout_place_order"]{display:none!important;visibility:hidden!important;pointer-events:none!important}' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-contact-information-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-billing-address-block"],' +
             'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-payment-block"],' +
             'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-terms-block"],' +
             'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-billing-address-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-payment-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-terms-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-actions-block"],' +
             'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-billing-address-block"]{display:none!important}' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-billing-address-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-billing-address-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-payment-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-terms-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-actions-block"],' +
+            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-contact-information-block"],' +
+            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-billing-address-block"],' +
+            'body:not(.wcai-checkout-step-4) .wc-block-components-checkout-place-order-button,' +
+            'body:not(.wcai-checkout-step-4) #place_order,' +
+            'body:not(.wcai-checkout-step-4) button[name="woocommerce_checkout_place_order"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
+            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-order-note-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-order-note-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
+            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-order-note-block"]{display:none!important;visibility:hidden!important;pointer-events:none!important}' +
             'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-payment-block"],' +
             'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-actions-block"]{display:block}' +
+            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-actions-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-contact-information-block"],' +
+            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-billing-address-block"]{display:block}' +
             'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-actions-block"] .wc-block-components-checkout-place-order-button{display:block;width:100%;min-height:44px;font-weight:800;border-radius:8px}' +
             '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{gap:3px}#wcai-checkout-wizard .wcai-wizard-progress span{min-height:29px;padding:4px 3px;font-size:8px}}';
 
