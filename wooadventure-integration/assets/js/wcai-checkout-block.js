@@ -282,6 +282,17 @@
         document.body.classList.toggle('wcai-checkout-payment-step', currentStep === 4);
     }
 
+    function clearCheckoutStageClasses() {
+        if (!document.body) return;
+
+        for (var i = 1; i <= 4; i++) {
+            document.body.classList.remove('wcai-checkout-step-' + i);
+        }
+
+        document.body.classList.remove('wcai-checkout-before-payment');
+        document.body.classList.remove('wcai-checkout-payment-step');
+    }
+
     function applyNativeStepVisibility() {
         setCheckoutStageClass();
     }
@@ -799,6 +810,7 @@
 
         if (!targets.length) {
             root.style.display = 'none';
+            clearCheckoutStageClasses();
             setValidationErrors({});
             return;
         }
