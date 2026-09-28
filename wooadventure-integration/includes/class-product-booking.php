@@ -658,6 +658,9 @@ class WCAI_Product_Booking {
         var monthLabel = root.querySelector('[data-calendar-month]');
         var prev = root.querySelector('[data-calendar-prev]');
         var next = root.querySelector('[data-calendar-next]');
+        var quickDates = root.querySelector('[data-calendar-quick]');
+        var calendarFull = root.querySelector('[data-calendar-full]');
+        var calendarToggle = root.querySelector('[data-calendar-toggle]');
         var times = root.querySelector('[data-calendar-times]');
         var selection = root.querySelector('[data-calendar-selection]');
         var selectedDateLabel = root.querySelector('[data-calendar-selected-date]');
@@ -815,6 +818,93 @@ class WCAI_Product_Booking {
             });
         }
 
+        function setCalendarExpanded(expanded) {
+            if (!calendarFull || !calendarToggle) return;
+
+            calendarFull.hidden = !expanded;
+            calendarToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            calendarToggle.textContent = expanded ? 'Ocultar calendário' : 'Ver todas as datas';
+
+            if (expanded) {
+                renderCalendar();
+            }
+        }
+
+        function uniqueDepartureDates() {
+            var dates = [];
+
+            departures.forEach(function (departure) {
+                if (dates.indexOf(departure.date) === -1) {
+                    dates.push(departure.date);
+                }
+            });
+
+            return dates.slice(0, 7);
+        }
+
+        function shortWeekday(dateString) {
+            var parts = dateString.split('-');
+            var date = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            return date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+        }
+
+        function shortMonth(dateString) {
+            var parts = dateString.split('-');
+            var date = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            return date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+        }
+
+        function renderQuickDates() {
+            if (!quickDates) return;
+
+            quickDates.innerHTML = '';
+
+            uniqueDepartureDates().forEach(function (date) {
+                var state = dateState(date);
+                var dateItems = dateDepartures(date);
+                var dayNumber = parseInt(date.slice(8, 10), 10);
+                var button = document.createElement('button');
+
+                button.type = 'button';
+                button.className = 'wcai-quick-date state-' + state.state;
+                button.disabled = state.state === 'empty' || state.state === 'full' || state.state === 'closed' || state.state === 'insufficient';
+                button.setAttribute('aria-label', dayNumber + ' de ' + shortMonth(date) + ', ' + (state.label || state.state));
+
+                if (selectedDate === date) {
+                    button.classList.add('is-selected');
+                }
+
+                var weekday = document.createElement('span');
+                weekday.textContent = shortWeekday(date);
+                button.appendChild(weekday);
+
+                var day = document.createElement('strong');
+                day.textContent = String(dayNumber);
+                button.appendChild(day);
+
+                var label = document.createElement('small');
+                if (state.state === 'few') {
+                    label.textContent = 'Últimas vagas';
+                } else if (state.state === 'available') {
+                    label.textContent = state.label || 'Disponível';
+                } else {
+                    label.textContent = state.label || 'Indisponível';
+                }
+                button.appendChild(label);
+
+                button.addEventListener('click', function () {
+                    if (button.disabled) return;
+                    selectDate(date, button);
+                });
+
+                quickDates.appendChild(button);
+
+                if (!dateItems.length) {
+                    button.disabled = true;
+                }
+            });
+        }
+
         function ajaxForDate(date, done) {
             if (loading || !ajaxUrl || !nonce) {
                 done(dateDepartures(date));
@@ -841,6 +931,7 @@ class WCAI_Product_Booking {
                 .then(function (response) {
                     if (response && response.success && response.data && Array.isArray(response.data.departures)) {
                         updateDepartureSnapshot(date, response.data.departures);
+                        renderQuickDates();
                         renderCalendar();
                         done(response.data.departures);
                     } else {
@@ -860,6 +951,7 @@ class WCAI_Product_Booking {
             var options = Array.isArray(freshItems) ? freshItems : dateDepartures(date);
             times.innerHTML = '';
             selectedDateLabel.textContent = date ? dateDepartures(date).map(function (item) { return item.date_label; })[0] || date : '';
+            renderQuickDates();
 
             if (!options.length) {
                 selection.hidden = false;
@@ -991,10 +1083,17 @@ class WCAI_Product_Booking {
                 item.classList.remove('is-selected');
             });
 
+            root.querySelectorAll('.wcai-quick-date').forEach(function (item) {
+                item.classList.remove('is-selected');
+            });
+
             if (dateElement) dateElement.classList.add('is-selected');
+
+            renderQuickDates();
 
             ajaxForDate(date, function (items) {
                 renderTimes(date, items);
+                setCalendarExpanded(false);
             });
         }
 
@@ -1128,7 +1227,15 @@ class WCAI_Product_Booking {
             });
         }
 
+        if (calendarToggle) {
+            calendarToggle.addEventListener('click', function () {
+                setCalendarExpanded(calendarFull ? calendarFull.hidden : false);
+            });
+        }
+
         updateParticipantUI();
+        renderQuickDates();
+        setCalendarExpanded(false);
 
         prev.addEventListener('click', function () {
             if (monthIndex > 0) {
@@ -1151,6 +1258,7 @@ class WCAI_Product_Booking {
 
         enableAddToCart();
         updateParticipantUI();
+        renderQuickDates();
         renderCalendar();
     }
 
