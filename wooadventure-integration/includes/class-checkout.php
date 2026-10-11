@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class WCAI_Checkout {
     public function __construct() {
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+        add_filter( 'script_loader_tag', array( $this, 'add_mask_sri' ), 10, 2 );
         add_action( 'woocommerce_after_order_notes', array( $this, 'render_fields' ) );
         add_action( 'woocommerce_checkout_process', array( $this, 'validate_fields' ) );
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'add_departure_to_order_item' ), 10, 4 );
@@ -20,6 +21,15 @@ class WCAI_Checkout {
                 });
             " );
         }
+    }
+
+    // SRI sha384 de jquery.mask.min.js 1.14.16 (cdnjs). Recalcule se a versão mudar.
+    public function add_mask_sri( $tag, $handle ) {
+        if ( 'jquery-mask' !== $handle ) {
+            return $tag;
+        }
+
+        return preg_replace( '/ src=/', ' integrity="sha384-6LwNpGeYDjlORU0Q5rfxEC8SQO6/FTh/VecUcvFvNx1gLMdX5dm8y1Y739D3lFSW" crossorigin="anonymous" src=', $tag, 1 );
     }
 
     public function render_fields( $checkout ) {
@@ -56,18 +66,18 @@ class WCAI_Checkout {
                     // Começa do 2, pois o 1 é o titular (billing)
                     for ( $i = 2; $i <= $qty; $i++ ) {
                         echo '<div class="wcai-visitor-box" style="margin-bottom:20px; padding:15px; border:1px solid #ddd;">';
-                        echo '<h4>Visitante ' . $i . '</h4>';
+                        echo '<h4>' . esc_html( sprintf( __( 'Visitante %d', 'wooadventure-integration' ), $i ) ) . '</h4>';
                         
                         woocommerce_form_field( 'nome_completo_' . $i, array(
-                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'Nome Completo', 'required' => true
+                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'Nome Completo', 'required' => true, 'autocomplete' => 'off'
                         ), $checkout->get_value( 'nome_completo_' . $i ) );
 
                         woocommerce_form_field( 'cpf_' . $i, array(
-                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'CPF', 'required' => true
+                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'CPF', 'required' => true, 'autocomplete' => 'off', 'custom_attributes' => array( 'inputmode' => 'numeric' )
                         ), $checkout->get_value( 'cpf_' . $i ) );
 
                         woocommerce_form_field( 'data_nascimento_' . $i, array(
-                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'Data de Nascimento', 'required' => true, 'placeholder' => 'dd/mm/aaaa'
+                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'Data de Nascimento', 'required' => true, 'placeholder' => 'dd/mm/aaaa', 'autocomplete' => 'off', 'custom_attributes' => array( 'inputmode' => 'numeric' )
                         ), $checkout->get_value( 'data_nascimento_' . $i ) );
                         echo '</div>';
                     }

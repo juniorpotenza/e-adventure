@@ -251,12 +251,13 @@ class WCAI_Checkout_Block {
         wp_enqueue_script( self::SCRIPT_HANDLE );
 
         $html  = '<div id="wcai-checkout-wizard" class="wcai-checkout-wizard" aria-label="Checkout WooAdventure">';
-        $html .= '<div class="wcai-wizard-progress" role="list">';
-        $html .= '<span data-step-label="1" class="is-active">1. Reserva</span>';
-        $html .= '<span data-step-label="2">2. Seus dados</span>';
-        $html .= '<span data-step-label="3">3. Participantes</span>';
-        $html .= '<span data-step-label="4">4. Revisão e pagamento</span>';
-        $html .= '</div>';
+        $html .= '<ol class="wcai-wizard-progress" aria-label="' . esc_attr__( 'Etapas do checkout', 'wooadventure-integration' ) . '">';
+        $html .= '<li><button type="button" data-step-label="1" class="is-active" aria-current="step">' . esc_html__( '1. Reserva', 'wooadventure-integration' ) . '</button></li>';
+        $html .= '<li><button type="button" data-step-label="2" disabled>' . esc_html__( '2. Seus dados', 'wooadventure-integration' ) . '</button></li>';
+        $html .= '<li><button type="button" data-step-label="3" disabled>' . esc_html__( '3. Participantes', 'wooadventure-integration' ) . '</button></li>';
+        $html .= '<li><button type="button" data-step-label="4" disabled>' . esc_html__( '4. Revisão e pagamento', 'wooadventure-integration' ) . '</button></li>';
+        $html .= '</ol>';
+        $html .= '<div class="wcai-sr-only" data-wcai-live aria-live="polite" aria-atomic="true"></div>';
         $html .= '<div data-wcai-step="1" class="wcai-wizard-panel is-active"></div>';
         $html .= '<div data-wcai-step="2" class="wcai-wizard-panel"></div>';
         $html .= '<div data-wcai-step="3" class="wcai-wizard-panel"></div>';

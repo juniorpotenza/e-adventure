@@ -8,6 +8,25 @@
     var currentStep = 1;
     var validationIds = [];
     var syncTimer = null;
+    var attempted = false;
+    var flaggedNative = [];
+    var MIN_AGE = 7; // espelha WCAI_Utils::is_min_age (includes/class-utils.php)
+    var CPF_SELECTORS = [
+        'input[name="billing_cpf"]',
+        'input[name="wcai/billing_cpf"]',
+        'input[name="wcai/billing-cpf"]',
+        'input[name="wcai_billing_cpf"]',
+        '#contact-wcai-billing-cpf',
+        '#wcai-billing-cpf'
+    ];
+    var BIRTH_SELECTORS = [
+        'input[name="billing_birthdate"]',
+        'input[name="wcai/billing_birthdate"]',
+        'input[name="wcai/billing-birthdate"]',
+        'input[name="wcai_billing_birthdate"]',
+        '#contact-wcai-billing-birthdate',
+        '#wcai-billing-birthdate'
+    ];
 
     function cart() {
         if (!window.wp || !wp.data) return null;
@@ -92,18 +111,89 @@
         return v.slice(0, 2) + '/' + v.slice(2, 4) + '/' + v.slice(4);
     }
 
-    function inputField(label, value, placeholder, mask, onChange) {
+    // Valida CPF pelos dígitos verificadores (mesma regra de WCAI_Utils::is_valid_cpf).
+    function isValidCpf(value) {
+        var cpf = digits(value);
+
+        if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+
+        for (var t = 9; t < 11; t++) {
+            var sum = 0;
+
+            for (var c = 0; c < t; c++) {
+                sum += parseInt(cpf.charAt(c), 10) * (t + 1 - c);
+            }
+
+            if (parseInt(cpf.charAt(t), 10) !== ((10 * sum) % 11) % 10) return false;
+        }
+
+        return true;
+    }
+
+    // dd/mm/aaaa real (31/02 recusa), igual a WCAI_Utils::is_valid_date. Retorna Date ou null.
+    function parseDate(value) {
+        var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(value || ''));
+
+        if (!m) return null;
+
+        var day = parseInt(m[1], 10);
+        var month = parseInt(m[2], 10);
+        var year = parseInt(m[3], 10);
+        var date = new Date(year, month - 1, day);
+
+        if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+
+        return date;
+    }
+
+    // Idade em anos completos. Data futura dá idade negativa (o servidor ainda não recusa futuro).
+    function isMinAge(value, years, now) {
+        var birth = parseDate(value);
+
+        if (!birth) return false;
+
+        now = now || new Date();
+
+        var age = now.getFullYear() - birth.getFullYear();
+
+        if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) {
+            age--;
+        }
+
+        return age >= (years || MIN_AGE);
+    }
+
+    function cpfMessage(value, who) {
+        if (!String(value || '').trim()) return 'Informe o CPF ' + who + '.';
+        return isValidCpf(value) ? '' : 'CPF ' + who + ' inválido.';
+    }
+
+    function birthMessage(value, who, now) {
+        if (!String(value || '').trim()) return 'Informe a data de nascimento ' + who + '.';
+        if (!parseDate(value)) return 'Data de nascimento ' + who + ' inválida. Use dd/mm/aaaa.';
+        return isMinAge(value, MIN_AGE, now) ? '' : 'Data de nascimento ' + who + ': idade mínima de ' + MIN_AGE + ' anos.';
+    }
+
+    function inputField(label, value, placeholder, mask, onChange, attrs) {
+        attrs = attrs || {};
+
         var wrap = document.createElement('div');
         wrap.className = 'wcai-wizard-field';
 
         var labelEl = document.createElement('label');
         labelEl.textContent = label;
+        labelEl.htmlFor = attrs.id;
         wrap.appendChild(labelEl);
 
         var input = document.createElement('input');
         input.type = 'text';
+        input.id = attrs.id;
+        input.setAttribute('data-wcai-control', '');
+        input.setAttribute('aria-required', 'true');
+        if (attrs.inputmode) input.setAttribute('inputmode', attrs.inputmode);
         input.value = value || '';
         input.placeholder = placeholder || '';
+        // Dados de outra pessoa: "off" evita preencher com os dados do comprador.
         input.autocomplete = 'off';
 
         input.addEventListener('input', function () {
@@ -115,18 +205,34 @@
         });
 
         wrap.appendChild(input);
+        wrap.appendChild(fieldError(attrs.id));
         return wrap;
     }
 
-    function selectField(label, value, options, onChange) {
+    function fieldError(id) {
+        var error = document.createElement('p');
+        error.id = id + '-error';
+        error.className = 'wcai-field-error';
+        error.setAttribute('role', 'alert');
+        error.hidden = true;
+        return error;
+    }
+
+    function selectField(label, value, options, onChange, attrs) {
+        attrs = attrs || {};
+
         var wrap = document.createElement('div');
         wrap.className = 'wcai-wizard-field';
 
         var labelEl = document.createElement('label');
         labelEl.textContent = label;
+        labelEl.htmlFor = attrs.id;
         wrap.appendChild(labelEl);
 
         var select = document.createElement('select');
+        select.id = attrs.id;
+        select.setAttribute('data-wcai-control', '');
+        select.setAttribute('aria-required', 'true');
 
         options.forEach(function (option) {
             var optionEl = document.createElement('option');
@@ -143,6 +249,7 @@
         });
 
         wrap.appendChild(select);
+        wrap.appendChild(fieldError(attrs.id));
         return wrap;
     }
 
@@ -267,13 +374,6 @@
     function setCheckoutStageClass() {
         if (!document.body) return;
 
-        document.body.classList.toggle('wcai-checkout-before-payment', currentStep !== 4);
-        document.body.classList.toggle('wcai-checkout-payment-step', currentStep === 4);
-    }
-
-    function setCheckoutStageClass() {
-        if (!document.body) return;
-
         for (var i = 1; i <= 4; i++) {
             document.body.classList.toggle('wcai-checkout-step-' + i, currentStep === i);
         }
@@ -304,11 +404,19 @@
         style.id = 'wcai-wizard-style';
         style.textContent =
             '#wcai-checkout-wizard{margin:0 0 14px;padding:0;border:0;background:transparent}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0 0 12px}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span{display:flex;align-items:center;justify-content:center;min-height:31px;padding:5px 6px;border:1px solid #e2e2e2;border-radius:8px;background:#fff;color:#777;font-size:10px;text-align:center;box-sizing:border-box;cursor:default}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span.is-active{border-color:#222;background:#222;color:#fff;font-weight:800}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span.is-complete{color:#222;border-color:#cfcfcf;cursor:pointer}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span.is-complete:before{content:"✓";margin-right:4px;font-weight:900}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0 0 12px;padding:0;list-style:none}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress li{display:flex;margin:0;padding:0}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button{display:flex;flex:1;align-items:center;justify-content:center;min-height:44px;padding:5px 6px;border:1px solid #e2e2e2;border-radius:8px;background:#fff;color:#767676;font:inherit;font-size:12px;line-height:1.2;text-align:center;box-sizing:border-box;cursor:default}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button.is-active{border-color:#222;background:#222;color:#fff;font-weight:800}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button.is-complete{color:#222;border-color:#cfcfcf;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button.is-complete:before{content:"✓";margin-right:4px;font-weight:900}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button:focus-visible,#wcai-checkout-wizard .wcai-wizard-actions button:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}' +
+            '#wcai-checkout-wizard h3:focus{outline:none}' +
+            '#wcai-checkout-wizard .wcai-sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}' +
+            '#wcai-checkout-wizard .wcai-error-summary{margin:0 0 12px;padding:10px 11px;border:1px solid #b3261e;border-radius:8px;background:#fdf1f0;color:#8c1d18;font-size:13px}' +
+            '#wcai-checkout-wizard .wcai-error-summary ul{margin:6px 0 0 18px;padding:0}' +
+            '#wcai-checkout-wizard .wcai-field-error{margin:4px 0 0;color:#b3261e;font-size:12px;font-weight:700}' +
+            '#wcai-checkout-wizard [aria-invalid="true"]{border-color:#b3261e!important}' +
             '#wcai-checkout-wizard .wcai-wizard-panel{display:none;padding:14px;border:1px solid #e5e5e5;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(0,0,0,.035)}' +
             '#wcai-checkout-wizard .wcai-wizard-panel.is-active{display:block}' +
             '#wcai-checkout-wizard h3{margin:0 0 7px;font-size:17px}' +
@@ -318,14 +426,14 @@
             '#wcai-checkout-wizard .wcai-wizard-item{padding:12px;margin:0 0 10px;border:1px solid #e5e5e5;border-radius:10px;background:#fff}' +
             '#wcai-checkout-wizard .wcai-reservation-summary{display:grid;grid-template-columns:1fr;gap:7px;margin:10px 0}' +
             '#wcai-checkout-wizard .wcai-reservation-summary>div{display:flex;justify-content:space-between;gap:14px;padding:9px 10px;border:1px solid #ededed;border-radius:8px;background:#fafafa}' +
-            '#wcai-checkout-wizard .wcai-reservation-summary span{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#888}' +
+            '#wcai-checkout-wizard .wcai-reservation-summary span{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#888}' +
             '#wcai-checkout-wizard .wcai-reservation-summary strong{font-size:12px;text-align:right}' +
             '#wcai-checkout-wizard .wcai-wizard-person{padding:11px;margin:9px 0;border:1px solid #eee;border-radius:9px;background:#fafafa}' +
             '#wcai-checkout-wizard .wcai-wizard-field{margin:0 0 9px}' +
-            '#wcai-checkout-wizard .wcai-wizard-field label{display:block;font-weight:700;margin-bottom:4px;font-size:11px}' +
-            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard .wcai-wizard-field select{width:100%;padding:8px 9px;box-sizing:border-box;border:1px solid #d9d9d9;border-radius:7px;background:#fff}' +
+            '#wcai-checkout-wizard .wcai-wizard-field label{display:block;font-weight:700;margin-bottom:4px;font-size:12px}' +
+            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard .wcai-wizard-field select{width:100%;min-height:44px;padding:8px 9px;box-sizing:border-box;border:1px solid #d9d9d9;border-radius:7px;background:#fff}' +
             '#wcai-checkout-wizard .wcai-wizard-actions{display:flex;justify-content:space-between;gap:9px;margin-top:14px;padding-top:11px;border-top:1px solid #eee}' +
-            '#wcai-checkout-wizard .wcai-wizard-actions button{min-height:38px;padding:8px 14px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-wizard-actions button{min-height:44px;padding:8px 14px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
             '#wcai-checkout-wizard .wcai-wizard-actions button:not(.wcai-wizard-secondary){background:#222;color:#fff}' +
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary:only-child{margin-right:auto}' +
@@ -369,15 +477,16 @@
             'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-contact-information-block"],' +
             'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-billing-address-block"]{display:block}' +
             'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-actions-block"] .wc-block-components-checkout-place-order-button{display:block;width:100%;min-height:44px;font-weight:800;border-radius:8px}' +
-            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{gap:3px}#wcai-checkout-wizard .wcai-wizard-progress span{min-height:29px;padding:4px 3px;font-size:8px}}';
+            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{gap:3px}#wcai-checkout-wizard .wcai-wizard-progress button{padding:4px 3px}}';
 
         document.head.appendChild(style);
     }
 
-    function validateAdditional() {
+    // Função pura: devolve { idDoCampo: { message, hidden } } para os participantes adicionais.
+    function collectAdditionalErrors(items, now) {
         var errors = {};
 
-        state.items.forEach(function (item, itemIndex) {
+        items.forEach(function (item, itemIndex) {
             var additionalAdults = 0;
             var additionalChildren = 0;
 
@@ -396,12 +505,16 @@
                     addError(errors, 'wcai-name-' + itemIndex + '-' + index, 'Informe o nome completo do participante ' + number + '.');
                 }
 
-                if (!participant.cpf) {
-                    addError(errors, 'wcai-cpf-' + itemIndex + '-' + index, 'Informe o CPF do participante ' + number + '.');
+                var who = 'do participante ' + number;
+                var cpfError = cpfMessage(participant.cpf, who);
+                var birthError = birthMessage(participant.birthdate, who, now);
+
+                if (cpfError) {
+                    addError(errors, 'wcai-cpf-' + itemIndex + '-' + index, cpfError);
                 }
 
-                if (!participant.birthdate) {
-                    addError(errors, 'wcai-birth-' + itemIndex + '-' + index, 'Informe a data de nascimento do participante ' + number + '.');
+                if (birthError) {
+                    addError(errors, 'wcai-birth-' + itemIndex + '-' + index, birthError);
                 }
             });
 
@@ -417,8 +530,83 @@
             }
         });
 
+        return errors;
+    }
+
+    function validateAdditional() {
+        var errors = collectAdditionalErrors(state.items);
+
         setValidationErrors(errors);
+
+        if (attempted) renderInlineErrors(errors);
+
         return Object.keys(errors).length === 0;
+    }
+
+    // Mostra, por campo, a mensagem (role=alert) e liga aria-invalid/aria-describedby.
+    function renderInlineErrors(errors) {
+        var root = document.getElementById(ROOT);
+        if (!root) return;
+
+        Array.prototype.slice.call(root.querySelectorAll('[data-wcai-control]')).forEach(function (control) {
+            var error = errors[control.id];
+            var node = document.getElementById(control.id + '-error');
+
+            if (node) {
+                var text = error ? error.message : '';
+                if (node.textContent !== text) node.textContent = text;
+                node.hidden = !error;
+            }
+
+            if (error) {
+                control.setAttribute('aria-invalid', 'true');
+                control.setAttribute('aria-describedby', control.id + '-error');
+            } else {
+                control.removeAttribute('aria-invalid');
+                control.removeAttribute('aria-describedby');
+            }
+        });
+    }
+
+    // Resumo no topo da etapa. entries: [{ el, message }]. Foca o 1º campo inválido (ou o resumo).
+    function reportErrors(panel, entries) {
+        var summary = panel.querySelector('.wcai-error-summary');
+        if (!summary) return;
+
+        summary.textContent = '';
+        summary.hidden = !entries.length;
+
+        if (!entries.length) return;
+
+        var intro = document.createElement('strong');
+        intro.textContent = 'Corrija para continuar:';
+        summary.appendChild(intro);
+
+        var list = document.createElement('ul');
+
+        entries.forEach(function (entry) {
+            var li = document.createElement('li');
+            li.textContent = entry.message;
+            list.appendChild(li);
+        });
+
+        summary.appendChild(list);
+
+        var first = entries.filter(function (entry) {
+            return entry.el;
+        })[0];
+
+        var target = first ? first.el : summary;
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.focus();
+    }
+
+    function errorSummary() {
+        var node = document.createElement('div');
+        node.className = 'wcai-error-summary';
+        node.tabIndex = -1;
+        node.hidden = true;
+        return node;
     }
 
     function validateDeparture() {
@@ -436,19 +624,8 @@
     }
 
     function readBillingIdentityFields() {
-        var cpf = customField([
-            'input[name="billing_cpf"]',
-            'input[name="wcai/billing_cpf"]',
-            'input[name="wcai_billing_cpf"]',
-            '#wcai-billing-cpf'
-        ]);
-
-        var birthdate = customField([
-            'input[name="billing_birthdate"]',
-            'input[name="wcai/billing_birthdate"]',
-            'input[name="wcai_billing_birthdate"]',
-            '#wcai-billing-birthdate'
-        ]);
+        var cpf = customField(CPF_SELECTORS);
+        var birthdate = customField(BIRTH_SELECTORS);
 
         return {
             cpf: cpf ? cpf.value.trim() : '',
@@ -458,8 +635,8 @@
         };
     }
 
-    function firstMissingRequiredField(section) {
-        if (!section) return null;
+    function missingRequiredFields(section) {
+        if (!section) return [];
 
         var fields = Array.prototype.slice.call(section.querySelectorAll('input,select,textarea'));
 
@@ -472,34 +649,41 @@
             return field.required || field.getAttribute('aria-required') === 'true';
         }).filter(function (field) {
             return !String(field.value || '').trim();
-        })[0] || null;
+        });
     }
 
-    function validateBillingStep() {
+    // Campos nativos do WooCommerce: o bloco é React, então só marcamos aria-invalid e listamos no resumo.
+    function validateBillingStep(panel) {
         var identity = readBillingIdentityFields();
         var sections = nativeSections();
+        var entries = [];
 
-        if (identity.cpfField && !identity.cpf) {
-            identity.cpfField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            identity.cpfField.focus();
-            return false;
+        function add(el, message) {
+            if (el && message && !entries.some(function (entry) { return entry.el === el; })) {
+                entries.push({ el: el, message: message });
+            }
         }
 
-        if (identity.birthdateField && !identity.birthdate) {
-            identity.birthdateField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            identity.birthdateField.focus();
-            return false;
-        }
+        flaggedNative.forEach(function (el) {
+            el.removeAttribute('aria-invalid');
+        });
 
-        var missing = firstMissingRequiredField(sections.contact) || firstMissingRequiredField(sections.billing);
+        if (identity.cpfField) add(identity.cpfField, cpfMessage(identity.cpf, 'do titular'));
+        if (identity.birthdateField) add(identity.birthdateField, birthMessage(identity.birthdate, 'do titular'));
 
-        if (missing) {
-            missing.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            missing.focus();
-            return false;
-        }
+        missingRequiredFields(sections.contact).concat(missingRequiredFields(sections.billing)).forEach(function (field) {
+            var label = field.labels && field.labels[0] ? field.labels[0].textContent.trim() : '';
+            add(field, label ? 'Preencha o campo ' + label + '.' : 'Preencha todos os campos obrigatórios.');
+        });
 
-        return true;
+        flaggedNative = entries.map(function (entry) {
+            entry.el.setAttribute('aria-invalid', 'true');
+            return entry.el;
+        });
+
+        reportErrors(panel, entries);
+
+        return entries.length === 0;
     }
 
     function updateLocalValidation() {
@@ -540,8 +724,12 @@
         return wrap;
     }
 
-    function setStep(step) {
-        currentStep = Math.max(1, Math.min(4, step));
+    function setStep(step, moveFocus) {
+        var next = Math.max(1, Math.min(4, step));
+
+        if (next !== currentStep) attempted = false;
+
+        currentStep = next;
 
         var root = document.getElementById(ROOT);
         if (!root) return;
@@ -555,11 +743,30 @@
             var labelStep = parseInt(label.getAttribute('data-step-label'), 10);
             label.classList.toggle('is-active', labelStep === currentStep);
             label.classList.toggle('is-complete', labelStep < currentStep);
-            label.setAttribute('aria-current', labelStep === currentStep ? 'step' : 'false');
-            label.setAttribute('tabindex', labelStep < currentStep ? '0' : '-1');
+            label.disabled = labelStep > currentStep;
+
+            if (labelStep === currentStep) {
+                label.setAttribute('aria-current', 'step');
+            } else {
+                label.removeAttribute('aria-current');
+            }
         });
 
         applyNativeStepVisibility();
+
+        if (moveFocus) {
+            var heading = root.querySelector('[data-wcai-step="' + currentStep + '"] h3');
+            var live = root.querySelector('[data-wcai-live]');
+
+            if (heading) {
+                heading.setAttribute('tabindex', '-1');
+                heading.focus({ preventScroll: true });
+            }
+
+            if (live && heading) {
+                live.textContent = 'Etapa ' + currentStep + ' de 4: ' + heading.textContent;
+            }
+        }
 
         if (currentStep === 3) {
             validateAdditional();
@@ -579,7 +786,6 @@
                 if (sections.payment) {
                     sections.payment.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
-                updatePlaceOrderProxy();
             }, 120);
         } else {
             root.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -592,6 +798,7 @@
         var title = document.createElement('h3');
         title.textContent = '1. Confira sua reserva';
         panel.appendChild(title);
+        panel.appendChild(errorSummary());
 
         state.items.forEach(function (item) {
             var box = document.createElement('div');
@@ -635,8 +842,12 @@
 
         panel.appendChild(
             actions('Continuar para seus dados', function () {
-                if (!validateDeparture()) return;
-                setStep(2);
+                if (!validateDeparture()) {
+                    reportErrors(panel, [{ el: null, message: 'Escolha a data e o horário da saída na página do passeio.' }]);
+                    return;
+                }
+
+                setStep(2, true);
             })
         );
     }
@@ -647,6 +858,7 @@
         var title = document.createElement('h3');
         title.textContent = '2. Seus dados';
         panel.appendChild(title);
+        panel.appendChild(errorSummary());
 
         var text = document.createElement('p');
         text.textContent = 'Preencha os dados do titular abaixo. Os campos de identificação do passeio fazem parte desta etapa e não precisam ser repetidos depois.';
@@ -654,10 +866,10 @@
 
         panel.appendChild(
             actions('Continuar para participantes', function () {
-                if (!validateBillingStep()) return;
-                setStep(3);
+                if (!validateBillingStep(panel)) return;
+                setStep(3, true);
             }, function () {
-                setStep(1);
+                setStep(1, true);
             })
         );
     }
@@ -668,6 +880,7 @@
         var title = document.createElement('h3');
         title.textContent = '3. Participantes';
         panel.appendChild(title);
+        panel.appendChild(errorSummary());
 
         var text = document.createElement('p');
         text.textContent = 'O titular é o primeiro adulto. Preencha somente os dados dos demais participantes.';
@@ -675,7 +888,7 @@
 
         var hasAdditional = false;
 
-        state.items.forEach(function (item) {
+        state.items.forEach(function (item, itemIndex) {
             if (!item.additional_participants.length) return;
 
             hasAdditional = true;
@@ -701,25 +914,25 @@
                         { value: 'child', label: 'Criança' }
                     ], function (value) {
                         person.type = value;
-                    })
+                    }, { id: 'wcai-type-' + itemIndex + '-' + index })
                 );
 
                 personBox.appendChild(
                     inputField('Nome completo', person.name, 'Nome completo', null, function (value) {
                         person.name = value;
-                    })
+                    }, { id: 'wcai-name-' + itemIndex + '-' + index })
                 );
 
                 personBox.appendChild(
                     inputField('CPF', person.cpf, '000.000.000-00', cpfMask, function (value) {
                         person.cpf = value;
-                    })
+                    }, { id: 'wcai-cpf-' + itemIndex + '-' + index, inputmode: 'numeric' })
                 );
 
                 personBox.appendChild(
                     inputField('Data de nascimento', person.birthdate, 'dd/mm/aaaa', dateMask, function (value) {
                         person.birthdate = value;
-                    })
+                    }, { id: 'wcai-birth-' + itemIndex + '-' + index, inputmode: 'numeric' })
                 );
 
                 itemBox.appendChild(personBox);
@@ -736,10 +949,21 @@
 
         panel.appendChild(
             actions('Revisar e pagar', function () {
-                if (!validateAdditional()) return;
-                setStep(4);
+                attempted = true;
+
+                if (!validateAdditional()) {
+                    var errors = collectAdditionalErrors(state.items);
+
+                    reportErrors(panel, Object.keys(errors).map(function (id) {
+                        return { el: document.getElementById(id), message: errors[id].message };
+                    }));
+                    return;
+                }
+
+                reportErrors(panel, []);
+                setStep(4, true);
             }, function () {
-                setStep(2);
+                setStep(2, true);
             })
         );
     }
@@ -789,7 +1013,7 @@
 
         panel.appendChild(
             actions('Voltar para participantes', function () {
-                setStep(3);
+                setStep(3, true);
             }, null)
         );
     }
@@ -859,8 +1083,6 @@
             if (next !== signature) {
                 signature = next;
                 render();
-            } else {
-                updatePlaceOrderProxy();
             }
         }
 
@@ -878,9 +1100,34 @@
             var targetStep = parseInt(label.getAttribute('data-step-label'), 10);
 
             if (targetStep < currentStep) {
-                setStep(targetStep);
+                setStep(targetStep, true);
             }
         });
+
+        // Máscara de CPF no campo nativo do titular (bloco React: usa o setter nativo para o estado atualizar).
+        document.addEventListener('input', function (event) {
+            var target = event.target;
+            if (!target || !target.matches || !target.matches(CPF_SELECTORS.join(','))) return;
+
+            var masked = cpfMask(target.value);
+            if (masked === target.value) return;
+
+            Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(target, masked);
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    }
+
+    // Ambiente de teste (Node): expõe só as funções puras, sem tocar no DOM.
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = {
+            isValidCpf: isValidCpf,
+            parseDate: parseDate,
+            isMinAge: isMinAge,
+            cpfMessage: cpfMessage,
+            birthMessage: birthMessage,
+            collectAdditionalErrors: collectAdditionalErrors
+        };
+        return;
     }
 
     if (document.readyState === 'loading') {
