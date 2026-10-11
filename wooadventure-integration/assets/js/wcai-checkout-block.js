@@ -1104,6 +1104,16 @@
             }
         });
 
+        // Woo rejeita inputmode/placeholder em checkout fields adicionais: aplica aqui, ao focar o campo nativo do titular.
+        document.addEventListener('focusin', function (event) {
+            var target = event.target;
+            if (!target || !target.matches) return;
+            var hint = target.matches(CPF_SELECTORS.join(',')) ? '000.000.000-00' : (target.matches(BIRTH_SELECTORS.join(',')) ? 'dd/mm/aaaa' : '');
+            if (!hint) return;
+            target.setAttribute('inputmode', 'numeric');
+            target.setAttribute('placeholder', hint);
+        });
+
         // Máscara de CPF no campo nativo do titular (bloco React: usa o setter nativo para o estado atualizar).
         document.addEventListener('input', function (event) {
             var target = event.target;

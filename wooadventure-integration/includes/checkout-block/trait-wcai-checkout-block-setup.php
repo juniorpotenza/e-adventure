@@ -16,9 +16,7 @@ trait WCAI_Checkout_Block_Setup {
                 'type'       => 'text',
                 'required'   => true,
                 'attributes' => array(
-                    'inputmode' => 'numeric',
                     'autocomplete' => 'off',
-                    'placeholder' => '000.000.000-00',
                 ),
             )
         );
@@ -31,9 +29,7 @@ trait WCAI_Checkout_Block_Setup {
                 'type'       => 'text',
                 'required'   => true,
                 'attributes' => array(
-                    'inputmode' => 'numeric',
                     'autocomplete' => 'bday',
-                    'placeholder' => 'dd/mm/aaaa',
                 ),
             )
         );
