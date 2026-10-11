@@ -6,6 +6,11 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 class WCAI_Scanner {
 
+    const JQUERY_SRC = 'https://code.jquery.com/jquery-3.6.0.min.js';
+    const JQUERY_SRI = 'sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK';
+    const QRCODE_SRC = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+    const QRCODE_SRI = 'sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+';
+
 
 
     public function __construct() {
@@ -106,9 +111,9 @@ class WCAI_Scanner {
 
         echo json_encode([
 
-            "name" => "Operação Ciganos",
+            "name" => $this->get_operation_name(),
 
-            "short_name" => "Ciganos Op",
+            "short_name" => mb_substr( $this->get_operation_name(), 0, 12 ),
 
             "start_url" => $start,
 
@@ -144,7 +149,14 @@ class WCAI_Scanner {
 
         header('Service-Worker-Allowed: /');
 
-        echo "const CACHE_NAME='wcai-op-v37';const URLS=['https://unpkg.com/html5-qrcode'];self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(URLS)))});self.addEventListener('fetch',e=>{if(e.request.method!=='POST')e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))});";
+        $page = add_query_arg( 'fullscreen', '1', $this->get_scanner_url_automagic() );
+
+        // Página: rede primeiro, cache como fallback offline. Scripts: cache primeiro.
+        echo 'const CACHE_NAME=' . wp_json_encode( 'wcai-op-v38' ) . ';const PAGE=' . wp_json_encode( $page ) . ';const URLS=' . wp_json_encode( array( self::JQUERY_SRC, self::QRCODE_SRC ) ) . ';'
+            . "self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(URLS)))});"
+            . "self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;"
+            . "if(r.mode==='navigate'&&r.url===PAGE){e.respondWith(fetch(r).then(x=>{if(x.ok){const k=x.clone();caches.open(CACHE_NAME).then(c=>c.put(r,k))}return x}).catch(()=>caches.match(r)));return}"
+            . "if(URLS.includes(r.url))e.respondWith(caches.match(r).then(x=>x||fetch(r)))});";
 
     }
 
@@ -164,9 +176,9 @@ class WCAI_Scanner {
 
             <meta charset="UTF-8">
 
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-            <title>Operação</title>
+            <title><?php echo esc_html( $this->get_operation_name() ); ?></title>
 
             <link rel="manifest" href="<?php echo $man; ?>">
 
@@ -174,9 +186,9 @@ class WCAI_Scanner {
 
             <meta name="apple-mobile-web-app-capable" content="yes">
 
-            <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+            <script src="<?php echo esc_url( self::JQUERY_SRC ); ?>" integrity="<?php echo esc_attr( self::JQUERY_SRI ); ?>" crossorigin="anonymous"></script>
 
-            <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+            <script src="<?php echo esc_url( self::QRCODE_SRC ); ?>" integrity="<?php echo esc_attr( self::QRCODE_SRI ); ?>" crossorigin="anonymous"></script>
 
             <?php wp_head(); ?>
 
@@ -279,6 +291,8 @@ class WCAI_Scanner {
 
                     <div class="wcai-instruction">Aponte para o ingresso</div>
 
+                    <div id="cam-error" class="wcai-instruction" role="alert" style="display:none;color:#dc3545;text-transform:none"></div>
+
                 </div>
 
 
@@ -287,7 +301,7 @@ class WCAI_Scanner {
 
                     <div class="wcai-search-box">
 
-                        <input type="text" id="manual-search-input" placeholder="Digite CPF ou Nome..." oninput="doLocalSearch()" />
+                        <input type="text" id="manual-search-input" placeholder="Digite o nome..." oninput="doLocalSearch()" />
 
                         <button onclick="doLocalSearch()">🔍</button>
 
@@ -367,7 +381,7 @@ class WCAI_Scanner {
 
 
 
-            <div id="wcai-modal" class="wcai-modal" style="display:none">
+            <div id="wcai-modal" class="wcai-modal" style="display:none" role="alertdialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-body">
 
                 <div class="wcai-modal-card">
 
@@ -403,9 +417,9 @@ class WCAI_Scanner {
 
             }
 
-            .wcai-sync-status { text-align:center; font-size:11px; color:#888; text-transform:uppercase; font-weight:bold; cursor:pointer; }
+            .wcai-sync-status { display:flex; align-items:center; min-height:44px; text-align:center; font-size:12px; color:#888; text-transform:uppercase; font-weight:bold; cursor:pointer; }
 
-            .wcai-logout-btn { font-size:10px; color:#dc3545; text-decoration:none; border:1px solid #dc3545; padding:2px 8px; border-radius:4px; font-weight:bold; }
+            .wcai-logout-btn { display:inline-flex; align-items:center; min-height:44px; min-width:44px; box-sizing:border-box; font-size:12px; color:#dc3545; text-decoration:none; border:1px solid #dc3545; padding:0 12px; border-radius:4px; font-weight:bold; }
 
 
 
@@ -417,7 +431,7 @@ class WCAI_Scanner {
 
                 -webkit-overflow-scrolling: touch; 
 
-                padding-top: 110px; 
+                padding-top: 126px; 
 
                 padding-bottom: 70px; 
 
@@ -431,13 +445,13 @@ class WCAI_Scanner {
 
             .wcai-bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: 60px; background: #fff; border-top: 1px solid #eee; display: flex; z-index: 1000; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
 
-            .nav-item { flex: 1; border: none; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; color: #999; }
+            .nav-item { flex: 1; min-height: 44px; border: none; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; color: #999; }
 
             .nav-item.active { color: #007cba; }
 
             .nav-item .icon { font-size: 18px; margin-bottom: 2px; }
 
-            .nav-item small { font-size: 10px; }
+            .nav-item small { font-size: 12px; }
 
 
 
@@ -557,7 +571,7 @@ class WCAI_Scanner {
 
             .wcai-cal-controls span { font-weight: 800; font-size: 16px; text-transform: uppercase; color: #333; }
 
-            .mini-btn { border:none; background: #f0f2f5; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; cursor: pointer; color: #555; }
+            .mini-btn { border:none; background: #f0f2f5; width: 44px; height: 44px; border-radius: 50%; font-weight: bold; cursor: pointer; color: #555; }
 
             .wcai-cal-actions { display: flex; justify-content: center; gap: 10px; padding: 10px; background: #fff; border-bottom: 1px solid #eee; }
 
@@ -589,15 +603,18 @@ class WCAI_Scanner {
 
             .wcai-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; display: flex; align-items: center; justify-content: center; }
 
-            .wcai-modal-card { background: #fff; width: 85%; max-width: 350px; border-radius: 15px; padding: 30px; text-align: center; }
+            .wcai-modal-card { background: #fff; color: #333; width: 85%; max-width: 350px; border-radius: 15px; padding: 30px; text-align: center; }
 
             #modal-icon { font-size: 60px; margin-bottom: 15px; }
 
             #modal-title { margin: 0 0 10px; font-size: 22px; text-transform: uppercase; }
 
-            #modal-body { font-size: 15px; color: #555; margin-bottom: 20px; line-height: 1.5; }
+            #modal-body { font-size: 15px; color: inherit; margin-bottom: 20px; line-height: 1.5; }
 
             #modal-btn { width: 100%; padding: 15px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; text-transform: uppercase; background: #007cba; color: #fff; }
+            .wcai-modal.is-success .wcai-modal-card { background: #1e7e34; color: #fff; }
+            .wcai-modal.is-error .wcai-modal-card { background: #b02a37; color: #fff; }
+            .wcai-modal.is-success #modal-btn, .wcai-modal.is-error #modal-btn { background: #fff; color: #222; }
 
         </style>
 
@@ -605,7 +622,6 @@ class WCAI_Scanner {
 
         <script>
 
-        console.log('🚀 Script iniciando...');
 
         
 
@@ -638,7 +654,6 @@ class WCAI_Scanner {
 
             init: function() {
 
-                console.log('📦 Store.init()');
 
                 const sp = localStorage.getItem('wcai_pax');
                 const sq = localStorage.getItem('wcai_queue');
@@ -703,7 +718,7 @@ class WCAI_Scanner {
 
                 term = term.toLowerCase();
 
-                return this.pax.filter(p => (p.hash===term) || (String(p.id)===term) || (p.nome && p.nome.toLowerCase().includes(term)) || (p.cpf && p.cpf.includes(term)));
+                return this.pax.filter(p => (p.hash===term) || (String(p.id)===term) || (p.nome && p.nome.toLowerCase().includes(term)));
 
             },
 
@@ -753,7 +768,7 @@ class WCAI_Scanner {
 
                 
 
-                jQuery.post(AJAX_URL, { action: 'wcai_sync_data', queue: this.queue, nonce: AJAX_NONCE }).done(function(res) {
+                jQuery.post(AJAX_URL, { action: 'wcai_sync_data', queue: this.queue, nonce: AJAX_NONCE }).fail(function() { ind.innerHTML = '⚠️ Falha ao sincronizar'; ind.style.color='#dc3545'; }).done(function(res) {
 
                     if(res.success) {
 
@@ -816,7 +831,6 @@ class WCAI_Scanner {
 
         function setMode(mode) {
 
-            console.log('🔧 setMode:', mode);
 
             currentMode = mode; 
 
@@ -830,7 +844,6 @@ class WCAI_Scanner {
 
         function switchTab(tab) {
 
-            console.log('🔄 switchTab:', tab);
 
             document.querySelectorAll('.wcai-tab-content').forEach(t => t.classList.remove('active'));
 
@@ -882,7 +895,6 @@ class WCAI_Scanner {
 
         function renderLocalList(type) {
 
-            console.log('📋 renderLocalList:', type);
 
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
 
@@ -949,7 +961,6 @@ class WCAI_Scanner {
 
         function processLocalCheckin(id) {
 
-            console.log('✅ processLocalCheckin:', id);
 
             const p = Store.pax.find(x => x.id == id);
 
@@ -971,11 +982,10 @@ class WCAI_Scanner {
 
         function doLocalSearch() {
 
-            console.log('🔍 doLocalSearch');
 
             const term = document.getElementById('manual-search-input').value; 
 
-            if(term.length<3) return;
+            if(term.length<3) { document.getElementById('manual-results').innerHTML = '<div style="text-align:center;padding:20px;color:#999;">Digite ao menos 3 caracteres.</div>'; return; }
 
             const results = Store.find(term);
 
@@ -1005,7 +1015,6 @@ class WCAI_Scanner {
 
         function onScan(hash) {
 
-            console.log('📸 onScan:', hash);
 
             if(isProcessing) return; 
 
@@ -1033,7 +1042,6 @@ class WCAI_Scanner {
 
         function startScanner() { 
 
-            console.log('📷 startScanner chamado');
 
             
 
@@ -1061,7 +1069,6 @@ class WCAI_Scanner {
 
             if(scannerObj) {
 
-                console.log('⚠️ Scanner já existe, pulando');
 
                 return;
 
@@ -1069,7 +1076,6 @@ class WCAI_Scanner {
 
             
 
-            console.log('✅ Iniciando novo scanner...');
 
             scannerObj = new Html5Qrcode("reader");
 
@@ -1083,15 +1089,14 @@ class WCAI_Scanner {
 
                 onScan
 
-            ).then(() => {
+            ).then(() => { document.getElementById('cam-error').style.display = 'none';
 
-                console.log('✅ Scanner iniciado com sucesso!');
 
             }).catch(err => {
 
                 console.error('❌ Erro ao iniciar scanner:', err);
 
-                alert('Erro ao acessar câmera: ' + err);
+                scannerObj = null; var ce = document.getElementById('cam-error'); ce.innerText = 'Erro ao acessar câmera: ' + err; ce.style.display = 'block';
 
             });
 
@@ -1241,7 +1246,7 @@ class WCAI_Scanner {
 
                     list.forEach(p => {
 
-                       html += `<div class="wcai-item-card status-${p.status}"><div class="wcai-item-info"><strong>${p.nome}</strong><div class="wcai-info-row"><span>${p.tour_time}</span><span class="separator">•</span><span>Pedido #${p.pedido}</span></div></div></div>`;
+                       html += `<div class="wcai-item-card status-${Number(p.status) || 0}"><div class="wcai-item-info"><strong>${wcaiEscapeHtml(p.nome)}</strong><div class="wcai-info-row"><span>${wcaiEscapeHtml(p.tour_time)}</span><span class="separator">•</span><span>Pedido #${wcaiEscapeHtml(p.pedido)}</span></div></div></div>`;
 
                     });
 
@@ -1259,9 +1264,21 @@ class WCAI_Scanner {
 
 
 
+        function wcaiBeep(ok) {
+            try {
+                var Ctx = window.AudioContext || window.webkitAudioContext;
+                if(!Ctx) return;
+                window.wcaiAudio = window.wcaiAudio || new Ctx();
+                var o = wcaiAudio.createOscillator(), g = wcaiAudio.createGain();
+                o.frequency.value = ok ? 880 : 220;
+                g.gain.value = 0.1;
+                o.connect(g); g.connect(wcaiAudio.destination);
+                o.start(); o.stop(wcaiAudio.currentTime + (ok ? 0.12 : 0.3));
+            } catch(e) { /* sem áudio: o aviso visual basta */ }
+        }
+
         function showModal(type, data) {
 
-            console.log('🔔 showModal:', type, data);
 
             var m=document.getElementById('wcai-modal'); 
 
@@ -1273,7 +1290,7 @@ class WCAI_Scanner {
 
             var btn=document.getElementById('modal-btn');
 
-            m.style.display='flex';
+            m.style.display='flex'; m.className='wcai-modal is-' + type;
 
             
 
@@ -1293,11 +1310,9 @@ class WCAI_Scanner {
 
                 title.innerText='OK'; 
 
-                title.style.color='#28a745'; 
-
                 body.innerHTML=data.msg; 
 
-                btn.style.display='block'; 
+                btn.style.display='block'; btn.focus(); wcaiBeep(type=='success'); 
 
             } else { 
 
@@ -1305,11 +1320,9 @@ class WCAI_Scanner {
 
                 title.innerText='Erro'; 
 
-                title.style.color='#dc3545'; 
-
                 body.innerText=data.message; 
 
-                btn.style.display='block'; 
+                btn.style.display='block'; btn.focus(); wcaiBeep(type=='success'); 
 
             }
 
@@ -1319,7 +1332,6 @@ class WCAI_Scanner {
 
         function closeModal() { 
 
-            console.log('❌ closeModal');
 
             document.getElementById('wcai-modal').style.display='none'; 
 
@@ -1333,7 +1345,6 @@ class WCAI_Scanner {
 
         jQuery(document).ready(function() {
 
-            console.log('✅ jQuery ready');
 
             Store.init();
 
@@ -1400,6 +1411,10 @@ class WCAI_Scanner {
         $date_query = isset( $_POST['date_query'] ) ? sanitize_text_field( wp_unslash( $_POST['date_query'] ) ) : '';
 
         if ( $date_query ) {
+            if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) || ! self::is_date_allowed( $date_query, current_time( 'Y-m-d' ) ) ) {
+                wp_send_json_error( array( 'message' => 'Forbidden' ), 403 );
+            }
+
             wp_send_json_success( array( 'specific_date' => $this->get_pax_by_date( $date_query ) ) );
         }
 
@@ -1418,13 +1433,16 @@ class WCAI_Scanner {
         $today = current_time( 'Y-m-d' );
         $after_tomorrow = wp_date( 'Y-m-d', current_datetime()->modify( '+2 days' ) );
 
+        $guide_join = $this->guide_scope_join();
+
         $sql = "SELECT COUNT(*)
                 FROM $participants p
                 INNER JOIN $reservations r ON r.id = p.reservation_id
                 INNER JOIN {$wpdb->posts} d ON d.ID = r.departure_id
                 INNER JOIN {$wpdb->postmeta} dm ON dm.post_id = d.ID AND dm.meta_key = '_wcai_starts_at'
+                {$guide_join}
                 WHERE p.id = %d
-                  AND r.status IN ('pending', 'confirmed')
+                  AND r.status = 'confirmed'
                   AND d.post_type = %s
                   AND d.post_status = 'publish'
                   AND dm.meta_value >= %s
@@ -1439,6 +1457,44 @@ class WCAI_Scanner {
         ) );
     }
 
+    /**
+     * Data permitida na consulta por data: hoje +/- 1 dia (YYYY-MM-DD).
+     */
+    public static function is_date_allowed( $date, $today ) {
+        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $date ) ) {
+            return false;
+        }
+
+        $d = DateTimeImmutable::createFromFormat( '!Y-m-d', $date );
+        $t = DateTimeImmutable::createFromFormat( '!Y-m-d', (string) $today );
+
+        if ( ! $d || ! $t || $d->format( 'Y-m-d' ) !== $date ) {
+            return false;
+        }
+
+        return $t->diff( $d )->days <= 1;
+    }
+
+    private function get_operation_name() {
+        $name = sanitize_text_field( (string) get_option( 'wcai_operation_name', 'Operação' ) );
+
+        return '' !== $name ? $name : 'Operação';
+    }
+
+    // Quem não gerencia saídas só enxerga as saídas em que é o guia (_wcai_guide_id).
+    private function guide_scope_join() {
+        global $wpdb;
+
+        if ( current_user_can( WCAI_Capabilities::MANAGE_DEPARTURES ) ) {
+            return '';
+        }
+
+        return $wpdb->prepare(
+            "INNER JOIN {$wpdb->postmeta} gm ON gm.post_id = d.ID AND gm.meta_key = '_wcai_guide_id' AND gm.meta_value = %s",
+            (string) get_current_user_id()
+        );
+    }
+
     private function get_pax_by_date( $date ) {
         if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
             return array();
@@ -1447,13 +1503,12 @@ class WCAI_Scanner {
         global $wpdb;
         $participants = WCAI_Participants_DB::get_table_name();
         $reservations = WCAI_Reservations::get_table_name();
-        $can_view_sensitive = current_user_can( WCAI_Capabilities::VIEW_SENSITIVE );
+        $guide_join = $this->guide_scope_join();
 
         $sql = "SELECT
                     p.id,
                     p.ticket_hash AS hash,
                     p.nome_completo AS nome,
-                    p.cpf,
                     p.order_id AS pedido,
                     p.reservation_id,
                     p.checkin_status AS status,
@@ -1466,7 +1521,8 @@ class WCAI_Scanner {
                 INNER JOIN $reservations r ON r.id = p.reservation_id
                 INNER JOIN {$wpdb->posts} d ON d.ID = r.departure_id
                 INNER JOIN {$wpdb->postmeta} dm ON dm.post_id = d.ID AND dm.meta_key = '_wcai_starts_at'
-                WHERE r.status IN ('pending', 'confirmed')
+                {$guide_join}
+                WHERE r.status = 'confirmed'
                   AND d.post_type = %s
                   AND d.post_status = 'publish'
                   AND LEFT(dm.meta_value, 10) = %s
@@ -1480,10 +1536,6 @@ class WCAI_Scanner {
             $p->tour_time = strlen( $p->starts_at ) >= 16 ? substr( $p->starts_at, 11, 5 ) : '';
             $p->data_agendada = wp_date( 'd/m', strtotime( $date . ' 12:00:00' ) ) . ' ' . $p->tour_time;
             $p->entry_time = $p->checkin_time ? wp_date( 'H:i', strtotime( $p->checkin_time ) ) : '';
-
-            if ( ! $can_view_sensitive ) {
-                $p->cpf = '';
-            }
         }
 
         return $rows;
