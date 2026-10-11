@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!-- Testes com stubs de WordPress, sem bootstrap do WP. Cada teste roda em processo separado: os stubs de classes conflitam entre arquivos. -->
+<phpunit colors="true" processIsolation="true">
+    <testsuites>
+        <testsuite name="unit">
+            <file>tests/test-t2-assinatura.php</file>
+            <file>tests/test-t4-scanner.php</file>
+            <file>tests/test-t6-legal-privacy.php</file>
+            <file>tests/test-t7-ux.php</file>
+            <file>tests/test-t8-utils.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>

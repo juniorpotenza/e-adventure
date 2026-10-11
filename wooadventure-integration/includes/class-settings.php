@@ -36,6 +36,7 @@ class WCAI_Settings {
         register_setting( 'wcai_settings_group', 'wcai_calendar_statuses', array( 'sanitize_callback' => array( $this, 'sanitize_calendar_statuses' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_operation_name', array( 'sanitize_callback' => array( $this, 'sanitize_operation_name' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_terms_url', array( 'sanitize_callback' => 'esc_url_raw' ) );
+        register_setting( 'wcai_settings_group', 'wcai_delete_data_on_uninstall', array( 'sanitize_callback' => array( $this, 'sanitize_delete_data' ) ) );
     }
 
     public function settings_page() {
@@ -182,6 +183,28 @@ class WCAI_Settings {
                     </tr>
                 </table>
 
+                <hr>
+
+                <h2 class="title"><?php echo esc_html__( 'Privacidade e dados', 'wooadventure-integration' ); ?></h2>
+                <table class="form-table">
+                    <tr valign="top">
+                        <th scope="row"><?php echo esc_html__( 'Texto de consentimento', 'wooadventure-integration' ); ?></th>
+                        <td>
+                            <p><?php echo esc_html( WCAI_Privacy::consent_text() ); ?></p>
+                            <p class="description"><?php echo esc_html__( 'Este texto aparece ao participante. Para alterá-lo, use o filtro wcai_third_party_consent_text.', 'wooadventure-integration' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row"><?php echo esc_html__( 'Excluir dados ao desinstalar', 'wooadventure-integration' ); ?></th>
+                        <td>
+                            <input type="hidden" name="wcai_delete_data_on_uninstall" value="" />
+                            <label><input type="checkbox" name="wcai_delete_data_on_uninstall" value="yes" <?php checked( get_option( 'wcai_delete_data_on_uninstall' ), 'yes' ); ?> />
+                            <?php echo esc_html__( 'Apagar todos os dados do plugin ao excluí-lo', 'wooadventure-integration' ); ?></label>
+                            <p class="description" style="color:#b32d2e;"><strong><?php echo esc_html__( 'Atenção: ao excluir o plugin, esta opção apaga permanentemente participantes, assinaturas e aceites jurídicos. Faça backup antes.', 'wooadventure-integration' ); ?></strong></p>
+                        </td>
+                    </tr>
+                </table>
+
                 <?php submit_button(); ?>
             </form>
         </div>
@@ -270,6 +293,11 @@ class WCAI_Settings {
     public function sanitize_event_date_source( $value ) {
         $value = sanitize_key( $value );
         return in_array( $value, array( 'departure', 'order_meta', 'item_meta' ), true ) ? $value : 'departure';
+    }
+
+    // uninstall.php lê a opção como booleano: desligado grava string vazia.
+    public function sanitize_delete_data( $value ) {
+        return 'yes' === $value ? 'yes' : '';
     }
 
     public function sanitize_seq_enabled( $value ) {

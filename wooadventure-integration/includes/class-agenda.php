@@ -419,7 +419,7 @@ class WCAI_Agenda {
                  FROM $participants_table p
                  INNER JOIN $reservations_table r ON r.id = p.reservation_id
                  WHERE r.departure_id = %d
-                   AND r.status IN ('pending', 'confirmed')
+                   AND r.status = 'confirmed'
                  ORDER BY p.nome_completo ASC, p.id ASC",
                 $departure_id
             ),
