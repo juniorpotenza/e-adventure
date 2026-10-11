@@ -7,6 +7,8 @@ class WCAI_Assinatura {
     const LOOKUP_ERROR = 'Dados não conferem. Verifique o pedido, a chave do pedido e o CPF.';
     const SESSION_ERROR = 'Sessão de assinatura inválida ou expirada.';
     const RATE_LIMIT = 10;
+    // Um grupo atrás do mesmo IP assina vários termos no mesmo pedido: limite maior para salvar.
+    const RATE_LIMIT_SAVE = 30;
 
     public function __construct() {
         add_action( 'init', array( $this, 'register_cpt' ) );
@@ -121,7 +123,7 @@ class WCAI_Assinatura {
             wp_send_json_error( 'Pedido inválido.', 400 );
         }
 
-        if ( $this->signature_rate_limited( $id ) ) {
+        if ( $this->signature_rate_limited( 'check', $id ) ) {
             wp_send_json_error( 'Muitas tentativas. Aguarde alguns minutos e tente novamente.', 429 );
         }
 
@@ -143,7 +145,7 @@ class WCAI_Assinatura {
             wp_send_json_error( self::LOOKUP_ERROR, 403 );
         }
 
-        if ( $this->signature_rate_limited( $order_id, $cpf_input ) ) {
+        if ( $this->signature_rate_limited( 'autocheck', $order_id, $cpf_input ) ) {
             wp_send_json_error( 'Muitas tentativas. Aguarde alguns minutos e tente novamente.', 429 );
         }
 
@@ -178,7 +180,7 @@ class WCAI_Assinatura {
         $cpf        = isset( $_POST['cpf'] ) ? preg_replace( '/\D/', '', wp_unslash( $_POST['cpf'] ) ) : '';
         $img_base64 = isset( $_POST['assinatura'] ) ? wp_unslash( $_POST['assinatura'] ) : '';
 
-        if ( $this->signature_rate_limited( $pedido_id, $cpf ) ) {
+        if ( $this->signature_rate_limited( 'save', $pedido_id, $cpf ) ) {
             wp_send_json_error( 'Muitas tentativas de assinatura. Aguarde alguns minutos e tente novamente.', 429 );
         }
 
@@ -242,7 +244,7 @@ class WCAI_Assinatura {
             wp_send_json_error( 'Erro ao registrar a assinatura.' );
         }
 
-        $stored = $this->store_signature_png( $decoded, $participant['id'], $post_id );
+        $stored = self::store_signature_png( $decoded, $participant['id'], $post_id );
 
         if ( ! $stored ) {
             wp_delete_post( $post_id, true );
@@ -366,7 +368,7 @@ class WCAI_Assinatura {
      *
      * @return array|false array( 'file' => caminho, 'name' => nome do arquivo ).
      */
-    private function store_signature_png( $decoded, $participant_id, $post_id ) {
+    private static function store_signature_png( $decoded, $participant_id, $post_id ) {
         $upload = wp_upload_dir();
         if ( ! empty( $upload['error'] ) || empty( $upload['basedir'] ) ) {
             return false;
@@ -411,6 +413,69 @@ class WCAI_Assinatura {
         header( 'X-Content-Type-Options: nosniff' );
         readfile( $file );
         exit;
+    }
+
+    const MIGRATE_BATCH = 200;
+
+    /**
+     * Move PNGs públicos antigos (_wcai_assinatura_url) para wcai-private. Idempotente e em lotes.
+     * Só remove o arquivo antigo e o meta após gravar o novo. Registro cujo arquivo não existe ou fica
+     * fora de uploads recebe _wcai_assinatura_migrate_failed e sai da fila (senão o lote travaria).
+     *
+     * @return int Registros ainda pendentes.
+     */
+    public static function migrate_legacy_signatures() {
+        $upload = wp_upload_dir();
+        if ( ! empty( $upload['error'] ) || empty( $upload['basedir'] ) || empty( $upload['baseurl'] ) ) {
+            return 0;
+        }
+
+        $pending = array(
+            'post_type'   => 'wcai_assinatura',
+            'post_status' => 'any',
+            'fields'      => 'ids',
+            'meta_query'  => array(
+                'relation' => 'AND',
+                array( 'key' => '_wcai_assinatura_url', 'compare' => 'EXISTS' ),
+                array( 'key' => '_wcai_assinatura_migrate_failed', 'compare' => 'NOT EXISTS' ),
+            ),
+        );
+
+        foreach ( get_posts( $pending + array( 'posts_per_page' => self::MIGRATE_BATCH ) ) as $post_id ) {
+            if ( ! self::migrate_legacy_signature( $post_id, $upload ) ) {
+                update_post_meta( $post_id, '_wcai_assinatura_migrate_failed', 1 );
+            }
+        }
+
+        return count( get_posts( $pending + array( 'posts_per_page' => -1 ) ) );
+    }
+
+    private static function migrate_legacy_signature( $post_id, $upload ) {
+        $url = (string) get_post_meta( $post_id, '_wcai_assinatura_url', true );
+        if ( 0 !== strpos( $url, $upload['baseurl'] ) ) {
+            return false;
+        }
+
+        $legacy = $upload['basedir'] . substr( $url, strlen( $upload['baseurl'] ) );
+        if ( false !== strpos( $legacy, '..' ) || ! is_file( $legacy ) ) {
+            return false;
+        }
+
+        $bytes = file_get_contents( $legacy );
+        if ( false === $bytes ) {
+            return false;
+        }
+
+        $stored = self::store_signature_png( $bytes, absint( get_post_meta( $post_id, '_wcai_participant_id', true ) ), $post_id );
+        if ( ! $stored ) {
+            return false;
+        }
+
+        update_post_meta( $post_id, '_wcai_assinatura_file', $stored['name'] );
+        wp_delete_file( $legacy );
+        delete_post_meta( $post_id, '_wcai_assinatura_url' );
+
+        return true;
     }
 
     private static function client_ip() {
@@ -623,17 +688,16 @@ class WCAI_Assinatura {
         );
     }
 
-    private static function delete_local_qr( $hash, $participant_id ) {
+    // Pública para o apagador LGPD. Procura em todos os Y/m: o QR pode ter sido gerado em outro mês.
+    public static function delete_local_qr( $hash, $participant_id ) {
         $upload = wp_upload_dir();
         if ( ! empty( $upload['error'] ) || empty( $upload['basedir'] ) ) {
             return;
         }
 
-        $subdir = 'wcai-tickets/' . gmdate( 'Y/m' );
         $filename = 'ticket-' . absint( $participant_id ) . '-' . substr( hash( 'sha256', $hash ), 0, 32 ) . '.png';
-        $filepath = trailingslashit( $upload['basedir'] ) . $subdir . '/' . $filename;
 
-        if ( file_exists( $filepath ) ) {
+        foreach ( (array) glob( trailingslashit( $upload['basedir'] ) . 'wcai-tickets/*/*/' . $filename ) as $filepath ) {
             wp_delete_file( $filepath );
         }
     }
@@ -709,23 +773,25 @@ class WCAI_Assinatura {
         return $url;
     }
 
-    private function signature_rate_limited( $order_id, $identifier = '' ) {
+    // Contadores separados por ação ('check', 'autocheck', 'save'): uma ação não esgota o limite das outras.
+    private function signature_rate_limited( $action, $order_id, $identifier = '' ) {
         $ip = self::client_ip();
         $order_id = absint( $order_id );
         $identifier = preg_replace( '/\D/', '', (string) $identifier );
+        $limit = 'save' === $action ? self::RATE_LIMIT_SAVE : self::RATE_LIMIT;
 
         $keys = array(
-            'wcai_sig_rate_order_' . md5( $ip . '|' . $order_id ),
+            'wcai_sig_rate_' . $action . '_order_' . md5( $ip . '|' . $order_id ),
         );
 
         if ( '' !== $identifier ) {
-            $keys[] = 'wcai_sig_rate_identifier_' . md5( $ip . '|' . $order_id . '|' . $identifier );
+            $keys[] = 'wcai_sig_rate_' . $action . '_identifier_' . md5( $ip . '|' . $order_id . '|' . $identifier );
         }
 
         $limited = false;
 
         foreach ( $keys as $key ) {
-            if ( self::bump_rate_counter( $key ) > self::RATE_LIMIT ) {
+            if ( self::bump_rate_counter( $key ) > $limit ) {
                 $limited = true;
             }
         }

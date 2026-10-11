@@ -3,6 +3,7 @@
 <phpunit colors="true" processIsolation="true">
     <testsuites>
         <testsuite name="unit">
+            <file>tests/test-f2-privacy-account.php</file>
             <file>tests/test-t2-assinatura.php</file>
             <file>tests/test-t4-scanner.php</file>
             <file>tests/test-t6-legal-privacy.php</file>

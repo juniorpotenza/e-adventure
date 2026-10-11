@@ -45,7 +45,7 @@ class WCAI_Frontend_Account {
         $participants = $this->get_participants_safe( $order );
         if ( empty( $participants ) ) return;
 
-        $terms_url = $this->get_terms_url();
+        $terms_url = $this->get_terms_url( $order );
         ?>
         <section class="wcai-order-details-participants" style="margin-bottom: 40px; margin-top: 30px; font-family: inherit;">
             <h2 class="woocommerce-column__title" style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 10px;">👥 Lista de Participantes</h2>
@@ -154,8 +154,11 @@ class WCAI_Frontend_Account {
         <?php
     }
 
-    private function get_terms_url() {
-        return class_exists( 'WCAI_Settings' ) ? (string) WCAI_Settings::get_terms_url() : '';
+    // A chave do pedido vai no link: ajax_check_pax_deep exige order_key (o JS da assinatura lê ?key=).
+    private function get_terms_url( $order ) {
+        $url = class_exists( 'WCAI_Settings' ) ? (string) WCAI_Settings::get_terms_url() : '';
+
+        return $url ? add_query_arg( 'key', $order->get_order_key(), $url ) : '';
     }
 
     // --- 1. ASSETS ---
@@ -320,7 +323,7 @@ class WCAI_Frontend_Account {
         } else {
             $missing = $total - $signed;
             $msg_bg = '#fff3cd'; $msg_color = '#856404'; $msg_border = '#ffeeba';
-            $termo_link = $this->get_terms_url();
+            $termo_link = $this->get_terms_url( $order );
             $msg_text = "⚠️ <strong>Atenção:</strong> Faltam assinaturas ($missing/$total). Peça para cada participante acessar o site.";
             if ( $termo_link ) {
                 $msg_text .= "<br><a href='" . esc_url( $termo_link ) . "' target='_blank' rel='noopener' style='color:{$msg_color}; text-decoration:underline; font-weight:bold; margin-top:5px; display:inline-block;'>👉 " . esc_html__( 'Clique aqui para assinar o termo', 'wooadventure-integration' ) . '</a>';
@@ -398,7 +401,7 @@ class WCAI_Frontend_Account {
         if (!$order || $order->get_customer_id() !== get_current_user_id()) wp_send_json_error('Erro permissão');
         if ($this->is_order_locked($order)) wp_send_json_error('Pedido bloqueado para edição.');
 
-        $data = isset($_POST['participantes']) ? $_POST['participantes'] : array();
+        $data = isset($_POST['participantes']) ? wp_unslash($_POST['participantes']) : array();
         $error = $this->validate_frontend_rows($order, $data);
         if ($error) wp_send_json_error($error);
 
@@ -420,11 +423,18 @@ class WCAI_Frontend_Account {
         if (!is_array($data) || empty($data) || !class_exists('WCAI_Participants_DB')) return 'Dados inválidos.';
 
         $cpfs_used = array();
+        $new_rows = 0;
         foreach ($data as $row) {
             if (!is_array($row)) return 'Dados inválidos.';
 
-            if (isset($row['id']) && is_numeric($row['id']) && !$this->participant_belongs_to_order($row['id'], $order)) {
-                return 'Participante não pertence a este pedido.';
+            $current = null;
+            if (isset($row['id']) && is_numeric($row['id'])) {
+                if (!$this->participant_belongs_to_order($row['id'], $order)) {
+                    return 'Participante não pertence a este pedido.';
+                }
+                $current = WCAI_Participants_DB::get_by_id($row['id']);
+            } else {
+                $new_rows++;
             }
 
             $nome = isset($row['nome_completo']) ? sanitize_text_field($row['nome_completo']) : '';
@@ -437,10 +447,34 @@ class WCAI_Frontend_Account {
             if (!WCAI_Utils::is_valid_date($data_nasc) || !WCAI_Utils::is_min_age($data_nasc)) {
                 return "Data de nascimento inválida ou idade mínima de 7 anos não atendida: $nome.";
             }
+            // Com aceite ou check-in, CPF e nascimento são identidade do ingresso (regra do responsável legal): só o admin altera.
+            if ($current && $this->identity_locked($current)
+                && ($cpf !== $this->safe_cpf_pad($current['cpf']) || $this->force_date_to_db($data_nasc) !== $current['data_nascimento'])) {
+                return "CPF e data de nascimento não podem ser alterados após o aceite do termo ou check-in: $nome.";
+            }
             if (in_array($cpf, $cpfs_used, true)) return "CPF duplicado neste pedido: $nome.";
             $cpfs_used[] = $cpf;
         }
+
+        // Linhas sem id criam participantes: o total não pode passar da quantidade de ingressos do pedido.
+        if ($new_rows > 0 && count(WCAI_Participants_DB::get_by_order($order->get_id())) + $new_rows > $this->order_ticket_quantity($order)) {
+            return 'O número de participantes excede a quantidade de ingressos do pedido.';
+        }
         return '';
+    }
+
+    private function identity_locked($participant) {
+        return !empty($participant['checkin_time'])
+            || !empty($participant['checkin_status'])
+            || (class_exists('WCAI_Legal_Acceptances') && WCAI_Legal_Acceptances::get_by_participant($participant['id']));
+    }
+
+    private function order_ticket_quantity($order) {
+        $quantity = 0;
+        foreach ($order->get_items() as $item) {
+            $quantity += (int) $item->get_quantity();
+        }
+        return $quantity;
     }
 
     // =========================================================================

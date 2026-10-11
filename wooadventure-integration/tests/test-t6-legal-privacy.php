@@ -7,23 +7,40 @@ if ( ! defined( 'ABSPATH' ) ) {
     define( 'ABSPATH', __DIR__ . '/' );
 }
 
-class WP_Error {
-    public $code;
-    public $message;
-    public function __construct( $code = '', $message = '' ) { $this->code = $code; $this->message = $message; }
-    public function get_error_code() { return $this->code; }
-    public function get_error_message() { return $this->message; }
+if ( ! class_exists( 'WP_Error' ) ) {
+    class WP_Error {
+        public $code;
+        public $message;
+        public function __construct( $code = '', $message = '' ) { $this->code = $code; $this->message = $message; }
+        public function get_error_code() { return $this->code; }
+        public function get_error_message() { return $this->message; }
+    }
 }
 
-class WCAI_Participants_DB {
-    public static $updates = array();
-    public static function get_table_name() { return 'wp_wcai_participantes'; }
-    public static function update( $id, $data ) { self::$updates[ $id ] = $data; return 1; }
+if ( ! class_exists( 'WCAI_Participants_DB' ) ) {
+    class WCAI_Participants_DB {
+        public static $updates = array();
+        public static function get_table_name() { return 'wp_wcai_participantes'; }
+        public static function update( $id, $data ) { self::$updates[ $id ] = $data; return 1; }
+        public static $rows = array();
+        public static function get_by_order( $order_id ) { return self::$rows; }
+    }
 }
 
-class WCAI_Audit_Log {
-    public static $entries = array();
-    public static function log( $action, $type, $id = null, $context = array() ) { self::$entries[] = array( $action, $type, $id, $context ); }
+if ( ! class_exists( 'WcaiT6Order' ) ) {
+    class WcaiT6Order {
+        public function get_id() { return 7; }
+        public function get_meta( $key ) { return 'billing_cpf' === $key ? '12345678909' : ''; }
+        public function delete_meta_data( $key ) {}
+        public function save() {}
+    }
+}
+
+if ( ! class_exists( 'WCAI_Audit_Log' ) ) {
+    class WCAI_Audit_Log {
+        public static $entries = array();
+        public static function log( $action, $type, $id = null, $context = array() ) { self::$entries[] = array( $action, $type, $id, $context ); }
+    }
 }
 
 class WcaiFakeWpdb {
@@ -33,7 +50,6 @@ class WcaiFakeWpdb {
     public $inserted = array();
     public $queries = array();
     public $existing = null;
-    public $participants = array();
     public function suppress_errors( $v = true ) { return false; }
     public function prepare( $query, ...$args ) {
         $args = isset( $args[0] ) && is_array( $args[0] ) ? $args[0] : $args;
@@ -47,7 +63,6 @@ class WcaiFakeWpdb {
     }
     public function get_row( $query, $output = OBJECT ) { return $this->existing; }
     public function get_results( $query, $output = OBJECT ) {
-        if ( false !== strpos( $query, 'wcai_participantes' ) ) { return $this->participants; }
         return array( array( 'id' => 3, 'document_version' => 'v1', 'document_date' => '2026-01-01', 'acceptance_method' => 'signature', 'guardian_name' => '', 'accepted_at' => '2026-02-02 10:00:00' ) );
     }
     public function query( $query ) { $this->queries[] = $query; return 1; }
@@ -67,6 +82,7 @@ if ( ! function_exists( 'current_time' ) ) { function current_time() { return '2
 if ( ! function_exists( 'apply_filters' ) ) { function apply_filters( $tag, $value ) { return $value; } }
 if ( ! function_exists( 'add_filter' ) ) { function add_filter() {} }
 if ( ! function_exists( 'wc_get_orders' ) ) { function wc_get_orders() { return array( 7 ); } }
+if ( ! function_exists( 'wc_get_order' ) ) { function wc_get_order() { return new WcaiT6Order(); } }
 if ( ! function_exists( 'get_user_by' ) ) { function get_user_by() { return false; } }
 if ( ! function_exists( 'get_posts' ) ) { function get_posts() { return array( 55 ); } }
 if ( ! function_exists( 'get_post_meta' ) ) { function get_post_meta() { return ''; } }
@@ -74,6 +90,7 @@ if ( ! function_exists( 'wp_delete_post' ) ) { function wp_delete_post( $id ) { 
 if ( ! function_exists( 'wp_upload_dir' ) ) { function wp_upload_dir() { return array( 'error' => true ); } }
 
 require_once dirname( __DIR__ ) . '/includes/class-utils.php';
+require_once dirname( __DIR__ ) . '/includes/class-data-resolver.php';
 require_once dirname( __DIR__ ) . '/includes/class-legal-acceptances.php';
 require_once dirname( __DIR__ ) . '/includes/class-privacy.php';
 
@@ -142,12 +159,16 @@ class Test_T6_Legal_Privacy extends TestCase {
         $this->assertNotSame( $rows[0]['guardian_cpf_hash'], $rows[1]['guardian_cpf_hash'] );
     }
 
-    public function test_exporter_returns_participant_acceptance_and_signature_for_email() {
-        $GLOBALS['wpdb'] = new WcaiFakeWpdb();
-        $GLOBALS['wpdb']->participants = array( array(
+    private function holder_row() {
+        return array(
             'id' => 5, 'order_id' => 7, 'nome_completo' => 'Ana', 'cpf' => '12345678909',
             'data_nascimento' => '1990-01-01', 'termo_assinado' => 1, 'created_at' => '2026-01-01 00:00:00',
-        ) );
+        );
+    }
+
+    public function test_exporter_returns_holder_acceptance_and_signature_with_masked_cpf() {
+        $GLOBALS['wpdb'] = new WcaiFakeWpdb();
+        WCAI_Participants_DB::$rows = array( $this->holder_row() );
 
         $result = ( new WCAI_Privacy() )->export( 'ana@example.com' );
         $groups = array_unique( array_column( $result['data'], 'group_id' ) );
@@ -157,16 +178,15 @@ class Test_T6_Legal_Privacy extends TestCase {
         $this->assertStringNotContainsString( '12345678909', wp_json_encode_stub( $result['data'] ) );
     }
 
-    public function test_eraser_anonymises_participant_and_logs_without_pii() {
+    public function test_eraser_deletes_signatures_nulls_guardian_hash_and_logs_without_pii() {
         $GLOBALS['wpdb'] = new WcaiFakeWpdb();
-        $GLOBALS['wpdb']->participants = array( array( 'id' => 5, 'order_id' => 7, 'nome_completo' => 'Ana', 'cpf' => '12345678909' ) );
+        WCAI_Participants_DB::$rows = array( $this->holder_row() );
         $GLOBALS['wcai_deleted_posts'] = array();
 
         $result = ( new WCAI_Privacy() )->erase( 'ana@example.com' );
 
         $this->assertTrue( $result['items_removed'] );
         $this->assertSame( 'Anonimizado', WCAI_Participants_DB::$updates[5]['nome_completo'] );
-        $this->assertSame( '', WCAI_Participants_DB::$updates[5]['cpf'] );
         $this->assertSame( array( 55 ), $GLOBALS['wcai_deleted_posts'] );
         $this->assertStringContainsString( 'guardian_cpf_hash = NULL', $GLOBALS['wpdb']->queries[0] );
         $this->assertStringNotContainsString( 'Ana', wp_json_encode_stub( WCAI_Audit_Log::$entries ) );

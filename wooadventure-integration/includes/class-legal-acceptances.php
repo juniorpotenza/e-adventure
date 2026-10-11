@@ -273,9 +273,15 @@ class WCAI_Legal_Acceptances {
      * @param array $participant Linha de wcai_participantes (data_nascimento em Y-m-d).
      */
     public static function guardian_required( $participant ) {
-        $birth = DateTime::createFromFormat( 'Y-m-d', isset( $participant['data_nascimento'] ) ? (string) $participant['data_nascimento'] : '' );
+        $raw   = isset( $participant['data_nascimento'] ) ? (string) $participant['data_nascimento'] : '';
+        $birth = DateTime::createFromFormat( '!Y-m-d', $raw );
 
-        return ! $birth || ! WCAI_Utils::is_min_age( $birth->format( 'd/m/Y' ), 18 );
+        // '0000-00-00' é aceito pelo parser (vira ano -1): exige ida e volta idêntica e ano plausível.
+        if ( ! $birth || $birth->format( 'Y-m-d' ) !== $raw || (int) $birth->format( 'Y' ) < 1900 ) {
+            return true;
+        }
+
+        return ! WCAI_Utils::is_min_age( $birth->format( 'd/m/Y' ), 18 );
     }
 
     /**
