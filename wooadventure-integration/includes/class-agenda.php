@@ -460,7 +460,12 @@ class WCAI_Agenda {
             return '';
         }
 
-        $this->send_ticket_email_via_shortcode( $ticket_info );
+        // O cookie só é limpo após o envio dos headers; a trava evita reenvio a cada reload do GET.
+        $mail_lock = 'wcai_ticket_mailed_' . absint( $ticket_info['participant_id'] );
+        if ( false === get_transient( $mail_lock ) ) {
+            set_transient( $mail_lock, 1, 10 * MINUTE_IN_SECONDS );
+            $this->send_ticket_email_via_shortcode( $ticket_info );
+        }
 
         return '
         <div style="text-align:center; padding:20px; background:#fff; border:1px solid #d4edda; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.05); margin-bottom:20px;">
@@ -487,18 +492,8 @@ class WCAI_Agenda {
             return;
         }
 
-        // 1. TENTA LER O COOKIE DO E-MAIL CAPTURADO
-        $to = '';
-        if ( isset($_COOKIE['wcai_pax_email_temp']) && is_email($_COOKIE['wcai_pax_email_temp']) ) {
-            $to = sanitize_email($_COOKIE['wcai_pax_email_temp']);
-            error_log( '[WCAI] Usando e-mail capturado do cookie.' );
-            // Limpa o cookie do email para não ficar "sujo"
-            setcookie('wcai_pax_email_temp', '', time() - 3600, '/');
-        } else {
-            // 2. FALLBACK: Usa o Billing Email
-            $to = $order->get_billing_email();
-            error_log( '[WCAI] E-mail capturado não encontrado; usando e-mail do pedido.' );
-        }
+        // O destinatário vem sempre do pedido, nunca de cookie (não assinado).
+        $to = $order->get_billing_email();
 
         if ( empty($to) ) {
             error_log('[WCAI] Erro Fatal: Nenhum destinatário para o ingresso.');

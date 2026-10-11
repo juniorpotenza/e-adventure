@@ -4,6 +4,9 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class WCAI_Assinatura {
 
     const AJAX_NONCE = 'wcai_signature';
+    const LOOKUP_ERROR = 'Dados não conferem. Verifique o pedido, a chave do pedido e o CPF.';
+    const SESSION_ERROR = 'Sessão de assinatura inválida ou expirada.';
+    const RATE_LIMIT = 10;
 
     public function __construct() {
         add_action( 'init', array( $this, 'register_cpt' ) );
@@ -20,6 +23,7 @@ class WCAI_Assinatura {
         add_action( 'wp_ajax_nopriv_wcai_autocheck_pax', array( $this, 'ajax_check_pax_deep' ) );
         add_action( 'wp_ajax_wcai_salvar_assinatura_final', array( $this, 'ajax_save_signature' ) );
         add_action( 'wp_ajax_nopriv_wcai_salvar_assinatura_final', array( $this, 'ajax_save_signature' ) );
+        add_action( 'admin_post_wcai_signature_image', array( $this, 'serve_signature_image' ) );
     }
 
     public function render_validation_script_shortcode() {
@@ -66,6 +70,7 @@ class WCAI_Assinatura {
                 var $this = $(this);
                 var val = $this.val().replace(/\D/g, '');
                 var ped = $(selPedido).val().trim();
+                var orderKey = ( $('input[name="wcai_order_key"]').val() || new URLSearchParams( window.location.search ).get('key') || '' ).trim();
                 var $msg = $('#wcai-msg-cpf');
 
                 if ( val.length === 0 ) {
@@ -84,6 +89,7 @@ class WCAI_Assinatura {
                     action: 'wcai_autocheck_pax',
                     order_id: ped,
                     cpf: val,
+                    order_key: orderKey,
                     security: security
                 }, function( response ) {
                     if ( response.success ) {
@@ -131,9 +137,10 @@ class WCAI_Assinatura {
 
         $order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
         $cpf_input = preg_replace( '/\D/', '', isset( $_POST['cpf'] ) ? wp_unslash( $_POST['cpf'] ) : '' );
+        $order_key = isset( $_POST['order_key'] ) ? sanitize_text_field( wp_unslash( $_POST['order_key'] ) ) : '';
 
         if ( ! $order_id || ! $cpf_input ) {
-            wp_send_json_error();
+            wp_send_json_error( self::LOOKUP_ERROR, 403 );
         }
 
         if ( $this->signature_rate_limited( $order_id, $cpf_input ) ) {
@@ -141,23 +148,22 @@ class WCAI_Assinatura {
         }
 
         $order = wc_get_order( $order_id );
-        if ( ! $order ) {
-            wp_send_json_error();
+        // Mesma resposta para pedido inexistente, chave errada e CPF não vinculado (sem oráculo).
+        $participant = ( $order && $this->order_key_matches( $order, $order_key ) )
+            ? $this->get_participant_for_order( $order, $cpf_input )
+            : false;
+
+        if ( ! $participant ) {
+            wp_send_json_error( self::LOOKUP_ERROR, 403 );
         }
 
-        $participant = $this->get_participant_for_order( $order, $cpf_input );
-
-        if ( $participant ) {
-            $this->set_session_cookie( $order_id, $participant['id'] );
-            wp_send_json_success(
-                array(
-                    'participant_id' => absint( $participant['id'] ),
-                    'nome'           => $participant['nome_completo'],
-                )
-            );
-        }
-
-        wp_send_json_error( 'CPF não vinculado a um participante canônico deste pedido.' );
+        $this->set_session_cookie( $order_id, $participant['id'] );
+        wp_send_json_success(
+            array(
+                'participant_id' => absint( $participant['id'] ),
+                'nome'           => $participant['nome_completo'],
+            )
+        );
     }
 
     public function render_shortcode( $atts ) {
@@ -171,19 +177,16 @@ class WCAI_Assinatura {
         $cpf        = isset( $_POST['cpf'] ) ? preg_replace( '/\D/', '', wp_unslash( $_POST['cpf'] ) ) : '';
         $img_base64 = isset( $_POST['assinatura'] ) ? wp_unslash( $_POST['assinatura'] ) : '';
 
+        if ( $this->signature_rate_limited( $pedido_id, $cpf ) ) {
+            wp_send_json_error( 'Muitas tentativas de assinatura. Aguarde alguns minutos e tente novamente.', 429 );
+        }
+
         $order = wc_get_order( $pedido_id );
         $participant = $order && $cpf ? $this->get_participant_for_order( $order, $cpf ) : false;
 
-        if ( ! $order || ! $participant ) {
-            wp_send_json_error( 'Participante não vinculado ao pedido.', 403 );
-        }
-
-        if ( ! $this->valid_session_for_participant( $pedido_id, $participant['id'] ) ) {
-            wp_send_json_error( 'Sessão de assinatura inválida ou expirada.', 403 );
-        }
-
-        if ( $this->signature_rate_limited( $pedido_id, $participant['id'] ) ) {
-            wp_send_json_error( 'Muitas tentativas de assinatura. Aguarde alguns minutos e tente novamente.', 429 );
+        // A sessão só nasce após order_key + CPF em ajax_check_pax_deep; mesma resposta para qualquer falha.
+        if ( ! $participant || ! $this->valid_session_for_participant( $pedido_id, $participant['id'] ) ) {
+            wp_send_json_error( self::SESSION_ERROR, 403 );
         }
 
         if (
@@ -227,10 +230,9 @@ class WCAI_Assinatura {
             wp_send_json_error( 'Erro ao registrar a assinatura.' );
         }
 
-        $filename = 'assign_' . absint( $participant['id'] ) . '_' . absint( $post_id ) . '.png';
-        $upload = wp_upload_bits( $filename, null, $decoded );
+        $stored = $this->store_signature_png( $decoded, $participant['id'], $post_id );
 
-        if ( ! empty( $upload['error'] ) ) {
+        if ( ! $stored ) {
             wp_delete_post( $post_id, true );
             wp_send_json_error( 'Não foi possível armazenar a assinatura.' );
         }
@@ -238,9 +240,10 @@ class WCAI_Assinatura {
         update_post_meta( $post_id, '_wcai_participant_id', absint( $participant['id'] ) );
         update_post_meta( $post_id, '_wcai_reservation_id', absint( $participant['reservation_id'] ) );
         update_post_meta( $post_id, '_wcai_pedido_id', absint( $participant['order_id'] ) );
-        update_post_meta( $post_id, '_wcai_assinatura_url', esc_url_raw( $upload['url'] ) );
+        update_post_meta( $post_id, '_wcai_assinatura_file', $stored['name'] );
 
-        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+        $ip = self::client_ip();
+        $ip = 'unknown' === $ip ? '' : $ip;
         $agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : '';
 
         update_post_meta(
@@ -258,8 +261,8 @@ class WCAI_Assinatura {
         $ticket_data = $this->generate_and_save_ticket( $participant, $post_id );
 
         if ( is_wp_error( $ticket_data ) ) {
-            if ( ! empty( $upload['file'] ) && file_exists( $upload['file'] ) ) {
-                wp_delete_file( $upload['file'] );
+            if ( file_exists( $stored['file'] ) ) {
+                wp_delete_file( $stored['file'] );
             }
             wp_delete_post( $post_id, true );
             wp_send_json_error( $ticket_data->get_error_message(), 500 );
@@ -315,7 +318,7 @@ class WCAI_Assinatura {
             }
 
             $reservation = WCAI_Reservations::get_by_id( $reservation_id );
-            if ( ! $reservation || ! in_array( $reservation->status, array( 'pending', 'confirmed' ), true ) ) {
+            if ( ! $reservation || 'confirmed' !== $reservation->status ) {
                 continue;
             }
 
@@ -323,6 +326,97 @@ class WCAI_Assinatura {
         }
 
         return false;
+    }
+
+    // Prova de posse do pedido: order_key (a chave do link do pedido), além do CPF.
+    private function order_key_matches( $order, $order_key ) {
+        $expected = (string) $order->get_order_key();
+
+        return '' !== $expected && '' !== $order_key && hash_equals( $expected, $order_key );
+    }
+
+    private static function harden_directory( $directory, $deny_all ) {
+        $rules = $deny_all
+            ? "<IfModule mod_authz_core.c>\nRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n"
+            : "Options -Indexes\n";
+
+        if ( ! file_exists( $directory . '/index.php' ) ) {
+            file_put_contents( $directory . '/index.php', "<?php\n// Silence is golden.\n" );
+        }
+
+        if ( ! file_exists( $directory . '/.htaccess' ) ) {
+            file_put_contents( $directory . '/.htaccess', $rules );
+        }
+    }
+
+    /**
+     * Grava o PNG em uploads/wcai-private (negado ao público) com nome imprevisível.
+     *
+     * @return array|false array( 'file' => caminho, 'name' => nome do arquivo ).
+     */
+    private function store_signature_png( $decoded, $participant_id, $post_id ) {
+        $upload = wp_upload_dir();
+        if ( ! empty( $upload['error'] ) || empty( $upload['basedir'] ) ) {
+            return false;
+        }
+
+        $directory = trailingslashit( $upload['basedir'] ) . 'wcai-private';
+        if ( ! wp_mkdir_p( $directory ) ) {
+            return false;
+        }
+
+        self::harden_directory( $directory, true );
+
+        $name = 'assign_' . absint( $participant_id ) . '_' . absint( $post_id ) . '_' . bin2hex( random_bytes( 16 ) ) . '.png';
+        $file = $directory . '/' . $name;
+
+        if ( false === file_put_contents( $file, $decoded ) ) {
+            return false;
+        }
+
+        return array( 'file' => $file, 'name' => $name );
+    }
+
+    public function serve_signature_image() {
+        if ( ! current_user_can( WCAI_Capabilities::MANAGE_LEGAL ) ) {
+            wp_die( 'Acesso negado.', 403 );
+        }
+
+        $post_id = isset( $_GET['post_id'] ) ? absint( $_GET['post_id'] ) : 0;
+        check_admin_referer( 'wcai_signature_image_' . $post_id );
+
+        $upload = wp_upload_dir();
+        $name = basename( (string) get_post_meta( $post_id, '_wcai_assinatura_file', true ) );
+        $file = trailingslashit( $upload['basedir'] ) . 'wcai-private/' . $name;
+
+        if ( ! $post_id || 'wcai_assinatura' !== get_post_type( $post_id ) || '' === $name || ! is_file( $file ) ) {
+            wp_die( 'Assinatura não encontrada.', 404 );
+        }
+
+        nocache_headers();
+        header( 'Content-Type: image/png' );
+        header( 'Content-Length: ' . filesize( $file ) );
+        header( 'X-Content-Type-Options: nosniff' );
+        readfile( $file );
+        exit;
+    }
+
+    private static function client_ip() {
+        $remote = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+        $trusted = (array) apply_filters( 'wcai_trusted_proxies', array() );
+
+        // X-Forwarded-For só vale quando REMOTE_ADDR é um proxy confiável.
+        if ( $remote && in_array( $remote, $trusted, true ) && ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+            $hops = array_reverse( array_map( 'trim', explode( ',', sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) ) ) );
+
+            foreach ( $hops as $hop ) {
+                if ( filter_var( $hop, FILTER_VALIDATE_IP ) && ! in_array( $hop, $trusted, true ) ) {
+                    return $hop;
+                }
+            }
+        }
+
+        return $remote ? $remote : 'unknown';
     }
 
     private function generate_and_save_ticket( $participant, $signature_post_id = 0 ) {
@@ -421,14 +515,15 @@ class WCAI_Assinatura {
         }
 
         $parts = explode( '|', sanitize_text_field( wp_unslash( $_COOKIE['wcai_ticket_session'] ) ) );
-        if ( 4 !== count( $parts ) ) {
+        if ( 5 !== count( $parts ) ) {
             return false;
         }
 
         $order_id = absint( $parts[0] );
         $participant_id = absint( $parts[1] );
         $signature_post_id = absint( $parts[2] );
-        $payload = $order_id . '|' . $participant_id . '|' . $signature_post_id;
+        $expires = absint( $parts[3] );
+        $payload = $order_id . '|' . $participant_id . '|' . $signature_post_id . '|' . $expires;
         $expected = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
 
         setcookie(
@@ -447,7 +542,8 @@ class WCAI_Assinatura {
             ! $order_id ||
             ! $participant_id ||
             ! $signature_post_id ||
-            ! hash_equals( $expected, $parts[3] ) ||
+            $expires < time() ||
+            ! hash_equals( $expected, $parts[4] ) ||
             ! class_exists( 'WCAI_Participants_DB' )
         ) {
             return false;
@@ -459,6 +555,11 @@ class WCAI_Assinatura {
             absint( $participant['order_id'] ) !== $order_id ||
             absint( $participant['reservation_id'] ) < 1
         ) {
+            return false;
+        }
+
+        $reservation = class_exists( 'WCAI_Reservations' ) ? WCAI_Reservations::get_by_id( absint( $participant['reservation_id'] ) ) : false;
+        if ( ! $reservation || 'confirmed' !== $reservation->status ) {
             return false;
         }
 
@@ -487,19 +588,21 @@ class WCAI_Assinatura {
             'qr_url'  => $qr_url,
             'nome'    => $participant['nome_completo'],
             'order_id' => $order_id,
+            'participant_id' => $participant_id,
             'cpf'     => '',
         );
     }
 
     private function set_ticket_session_cookie( $order_id, $participant_id, $signature_post_id ) {
-        $payload = absint( $order_id ) . '|' . absint( $participant_id ) . '|' . absint( $signature_post_id );
+        $expires = time() + 5 * MINUTE_IN_SECONDS;
+        $payload = absint( $order_id ) . '|' . absint( $participant_id ) . '|' . absint( $signature_post_id ) . '|' . $expires;
         $signature = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
 
         setcookie(
             'wcai_ticket_session',
             $payload . '|' . $signature,
             array(
-                'expires' => time() + 5 * MINUTE_IN_SECONDS,
+                'expires' => $expires,
                 'path' => '/',
                 'secure' => is_ssl(),
                 'httponly' => true,
@@ -558,6 +661,10 @@ class WCAI_Assinatura {
             return new WP_Error( 'wcai_qr_directory', 'Não foi possível preparar o diretório do ingresso.' );
         }
 
+        // Os PNGs são públicos (QR no e-mail), mas o diretório não pode ser listado.
+        self::harden_directory( trailingslashit( $upload['basedir'] ) . 'wcai-tickets', false );
+        self::harden_directory( $directory, false );
+
         $filename = 'ticket-' . $participant_id . '-' . substr( hash( 'sha256', $hash ), 0, 32 ) . '.png';
         $filepath = trailingslashit( $directory ) . $filename;
         $url = trailingslashit( $upload['baseurl'] ) . $subdir . '/' . rawurlencode( $filename );
@@ -591,7 +698,7 @@ class WCAI_Assinatura {
     }
 
     private function signature_rate_limited( $order_id, $identifier = '' ) {
-        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
+        $ip = self::client_ip();
         $order_id = absint( $order_id );
         $identifier = preg_replace( '/\D/', '', (string) $identifier );
 
@@ -603,22 +710,39 @@ class WCAI_Assinatura {
             $keys[] = 'wcai_sig_rate_identifier_' . md5( $ip . '|' . $order_id . '|' . $identifier );
         }
 
+        $limited = false;
+
         foreach ( $keys as $key ) {
-            if ( absint( get_transient( $key ) ) >= 10 ) {
-                return true;
+            if ( self::bump_rate_counter( $key ) > self::RATE_LIMIT ) {
+                $limited = true;
             }
         }
 
-        foreach ( $keys as $key ) {
-            $attempts = absint( get_transient( $key ) );
-            set_transient( $key, $attempts + 1, 10 * MINUTE_IN_SECONDS );
+        return $limited;
+    }
+
+    private static function bump_rate_counter( $key ) {
+        $ttl = 10 * MINUTE_IN_SECONDS;
+
+        if ( wp_using_ext_object_cache() ) {
+            wp_cache_add( $key, 0, 'wcai_rate', $ttl );
+            $count = wp_cache_incr( $key, 1, 'wcai_rate' );
+
+            if ( false !== $count ) {
+                return (int) $count;
+            }
         }
 
-        return false;
+        // shortcut: sem object cache persistente o contador é transient (não atômico); instalar Redis/Memcached.
+        $count = absint( get_transient( $key ) ) + 1;
+        set_transient( $key, $count, $ttl );
+
+        return $count;
     }
 
     private function set_session_cookie( $order_id, $participant_id ) {
-        $payload = absint( $order_id ) . '|' . absint( $participant_id );
+        $expires = time() + HOUR_IN_SECONDS;
+        $payload = absint( $order_id ) . '|' . absint( $participant_id ) . '|' . $expires;
         $signature = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
         $value = $payload . '|' . $signature;
 
@@ -626,7 +750,7 @@ class WCAI_Assinatura {
             'wcai_pax_session',
             $value,
             array(
-                'expires'  => time() + HOUR_IN_SECONDS,
+                'expires'  => $expires,
                 'path'     => '/',
                 'secure'   => is_ssl(),
                 'httponly' => true,
@@ -642,16 +766,17 @@ class WCAI_Assinatura {
 
         $parts = explode( '|', sanitize_text_field( wp_unslash( $_COOKIE['wcai_pax_session'] ) ) );
 
-        if ( 3 !== count( $parts ) ) {
+        if ( 4 !== count( $parts ) ) {
             return false;
         }
 
-        $payload = absint( $parts[0] ) . '|' . absint( $parts[1] );
+        $payload = absint( $parts[0] ) . '|' . absint( $parts[1] ) . '|' . absint( $parts[2] );
         $expected = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
 
         return absint( $parts[0] ) === absint( $order_id)
             && absint( $parts[1] ) === absint( $participant_id )
-            && hash_equals( $expected, $parts[2] );
+            && absint( $parts[2] ) >= time()
+            && hash_equals( $expected, $parts[3] );
     }
 
     public function register_cpt() {
@@ -717,7 +842,10 @@ class WCAI_Assinatura {
     }
 
     public function render_metabox( $post ) {
-        $url = get_post_meta( $post->ID, '_wcai_assinatura_url', true );
+        // Registros novos ficam em wcai-private (endpoint com capability); antigos mantêm a URL pública.
+        $url = get_post_meta( $post->ID, '_wcai_assinatura_file', true )
+            ? wp_nonce_url( admin_url( 'admin-post.php?action=wcai_signature_image&post_id=' . absint( $post->ID ) ), 'wcai_signature_image_' . absint( $post->ID ) )
+            : get_post_meta( $post->ID, '_wcai_assinatura_url', true );
         $ip_hash = get_post_meta( $post->ID, '_wcai_ip_hash', true );
         $participant_id = absint( get_post_meta( $post->ID, '_wcai_participant_id', true ) );
         $reservation_id = absint( get_post_meta( $post->ID, '_wcai_reservation_id', true ) );
