@@ -15,7 +15,12 @@ require_once dirname( __DIR__ ) . '/includes/class-scanner.php';
 class Test_T4_Scanner extends TestCase {
 
     private function source() {
-        return file_get_contents( dirname( __DIR__ ) . '/includes/class-scanner.php' );
+        $dir = dirname( __DIR__ ) . '/includes';
+        $src = file_get_contents( $dir . '/class-scanner.php' );
+        foreach ( glob( $dir . '/scanner/trait-*.php' ) as $trait ) {
+            $src .= file_get_contents( $trait );
+        }
+        return $src;
     }
 
     public function test_date_query_accepts_only_today_plus_minus_one_day() {

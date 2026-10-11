@@ -16,7 +16,13 @@ require_once dirname( __DIR__ ) . '/includes/class-product-booking.php';
 class Test_T7_Ux extends TestCase {
 
     private function source( $file ) {
-        return file_get_contents( dirname( __DIR__ ) . '/includes/' . $file );
+        $dir = dirname( __DIR__ ) . '/includes';
+        $src = file_get_contents( $dir . '/' . $file );
+        // Traits live in includes/<class-name-without-prefix>/trait-*.php.
+        foreach ( glob( $dir . '/' . substr( basename( $file, '.php' ), 6 ) . '/trait-*.php' ) ?: array() as $trait ) {
+            $src .= file_get_contents( $trait );
+        }
+        return $src;
     }
 
     public function test_clamp_quantity_keeps_value_inside_one_and_max() {
