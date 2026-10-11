@@ -305,6 +305,11 @@ class WCAI_Checkout_Block {
             return;
         }
 
+        // Itens do rascunho recriados com novos ids deixam reservas órfãs do pedido: expira antes de reservar.
+        if ( class_exists( 'WCAI_Reservations' ) ) {
+            WCAI_Reservations::expire_orphans( $order->get_id(), array_keys( $order->get_items() ) );
+        }
+
         $payload = null;
 
         if ( function_exists( 'WC' ) && WC()->session ) {

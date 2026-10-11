@@ -3,6 +3,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 class WCAI_Reservations {
     const HOLD_MINUTES = 15;
+    const MAX_CONFIRM_RETRIES = 5;
 
     public static function get_table_name() {
         global $wpdb;
@@ -14,9 +15,10 @@ class WCAI_Reservations {
         add_action( 'woocommerce_order_status_completed', array( __CLASS__, 'confirm_order' ) );
         add_action( 'woocommerce_order_status_cancelled', array( __CLASS__, 'cancel_order' ) );
         add_action( 'woocommerce_order_status_refunded', array( __CLASS__, 'cancel_order' ) );
-        add_action( 'woocommerce_order_status_failed', array( __CLASS__, 'cancel_order' ) );
+        add_action( 'woocommerce_order_status_failed', array( __CLASS__, 'release_order' ) ); // 'expired', não 'cancelled': o item pode ser reenviado
         add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_schedule' ) );
         add_action( 'wcai_expire_holds', array( __CLASS__, 'expire_holds' ) );
+        add_action( 'wcai_retry_confirm', array( __CLASS__, 'confirm_order' ), 10, 2 );
     }
 
     public static function add_cron_schedule( $schedules ) {
@@ -25,20 +27,44 @@ class WCAI_Reservations {
     }
 
     // Pagamento confirmado: cada reserva vira 'confirmed' dentro do lock da saída, revalidando a vaga.
-    public static function confirm_order( $order_id ) {
+    // $attempt > 0 só vem do evento 'wcai_retry_confirm' (o hook de status passa 1 argumento).
+    public static function confirm_order( $order_id, $attempt = 0 ) {
         global $wpdb;
         $order_id = absint( $order_id );
+        $attempt = absint( $attempt );
         $table = self::get_table_name();
-        $ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM $table WHERE order_id = %d AND status <> 'confirmed'", $order_id ) );
+        $order = wc_get_order( $order_id );
 
-        foreach ( $ids as $reservation_id ) {
-            $result = self::confirm_reservation( absint( $reservation_id ) );
+        // Retry de um pedido que deixou de estar pago (ex.: cancelado depois): não confirma.
+        if ( $attempt && ( ! $order || ! $order->has_status( array( 'processing', 'completed' ) ) ) ) return;
+
+        $rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, order_item_id FROM $table WHERE order_id = %d AND status <> 'confirmed'", $order_id ) );
+        // shortcut: sem o pedido carregado, não filtra itens órfãos; só ocorre com pedido inexistente.
+        $item_ids = $order ? array_map( 'absint', array_keys( $order->get_items() ) ) : null;
+        $retry = false;
+
+        foreach ( $rows as $row ) {
+            $reservation_id = absint( $row->id );
+            // Item recriado/removido no pedido: a reserva órfã não pode ser confirmada.
+            if ( null !== $item_ids && $row->order_item_id && ! in_array( absint( $row->order_item_id ), $item_ids, true ) ) continue;
+
+            $result = self::confirm_reservation( $reservation_id );
 
             if ( is_wp_error( $result ) ) {
-                $order = wc_get_order( $order_id );
-                if ( $order ) $order->add_order_note( 'Reserva #' . absint( $reservation_id ) . ' não confirmada: ' . $result->get_error_message() );
-                WCAI_Audit_Log::log( 'reservation_confirm_refused', 'reservation', absint( $reservation_id ), array( 'order_id' => $order_id, 'reason' => $result->get_error_code() ) );
+                if ( $order ) $order->add_order_note( 'Reserva #' . $reservation_id . ' não confirmada: ' . $result->get_error_message() );
+                WCAI_Audit_Log::log( 'reservation_confirm_refused', 'reservation', $reservation_id, array( 'order_id' => $order_id, 'reason' => $result->get_error_code() ) );
+
+                if ( 'wcai_reservation_locked' === $result->get_error_code() ) {
+                    $retry = true;
+                } elseif ( 'wcai_capacity_exceeded' === $result->get_error_code() && $order ) {
+                    $order->update_status( 'on-hold', 'Pedido pago sem vaga disponível: revisar manualmente.' );
+                    do_action( 'wcai_paid_without_seat', $order_id, $reservation_id );
+                }
             }
+        }
+
+        if ( $retry && $attempt < self::MAX_CONFIRM_RETRIES ) {
+            wp_schedule_single_event( time() + MINUTE_IN_SECONDS, 'wcai_retry_confirm', array( $order_id, $attempt + 1 ) );
         }
 
         do_action( 'wcai_reservations_changed', $order_id );
@@ -92,18 +118,26 @@ class WCAI_Reservations {
     }
 
     // Cron 'wcai_expire_holds': 'hold' vencido vira 'expired' e deixa de contar vaga.
+    // Hold de pedido já pago (processing/completed/on-hold) não expira: a confirmação está pendente.
     public static function expire_holds() {
         global $wpdb;
         $table = self::get_table_name();
         $now = current_time( 'mysql', true );
-        $departure_ids = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT departure_id FROM $table WHERE status = 'hold' AND expires_at <= %s", $now ) );
+        $rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, departure_id, order_id FROM $table WHERE status = 'hold' AND expires_at <= %s", $now ) );
+        $ids_by_departure = array();
 
-        foreach ( $departure_ids as $departure_id ) {
-            $departure_id = absint( $departure_id );
+        foreach ( $rows as $row ) {
+            $order = $row->order_id ? wc_get_order( absint( $row->order_id ) ) : false;
+            if ( $order && $order->has_status( array( 'processing', 'completed', 'on-hold' ) ) ) continue;
+            $ids_by_departure[ absint( $row->departure_id ) ][] = absint( $row->id );
+        }
+
+        foreach ( $ids_by_departure as $departure_id => $ids ) {
             if ( ! self::lock_departure( $departure_id ) ) continue; // próxima execução tenta de novo
 
             try {
-                $wpdb->query( $wpdb->prepare( "UPDATE $table SET status = 'expired', updated_at = %s WHERE departure_id = %d AND status = 'hold' AND expires_at <= %s", $now, $departure_id, $now ) );
+                $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+                $wpdb->query( $wpdb->prepare( "UPDATE $table SET status = 'expired', updated_at = %s WHERE id IN ($placeholders) AND status = 'hold' AND expires_at <= %s", array_merge( array( $now ), $ids, array( $now ) ) ) );
                 do_action( 'wcai_reservation_changed', $departure_id );
             } finally {
                 self::unlock_departure( $departure_id );
@@ -112,11 +146,25 @@ class WCAI_Reservations {
     }
 
     // Libera as reservas ainda não pagas de um pedido que falhou no checkout.
+    // 'expired' (não 'cancelled'): o reenvio do mesmo item revive a reserva em create().
     public static function release_order( $order_id ) {
         global $wpdb;
         $order_id = absint( $order_id );
         $table = self::get_table_name();
-        $wpdb->query( $wpdb->prepare( "UPDATE $table SET status = 'cancelled', expires_at = NULL, updated_at = %s WHERE order_id = %d AND status IN ('hold', 'pending')", current_time( 'mysql', true ), $order_id ) );
+        $wpdb->query( $wpdb->prepare( "UPDATE $table SET status = 'expired', expires_at = NULL, updated_at = %s WHERE order_id = %d AND status IN ('hold', 'pending')", current_time( 'mysql', true ), $order_id ) );
+        do_action( 'wcai_reservations_changed', $order_id );
+    }
+
+    // Itens do pedido recriados com novos ids: hold/pending dos ids antigos viram 'expired'.
+    public static function expire_orphans( $order_id, $item_ids ) {
+        global $wpdb;
+        $order_id = absint( $order_id );
+        $item_ids = array_values( array_filter( array_map( 'absint', (array) $item_ids ) ) );
+        if ( ! $order_id || ! $item_ids ) return;
+
+        $table = self::get_table_name();
+        $placeholders = implode( ',', array_fill( 0, count( $item_ids ), '%d' ) );
+        $wpdb->query( $wpdb->prepare( "UPDATE $table SET status = 'expired', expires_at = NULL, updated_at = %s WHERE order_id = %d AND status IN ('hold', 'pending') AND order_item_id NOT IN ($placeholders)", array_merge( array( current_time( 'mysql', true ), $order_id ), $item_ids ) ) );
         do_action( 'wcai_reservations_changed', $order_id );
     }
 
@@ -402,6 +450,9 @@ class WCAI_Reservations {
                     $is_live_hold = 'hold' === $existing->status && $existing->expires_at > $now;
 
                     if ( in_array( $existing->status, array( 'pending', 'confirmed' ), true ) || $is_live_hold ) {
+                        if ( $is_live_hold && 'hold' === $status ) {
+                            $wpdb->update( $table, array( 'expires_at' => $expires_at, 'updated_at' => $now ), array( 'id' => absint( $existing->id ) ), array( '%s', '%s' ), array( '%d' ) ); // renova o hold reenviado
+                        }
                         return absint( $existing->id );
                     }
 
@@ -452,9 +503,10 @@ class WCAI_Reservations {
                 return new WP_Error( 'wcai_reservation_failed', 'Não foi possível registrar a reserva.' );
             }
 
-            WCAI_Audit_Log::log( 'reservation_created', 'reservation', $wpdb->insert_id, array( 'departure_id' => $departure_id, 'quantity' => $quantity, 'status' => $status ) );
+            $reservation_id = (int) $wpdb->insert_id; // antes do log: o log faz seu próprio insert e troca insert_id
+            WCAI_Audit_Log::log( 'reservation_created', 'reservation', $reservation_id, array( 'departure_id' => $departure_id, 'quantity' => $quantity, 'status' => $status ) );
             do_action( 'wcai_reservation_changed', $departure_id );
-            return $wpdb->insert_id;
+            return $reservation_id;
         } finally {
             $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
         }
