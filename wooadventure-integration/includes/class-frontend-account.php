@@ -45,6 +45,7 @@ class WCAI_Frontend_Account {
         $participants = $this->get_participants_safe( $order );
         if ( empty( $participants ) ) return;
 
+        $terms_url = $this->get_terms_url();
         ?>
         <section class="wcai-order-details-participants" style="margin-bottom: 40px; margin-top: 30px; font-family: inherit;">
             <h2 class="woocommerce-column__title" style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 10px;">👥 Lista de Participantes</h2>
@@ -53,7 +54,7 @@ class WCAI_Frontend_Account {
                 <thead>
                     <tr>
                         <th style="text-align:left; padding:10px; border-bottom:2px solid #eee; background-color: #f8f8f8;">Nome / Idade</th>
-                        <th style="text-align:center; padding:10px; border-bottom:2px solid #eee; background-color: #f8f8f8;">Ticket (QR Code)</th>
+                        <th style="text-align:center; padding:10px; border-bottom:2px solid #eee; background-color: #f8f8f8;"><?php echo esc_html__( 'Ingresso (QR Code)', 'wooadventure-integration' ); ?></th>
                         <th style="text-align:left; padding:10px; border-bottom:2px solid #eee; background-color: #f8f8f8;">Ações</th>
                     </tr>
                 </thead>
@@ -101,12 +102,12 @@ class WCAI_Frontend_Account {
                                 <?php else : ?>
                                     <span style="color:#d63638;">QR indisponível</span>
                                 <?php endif; ?>
-                                <div style="font-size:10px; color:#46b450; font-weight:bold; margin-top:2px;">✅ Ativo</div>
+                                <div style="font-size:12px; color:#1e7e34; font-weight:bold; margin-top:2px;">✅ Ativo</div>
                             <?php elseif ( $has_ticket ): ?>
-                                <span style="color:#46b450; font-weight:bold;">✅ Assinado</span><br><small style="color:#999;">(QR gerando...)</small>
+                                <span style="color:#1e7e34; font-weight:bold;">✅ Assinado</span><br><small style="color:#595959;">(QR gerando...)</small>
                             <?php else: ?>
-                                <span style="color:#ccc; font-size:30px; line-height:1;">⬜</span>
-                                <div style="font-size:10px; color:#999;">Pendente</div>
+                                <span style="color:#ccc; font-size:30px; line-height:1;" aria-hidden="true">⬜</span>
+                                <div style="font-size:12px; color:#595959;">Pendente</div>
                             <?php endif; ?>
                         </td>
                         <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle;">
@@ -117,8 +118,8 @@ class WCAI_Frontend_Account {
                                     $link_whats = "https://wa.me/?text=" . urlencode($msg_whats);
                                 ?>
                                 <a href="<?php echo esc_url($link_whats); ?>" target="_blank" class="button" style="font-size:12px; padding:5px 10px; background-color:#25D366; color:white; border:none; text-decoration:none; display:inline-block;">📲 Enviar Whats</a>
-                            <?php else: ?>
-                                <a href="https://www.cachoeiradosciganos.com.br/termo" target="_blank" style="color:#d63638; text-decoration:underline; font-weight:bold;">👉 Assinar Termo</a>
+                            <?php elseif ( $terms_url ): ?>
+                                <a href="<?php echo esc_url( $terms_url ); ?>" target="_blank" rel="noopener" style="color:#d63638; text-decoration:underline; font-weight:bold;">👉 <?php echo esc_html__( 'Assinar termo', 'wooadventure-integration' ); ?></a>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -141,13 +142,20 @@ class WCAI_Frontend_Account {
             }
             if( $has_pending ): ?>
                 <div style="margin-top: 15px; background: #fff3cd; color: #856404; padding: 12px; border-radius: 4px; font-size: 14px; border: 1px solid #ffeeba;">
-                    ⚠️ Existem participantes pendentes. <br>
-                    <a href="https://www.cachoeiradosciganos.com.br/termo" target="_blank" style="color:#856404; text-decoration:underline; font-weight:bold;">👉 Clique aqui para assinar o termo de responsabilidade</a>
+                    ⚠️ <?php echo esc_html__( 'Existem participantes pendentes.', 'wooadventure-integration' ); ?>
+                    <?php if ( $terms_url ) : ?>
+                        <br>
+                        <a href="<?php echo esc_url( $terms_url ); ?>" target="_blank" rel="noopener" style="color:#856404; text-decoration:underline; font-weight:bold;">👉 <?php echo esc_html__( 'Clique aqui para assinar o termo de responsabilidade', 'wooadventure-integration' ); ?></a>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
 
         </section>
         <?php
+    }
+
+    private function get_terms_url() {
+        return class_exists( 'WCAI_Settings' ) ? (string) WCAI_Settings::get_terms_url() : '';
     }
 
     // --- 1. ASSETS ---
@@ -243,8 +251,8 @@ class WCAI_Frontend_Account {
         echo esc_html( wc_get_order_status_name( $order->get_status() ) );
 
         if ($total > 0 && $signed < $total) {
-            echo '<div style="font-size: 11px; color: #d63638; margin-top: 3px; font-weight:600;">';
-            echo '⚠️ Termo Pendente';
+            echo '<div style="font-size: 12px; color: #d63638; margin-top: 3px; font-weight:600;">';
+            echo '⚠️ ' . esc_html__( 'Termo pendente', 'wooadventure-integration' );
             echo '</div>';
         }
     }
@@ -273,10 +281,10 @@ class WCAI_Frontend_Account {
         if ($total > 0 && !$is_locked) {
             if ($signed == $total) {
                 $btn_text = '✅ Ver Dados';
-                $btn_style = 'background-color: #46b450; color: #fff; border-color: #46b450;'; 
+                $btn_style = 'background-color: #1e7e34; color: #fff; border-color: #1e7e34;';
             } else {
                 $btn_text = "⚠️ Assinar ($signed/$total)";
-                $btn_style = 'background-color: #ffba00; color: #fff; border-color: #ffba00;'; 
+                $btn_style = 'background-color: #ffba00; color: #1d2327; border-color: #ffba00;';
             }
         }
 
@@ -311,18 +319,20 @@ class WCAI_Frontend_Account {
             $msg_bg = '#d4edda'; $msg_color = '#155724'; $msg_border = '#c3e6cb';
         } else {
             $missing = $total - $signed;
-            $termo_link = 'https://www.cachoeiradosciganos.com.br/termo';
-            $msg_text = "⚠️ <strong>Atenção:</strong> Faltam assinaturas ($missing/$total). Peça para cada participante acessar o site.<br>";
-            $msg_text .= "<a href='$termo_link' target='_blank' style='color:{$msg_color}; text-decoration:underline; font-weight:bold; margin-top:5px; display:inline-block;'>👉 Clique aqui para assinar o termo</a>";
             $msg_bg = '#fff3cd'; $msg_color = '#856404'; $msg_border = '#ffeeba';
+            $termo_link = $this->get_terms_url();
+            $msg_text = "⚠️ <strong>Atenção:</strong> Faltam assinaturas ($missing/$total). Peça para cada participante acessar o site.";
+            if ( $termo_link ) {
+                $msg_text .= "<br><a href='" . esc_url( $termo_link ) . "' target='_blank' rel='noopener' style='color:{$msg_color}; text-decoration:underline; font-weight:bold; margin-top:5px; display:inline-block;'>👉 " . esc_html__( 'Clique aqui para assinar o termo', 'wooadventure-integration' ) . '</a>';
+            }
         }
 
         ?>
-        <div id="<?php echo esc_attr($modal_id); ?>" class="wcai-modal-overlay" style="display:none;">
+        <div id="<?php echo esc_attr($modal_id); ?>" class="wcai-modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="<?php echo esc_attr($modal_id); ?>-title">
             <div class="wcai-modal-content">
                 <div class="wcai-modal-header">
-                    <h3>Participantes - Pedido #<?php echo $order_id; ?></h3>
-                    <span class="wcai-close-modal">&times;</span>
+                    <h3 id="<?php echo esc_attr($modal_id); ?>-title">Participantes - Pedido #<?php echo $order_id; ?></h3>
+                    <button type="button" class="wcai-close-modal" aria-label="<?php echo esc_attr__( 'Fechar', 'wooadventure-integration' ); ?>">&times;</button>
                 </div>
                 
                 <form class="wcai-participants-form">
@@ -356,23 +366,23 @@ class WCAI_Frontend_Account {
                                     <td>
                                         <div style="display: flex; align-items: center;">
                                             <?php echo $badge; echo $icon; echo $id_input; ?>
-                                            <input type="text" name="participantes[<?php echo $field_key; ?>][nome_completo]" value="<?php echo esc_attr($p['nome_completo']); ?>" <?php echo $readonly; ?> required style="flex-grow: 1;">
+                                            <input type="text" name="participantes[<?php echo $field_key; ?>][nome_completo]" value="<?php echo esc_attr($p['nome_completo']); ?>" <?php echo $readonly; ?> required style="flex-grow: 1;" aria-label="<?php echo esc_attr( sprintf( __( 'Nome completo do participante %d', 'wooadventure-integration' ), $idx + 1 ) ); ?>">
                                         </div>
                                     </td>
-                                    <td><input type="text" class="wcai-mask-cpf" name="participantes[<?php echo $field_key; ?>][cpf]" value="<?php echo esc_attr($cpf_value); ?>" <?php echo $readonly; ?> required></td>
-                                    <td><input type="text" class="wcai-mask-date" name="participantes[<?php echo $field_key; ?>][data_nascimento]" value="<?php echo esc_attr($val_nasc); ?>" <?php echo $readonly; ?> required placeholder="dd/mm/aaaa"></td>
+                                    <td><input type="text" class="wcai-mask-cpf" name="participantes[<?php echo $field_key; ?>][cpf]" value="<?php echo esc_attr($cpf_value); ?>" <?php echo $readonly; ?> required aria-label="<?php echo esc_attr( sprintf( __( 'CPF do participante %d', 'wooadventure-integration' ), $idx + 1 ) ); ?>"></td>
+                                    <td><input type="text" class="wcai-mask-date" name="participantes[<?php echo $field_key; ?>][data_nascimento]" value="<?php echo esc_attr($val_nasc); ?>" <?php echo $readonly; ?> required placeholder="dd/mm/aaaa" aria-label="<?php echo esc_attr( sprintf( __( 'Data de nascimento do participante %d', 'wooadventure-integration' ), $idx + 1 ) ); ?>"></td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
                         </table>
                         
-                        <div style="margin-top:10px; font-size:12px; color:#666;">
+                        <div style="margin-top:10px; font-size:12px; color:#595959;">
                             <p>ℹ️ <strong>Legenda:</strong> ✅ Assinado | ⚠️ Pendente. <br>Cada participante deve assinar individualmente.</p>
                         </div>
 
                     </div>
                     <div class="wcai-modal-actions">
-                        <span class="wcai-msg"></span>
+                        <span class="wcai-msg" role="status" aria-live="polite"></span>
                         <?php if(!$is_locked): ?><button type="submit" class="button button-primary">Salvar Dados</button><?php endif; ?>
                     </div>
                 </form>
@@ -672,21 +682,24 @@ class WCAI_Frontend_Account {
     }
     
     // Assets modal
-    public function modal_assets() { 
+    public function modal_assets() {
+        if ( ! is_account_page() ) {
+            return;
+        }
         ?>
         <style>
             .wcai-modal-overlay { position: fixed; z-index: 99999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; }
             .wcai-modal-content { background: #fff; width: 90%; max-width: 800px; border-radius: 10px; display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; }
             .wcai-modal-header { padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; }
-            .wcai-close-modal { font-size: 40px; font-weight: bold; line-height: 25px; cursor: pointer; color: #555; padding: 0 10px; transition: color 0.2s; }
-            .wcai-close-modal:hover { color: #000; }
+            .wcai-close-modal { min-width: 44px; min-height: 44px; font-size: 32px; font-weight: bold; line-height: 1; cursor: pointer; color: #50575e; padding: 0 10px; background: none; border: 0; transition: color 0.2s; }
+            .wcai-close-modal:hover, .wcai-close-modal:focus { color: #000; }
             .wcai-participants-form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
             .wcai-scroll-area { overflow-y: auto; padding: 20px; flex: 1; }
             .wcai-frontend-table { width: 100%; border-collapse: collapse; }
             .wcai-frontend-table td, .wcai-frontend-table th { padding: 12px 8px; border-bottom: 1px solid #eee; }
             .wcai-modal-actions { padding: 15px 20px; border-top: 1px solid #eee; text-align: right; }
-            a.woocommerce-button.wcai-action-success { background-color: #46b450 !important; color: #fff !important; border-color: #46b450 !important; }
-            a.woocommerce-button.wcai-action-pending { background-color: #ffba00 !important; color: #fff !important; border-color: #ffba00 !important; }
+            a.woocommerce-button.wcai-action-success { background-color: #1e7e34 !important; color: #fff !important; border-color: #1e7e34 !important; }
+            a.woocommerce-button.wcai-action-pending { background-color: #ffba00 !important; color: #1d2327 !important; border-color: #ffba00 !important; }
             @media (max-width: 600px) { .wcai-frontend-table thead { display: none; } .wcai-frontend-table td { display: block; width: 100%; border: 0; } }
         </style>
         <script>
@@ -696,15 +709,40 @@ class WCAI_Frontend_Account {
                 $('.wcai-mask-date').mask('00/00/0000');
             };
             setupMasks();
-            $(document).on('click', '.wcai-open-modal', function(){ $('#'+$(this).data('target')).fadeIn().css('display','flex'); });
-            $(document).on('click', '.wcai-close-modal', function(){ $(this).closest('.wcai-modal-overlay').fadeOut(); });
+            var i18n = { processing: <?php echo wp_json_encode( __( 'Processando...', 'wooadventure-integration' ) ); ?>, failed: <?php echo wp_json_encode( __( 'Não foi possível salvar. Tente novamente.', 'wooadventure-integration' ) ); ?> };
+            var lastFocus = null;
+            function closeModal(modal){
+                modal.hide().attr('aria-hidden', 'true');
+                if (lastFocus && lastFocus.focus) lastFocus.focus();
+            }
+            $(document).on('click', '.wcai-open-modal', function(){
+                lastFocus = this;
+                var modal = $('#'+$(this).data('target'));
+                modal.css('display','flex').attr('aria-hidden', 'false');
+                modal.find('.wcai-close-modal').trigger('focus');
+            });
+            $(document).on('click', '.wcai-close-modal', function(){ closeModal($(this).closest('.wcai-modal-overlay')); });
+            $(document).on('keydown', function(e){
+                var modal = $('.wcai-modal-overlay:visible');
+                if (!modal.length) return;
+                if (e.key === 'Escape') { closeModal(modal); return; }
+                if (e.key !== 'Tab') return;
+                var items = modal.find('a[href], button:not([disabled]), input:not([disabled]), select, textarea');
+                if (!items.length) return;
+                var first = items.first()[0], last = items.last()[0];
+                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            });
             $('.wcai-participants-form').on('submit', function(e){
                 e.preventDefault();
-                var form = $(this), btn = form.find('button'), msg = form.find('.wcai-msg');
-                btn.prop('disabled', true).text('Processando...');
-                $.post('<?php echo admin_url('admin-ajax.php'); ?>', form.serialize() + '&action=wcai_update_participants', function(r){
-                    if(r.success){ msg.css('color','green').text(r.data.message); setTimeout(()=>location.reload(), 1000); }
-                    else { msg.css('color','red').text(r.data); btn.prop('disabled', false).text('Salvar'); }
+                var form = $(this), btn = form.find('button[type=submit]'), msg = form.find('.wcai-msg'), label = btn.text();
+                btn.prop('disabled', true).text(i18n.processing);
+                $.post(<?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>, form.serialize() + '&action=wcai_update_participants', function(r){
+                    if(r.success){ msg.css('color','#1e7e34').text(r.data.message); setTimeout(()=>location.reload(), 1000); }
+                    else { msg.css('color','#b32d2e').text(r.data); btn.prop('disabled', false).text(label); }
+                }).fail(function(){
+                    msg.css('color','#b32d2e').text(i18n.failed);
+                    btn.prop('disabled', false).text(label);
                 });
             });
         });

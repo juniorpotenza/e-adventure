@@ -4,6 +4,13 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class WCAI_Product_Booking {
 
     const FIELD = 'wcai_product_departure_id';
+    const MAX_AJAX_QUANTITY = 100;
+    const DEPARTURE_IDS_TTL = 60;
+
+    // Limita a quantidade recebida pelo endpoint público (nopriv): 1..MAX_AJAX_QUANTITY.
+    public static function clamp_quantity( $value ) {
+        return max( 1, min( self::MAX_AJAX_QUANTITY, (int) $value ) );
+    }
 
     public function __construct() {
         add_action( 'woocommerce_before_add_to_cart_quantity', array( $this, 'render_departure_selector' ), 20 );
@@ -542,6 +549,8 @@ class WCAI_Product_Booking {
 
         echo '<div class="wcai-date-picker" data-wcai-calendar data-product-id="' . esc_attr( $product->get_id() ) . '" data-child-enabled="' . esc_attr( $child_enabled ? '1' : '0' ) . '" data-child-max="' . esc_attr( $child_max ) . '" data-ajax-url="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '" data-nonce="' . esc_attr( wp_create_nonce( 'wcai_calendar_availability' ) ) . '" data-departures="' . esc_attr( wp_json_encode( $calendar_departures ) ) . '">';
         echo '<div class="wcai-date-picker-heading"><strong>Próximas datas</strong><button type="button" class="wcai-calendar-toggle" data-calendar-toggle aria-expanded="false">Ver todas as datas</button></div>';
+        echo '<div class="wcai-calendar-error" data-calendar-error role="alert" hidden></div>';
+        echo '<div class="wcai-visually-hidden" data-calendar-status role="status" aria-live="polite" aria-atomic="true"></div>';
         echo '<div class="wcai-quick-dates" data-calendar-quick></div>';
         echo '<div class="wcai-calendar-full" data-calendar-full hidden>';
         echo '<div class="wcai-calendar-toolbar">';
@@ -556,10 +565,10 @@ class WCAI_Product_Booking {
         echo '</div>';
         echo '<div class="wcai-calendar-grid" data-calendar-grid role="grid" aria-label="Calendário de disponibilidade"></div>';
         echo '<div class="wcai-calendar-legend">';
-        echo '<span><i class="is-available"></i> Disponível</span>';
-        echo '<span><i class="is-few"></i> Últimas vagas</span>';
-        echo '<span><i class="is-full"></i> Lotado</span>';
-        echo '<span><i class="is-closed"></i> Encerrado</span>';
+        echo '<span><i class="is-available" aria-hidden="true">✓</i> Disponível</span>';
+        echo '<span><i class="is-few" aria-hidden="true">!</i> Últimas vagas</span>';
+        echo '<span><i class="is-full" aria-hidden="true">×</i> Lotado</span>';
+        echo '<span><i class="is-closed" aria-hidden="true">–</i> Encerrado</span>';
         echo '</div>';
         echo '</div>';
 
@@ -578,7 +587,7 @@ class WCAI_Product_Booking {
         echo '<div class="wcai-participant-row" data-participant-row="adults"><div><strong>Adultos</strong><small>Inclui o titular da reserva</small></div><div class="wcai-stepper"><button type="button" data-participant-action="minus" aria-label="Diminuir adultos">−</button><strong data-participant-value="adults">1</strong><button type="button" data-participant-action="plus" aria-label="Aumentar adultos">+</button></div></div>';
         echo '<div class="wcai-participant-row" data-participant-row="children"><div><strong>Crianças</strong><small>' . esc_html( ! empty( $profile['children_age_max'] ) ? 'Até ' . absint( $profile['children_age_max'] ) . ' anos' : 'Conforme as regras do passeio' ) . '</small></div><div class="wcai-stepper"><button type="button" data-participant-action="minus" aria-label="Diminuir crianças">−</button><strong data-participant-value="children">0</strong><button type="button" data-participant-action="plus" aria-label="Aumentar crianças">+</button></div></div>';
         echo '</div>';
-        echo '<div class="wcai-participant-total"><div><strong data-participant-total>1 participante</strong><small>Capacidade calculada para o horário escolhido.</small></div><div class="wcai-participant-badge" data-participant-availability>Escolha o horário</div></div>';
+        echo '<div class="wcai-participant-total"><div><strong data-participant-total>1 participante</strong><small>Capacidade calculada para o horário escolhido.</small></div><div class="wcai-participant-badge" data-participant-availability aria-live="polite">Escolha o horário</div></div>';
         echo '<input type="hidden" name="wcai_adults" value="1" data-participant-input="adults">';
         echo '<input type="hidden" name="wcai_children" value="0" data-participant-input="children">';
         echo '</section>';
@@ -597,7 +606,7 @@ class WCAI_Product_Booking {
 
         $product_id = isset( $_POST['product_id'] ) ? absint( wp_unslash( $_POST['product_id'] ) ) : 0;
         $date = isset( $_POST['date'] ) ? sanitize_text_field( wp_unslash( $_POST['date'] ) ) : '';
-        $quantity = isset( $_POST['quantity'] ) ? max( 1, absint( wp_unslash( $_POST['quantity'] ) ) ) : 1;
+        $quantity = isset( $_POST['quantity'] ) ? self::clamp_quantity( wp_unslash( $_POST['quantity'] ) ) : 1;
 
         if ( ! $product_id || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) || ! $this->is_target_product( $product_id ) ) {
             wp_send_json_error( array( 'message' => 'Parâmetros inválidos.' ), 400 );
@@ -607,11 +616,19 @@ class WCAI_Product_Booking {
             wp_send_json_error( array( 'message' => 'Disponibilidade indisponível.' ), 500 );
         }
 
-        $departures = WCAI_Reservations::get_calendar_departures_for_product( $product_id, 0 );
+        // A lista de IDs (get_posts sem limite) fica em cache curto; a disponibilidade é recalculada a cada chamada.
+        $cache_key = 'wcai_cal_deps_' . $product_id;
+        $departure_ids = get_transient( $cache_key );
+
+        if ( ! is_array( $departure_ids ) ) {
+            $departure_ids = wp_list_pluck( WCAI_Reservations::get_calendar_departures_for_product( $product_id, 0 ), 'ID' );
+            set_transient( $cache_key, $departure_ids, self::DEPARTURE_IDS_TTL );
+        }
+
         $result = array();
 
-        foreach ( $departures as $departure ) {
-            $payload = $this->departure_payload( $departure->ID, $quantity );
+        foreach ( $departure_ids as $departure_id ) {
+            $payload = $this->departure_payload( absint( $departure_id ), $quantity );
 
             if ( $payload && $payload['date'] === $date ) {
                 $result[] = $payload;
@@ -634,6 +651,20 @@ class WCAI_Product_Booking {
 
         wp_register_script( 'wcai-product-booking-calendar', false, array(), WCAI_VERSION, true );
         wp_enqueue_script( 'wcai-product-booking-calendar' );
+
+        // needs follow-up: add Text Domain header + load_plugin_textdomain in main file (T8).
+        wp_add_inline_script(
+            'wcai-product-booking-calendar',
+            'window.wcaiBookingI18n = ' . wp_json_encode(
+                array(
+                    'cartHint'   => __( 'Escolha data e horário', 'wooadventure-integration' ),
+                    'fetchError' => __( 'Não foi possível atualizar a disponibilidade. Mostrando os últimos dados carregados; tente novamente.', 'wooadventure-integration' ),
+                    'timesCount' => __( '%d horário(s) disponível(is) em %s', 'wooadventure-integration' ),
+                    'selected'   => __( 'Selecionado: %s', 'wooadventure-integration' ),
+                )
+            ) . ';',
+            'before'
+        );
 
         wp_add_inline_script(
             'wcai-product-booking-calendar',
@@ -669,8 +700,12 @@ class WCAI_Product_Booking {
         var participantRoot = document.querySelector('[data-wcai-participants]');
         var adultInput = participantRoot ? participantRoot.querySelector('[data-participant-input="adults"]') : null;
         var childInput = participantRoot ? participantRoot.querySelector('[data-participant-input="children"]') : null;
-        var totalInput = participantRoot ? participantRoot.querySelector('[data-wcai-booking-quantity]') : null;
         var nativeQuantityInput = document.querySelector('form.cart input.qty[name="quantity"]');
+        var errorBox = root.querySelector('[data-calendar-error]');
+        var statusBox = root.querySelector('[data-calendar-status]');
+        var i18n = window.wcaiBookingI18n || {};
+        var cartHint = null;
+        var dayButtons = [];
         var ajaxUrl = root.getAttribute('data-ajax-url');
         var nonce = root.getAttribute('data-nonce');
         var productId = root.getAttribute('data-product-id');
@@ -687,6 +722,16 @@ class WCAI_Product_Booking {
         var selectedDate = '';
         var selectedDepartureId = '';
         var loading = false;
+
+        function announce(text) {
+            if (statusBox) statusBox.textContent = text;
+        }
+
+        function showError(text) {
+            if (!errorBox) return;
+            errorBox.textContent = text || '';
+            errorBox.hidden = !text;
+        }
 
         function adultCount() {
             return Math.max(1, adultInput ? parseInt(adultInput.value, 10) || 1 : 1);
@@ -711,7 +756,6 @@ class WCAI_Product_Booking {
                 childInput.value = childEnabled ? children : 0;
             }
 
-            if ( totalInput ) totalInput.value = total;
             if ( nativeQuantityInput ) nativeQuantityInput.value = total;
 
             if ( participantRoot ) {
@@ -870,6 +914,7 @@ class WCAI_Product_Booking {
                 button.disabled = state.state === 'empty' || state.state === 'full' || state.state === 'closed' || state.state === 'insufficient';
                 button.setAttribute('aria-label', dayNumber + ' de ' + shortMonth(date) + ', ' + (state.label || state.state));
 
+                button.setAttribute('aria-pressed', selectedDate === date ? 'true' : 'false');
                 if (selectedDate === date) {
                     button.classList.add('is-selected');
                 }
@@ -912,6 +957,7 @@ class WCAI_Product_Booking {
             }
 
             loading = true;
+            showError('');
             root.classList.add('is-loading');
 
             var body = new URLSearchParams();
@@ -927,7 +973,10 @@ class WCAI_Product_Booking {
                 body: body.toString(),
                 credentials: 'same-origin'
             })
-                .then(function (response) { return response.json(); })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('http ' + response.status);
+                    return response.json();
+                })
                 .then(function (response) {
                     if (response && response.success && response.data && Array.isArray(response.data.departures)) {
                         updateDepartureSnapshot(date, response.data.departures);
@@ -935,10 +984,12 @@ class WCAI_Product_Booking {
                         renderCalendar();
                         done(response.data.departures);
                     } else {
-                        done(dateDepartures(date));
+                        throw new Error('invalid response');
                     }
                 })
                 .catch(function () {
+                    // Mostra o erro e mantém os últimos dados carregados; o servidor revalida a vaga ao adicionar ao carrinho.
+                    showError(i18n.fetchError || 'Não foi possível atualizar a disponibilidade. Mostrando os últimos dados carregados.');
                     done(dateDepartures(date));
                 })
                 .finally(function () {
@@ -956,6 +1007,7 @@ class WCAI_Product_Booking {
             if (!options.length) {
                 selection.hidden = false;
                 times.innerHTML = '<div class="wcai-no-times">Não há saída registrada para este dia.</div>';
+                announce('Não há saída registrada para este dia.');
                 return;
             }
 
@@ -1021,7 +1073,9 @@ class WCAI_Product_Booking {
 
                 button.appendChild(content);
 
-                if (String(selectedDepartureId) === String(departure.id)) {
+                var isSelectedTime = String(selectedDepartureId) === String(departure.id);
+                button.setAttribute('aria-pressed', isSelectedTime ? 'true' : 'false');
+                if (isSelectedTime) {
                     button.classList.add('is-selected');
                 }
 
@@ -1033,8 +1087,10 @@ class WCAI_Product_Booking {
 
                     root.querySelectorAll('.wcai-time-option').forEach(function (item) {
                         item.classList.remove('is-selected');
+                        item.setAttribute('aria-pressed', 'false');
                     });
                     button.classList.add('is-selected');
+                    button.setAttribute('aria-pressed', 'true');
 
                     selectedDeparture.innerHTML = '';
                     var selectedHeader = document.createElement('div');
@@ -1069,10 +1125,13 @@ class WCAI_Product_Booking {
                     input.dispatchEvent(new Event('change', { bubbles: true }));
                     updateParticipantUI();
                     enableAddToCart();
+                    announce((i18n.selected || 'Selecionado: %s').replace('%s', selectedTitle.textContent));
                 });
 
                 times.appendChild(button);
             });
+
+            announce((i18n.timesCount || '%d horário(s) disponível(is) em %s').replace('%d', options.filter(qualifies).length).replace('%s', selectedDateLabel.textContent));
         }
 
         function selectDate(date, dateElement) {
@@ -1082,15 +1141,15 @@ class WCAI_Product_Booking {
             selectedDeparture.hidden = true;
             if ( participantRoot ) participantRoot.hidden = true;
 
-            root.querySelectorAll('.wcai-calendar-day').forEach(function (item) {
+            root.querySelectorAll('button.wcai-calendar-day, .wcai-quick-date').forEach(function (item) {
                 item.classList.remove('is-selected');
+                item.setAttribute('aria-pressed', 'false');
             });
 
-            root.querySelectorAll('.wcai-quick-date').forEach(function (item) {
-                item.classList.remove('is-selected');
-            });
-
-            if (dateElement) dateElement.classList.add('is-selected');
+            if (dateElement) {
+                dateElement.classList.add('is-selected');
+                dateElement.setAttribute('aria-pressed', 'true');
+            }
 
             renderQuickDates();
 
@@ -1106,31 +1165,51 @@ class WCAI_Product_Booking {
 
             monthLabel.textContent = monthName(key);
             grid.innerHTML = '';
+            dayButtons = [];
 
             var parts = key.split('-');
             var year = parseInt(parts[0], 10);
             var month = parseInt(parts[1], 10) - 1;
             var firstDay = new Date(year, month, 1).getDay();
             var daysInMonth = new Date(year, month + 1, 0).getDate();
+            var glyphs = { available: '✓', few: '!', insufficient: '↓', full: '×', closed: '–' };
+            var row = null;
+
+            function addCell(cell, column) {
+                if (column === 0) {
+                    row = document.createElement('div');
+                    row.className = 'wcai-calendar-row';
+                    row.setAttribute('role', 'row');
+                    grid.appendChild(row);
+                }
+                row.appendChild(cell);
+            }
 
             for (var blank = 0; blank < firstDay; blank++) {
-                var empty = document.createElement('span');
-                empty.className = 'wcai-calendar-day is-empty';
-                grid.appendChild(empty);
+                var empty = document.createElement('div');
+                empty.className = 'wcai-calendar-cell';
+                empty.setAttribute('role', 'presentation');
+                addCell(empty, blank);
             }
 
             for (var day = 1; day <= daysInMonth; day++) {
                 var date = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
                 var state = dateState(date);
+                var cell = document.createElement('div');
                 var dayEl;
 
+                cell.className = 'wcai-calendar-cell';
+
                 if (state.state !== 'empty') {
+                    cell.setAttribute('role', 'gridcell');
                     dayEl = document.createElement('button');
                     dayEl.type = 'button';
                     dayEl.className = 'wcai-calendar-day state-' + state.state;
-                    dayEl.setAttribute('role', 'gridcell');
+                    dayEl.tabIndex = -1;
                     dayEl.setAttribute('aria-label', day + ' ' + monthName(key) + ', ' + (state.label || state.state));
+                    dayEl.setAttribute('aria-pressed', date === selectedDate ? 'true' : 'false');
                     dayEl.title = state.label || state.state;
+                    if (date === selectedDate) dayEl.classList.add('is-selected');
                     dayEl.addEventListener('click', function (dateValue) {
                         return function () {
                             selectDate(dateValue, this);
@@ -1141,38 +1220,95 @@ class WCAI_Product_Booking {
                     number.textContent = day;
                     dayEl.appendChild(number);
 
+                    // Estado também por símbolo e texto (title/aria-label), não só por cor.
                     var dot = document.createElement('i');
                     dot.className = 'wcai-calendar-dot';
                     dot.setAttribute('aria-hidden', 'true');
+                    dot.textContent = glyphs[state.state] || '';
                     dayEl.appendChild(dot);
+                    dayButtons.push(dayEl);
                 } else {
+                    cell.setAttribute('aria-hidden', 'true');
                     dayEl = document.createElement('span');
                     dayEl.className = 'wcai-calendar-day is-empty-date';
-                    dayEl.setAttribute('aria-hidden', 'true');
                     dayEl.textContent = day;
+                    dayButtons.push(null);
                 }
 
-                grid.appendChild(dayEl);
+                cell.appendChild(dayEl);
+                addCell(cell, (firstDay + day - 1) % 7);
             }
 
             prev.disabled = monthIndex <= 0;
             next.disabled = monthIndex >= monthKeys.length - 1;
 
-            if (selectedDate && selectedDate.slice(0, 7) === key) {
-                var dayNumber = parseInt(selectedDate.slice(8, 10), 10);
-                grid.querySelectorAll('.wcai-calendar-day').forEach(function (item) {
-                    var strong = item.querySelector('strong');
-                    if (strong && parseInt(strong.textContent, 10) === dayNumber) item.classList.add('is-selected');
-                });
+            // Roving tabindex: um único dia na sequência de Tab (o selecionado ou o primeiro disponível).
+            var tabStop = dayButtons.filter(function (item) { return item && item.classList.contains('is-selected'); })[0]
+                || dayButtons.filter(Boolean)[0];
+            if (tabStop) tabStop.tabIndex = 0;
+        }
+
+        function onGridKeydown(event) {
+            var offsets = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+            var offset = offsets[event.key];
+            var from = dayButtons.indexOf(document.activeElement);
+
+            if (!offset || from < 0) return;
+
+            event.preventDefault();
+
+            for (var i = from + offset; i >= 0 && i < dayButtons.length; i += offset < 0 ? -1 : 1) {
+                if (dayButtons[i]) {
+                    dayButtons[from].tabIndex = -1;
+                    dayButtons[i].tabIndex = 0;
+                    dayButtons[i].focus();
+                    return;
+                }
             }
         }
 
+        function guardAddToCart(event) {
+            if (selectedDepartureId) return;
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            announce(cartHint ? cartHint.textContent : '');
+
+            var firstDate = root.querySelector('.wcai-quick-date:not(:disabled)');
+            if (firstDate) firstDate.focus();
+        }
+
         function enableAddToCart() {
+            var missing = !selectedDepartureId;
             var buttons = document.querySelectorAll('button.single_add_to_cart_button, input.single_add_to_cart_button');
+
+            if (buttons.length && !cartHint) {
+                cartHint = document.createElement('p');
+                cartHint.id = 'wcai-cart-hint';
+                cartHint.className = 'wcai-cart-hint';
+                cartHint.textContent = i18n.cartHint || 'Escolha data e horário';
+                buttons[0].insertAdjacentElement('afterend', cartHint);
+            }
+
             buttons.forEach(function (button) {
-                button.disabled = !selectedDepartureId;
-                button.classList.toggle('disabled', !selectedDepartureId);
+                // aria-disabled (e não disabled) mantém o botão focável e ligado à dica; o clique é barrado em guardAddToCart.
+                button.disabled = false;
+                button.setAttribute('aria-disabled', missing ? 'true' : 'false');
+                button.classList.toggle('disabled', missing);
+
+                if (missing) {
+                    button.setAttribute('aria-describedby', 'wcai-cart-hint');
+                } else {
+                    button.removeAttribute('aria-describedby');
+                }
+
+                if (!button.hasAttribute('data-wcai-guard')) {
+                    button.setAttribute('data-wcai-guard', '1');
+                    button.addEventListener('click', guardAddToCart, true);
+                }
             });
+
+            if (cartHint) cartHint.hidden = !missing;
         }
 
         function refreshForQuantity() {
@@ -1241,6 +1377,8 @@ class WCAI_Product_Booking {
         renderQuickDates();
         setCalendarExpanded(false);
 
+        grid.addEventListener('keydown', onGridKeydown);
+
         prev.addEventListener('click', function () {
             if (monthIndex > 0) {
                 monthIndex--;
@@ -1289,7 +1427,7 @@ JS
         wp_enqueue_style( 'wcai-product-booking-inline' );
         wp_add_inline_style(
             'wcai-product-booking-inline',
-            '.wcai-product-booking{margin:24px 0;padding:0;border:1px solid #e7e7e7;border-radius:18px;background:#fff;box-shadow:0 10px 32px rgba(0,0,0,.06);overflow:hidden}.single-product form.cart .wcai-product-booking{position:relative}.wcai-tour-info{margin:0 0 18px;padding:14px 16px;border:1px solid #ececec;border-radius:12px;background:#fff}.wcai-tour-info-heading{display:flex;justify-content:space-between;gap:12px;align-items:baseline;margin-bottom:10px}.wcai-tour-info-heading strong{font-size:15px}.wcai-tour-info-heading small{font-size:11px;color:#777}.wcai-tour-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.wcai-tour-info-card{display:flex;gap:10px;align-items:flex-start;min-width:0;padding:11px 12px;border:1px solid #e8e8e8;border-radius:10px;background:#fafafa}.wcai-tour-info-icon{display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:#fff;border:1px solid #e1e1e1}.wcai-tour-info-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.wcai-tour-info-card-body{min-width:0}.wcai-tour-info-card-body strong{display:block;font-size:12px;line-height:1.25}.wcai-tour-info-card-body p{margin:3px 0 0;font-size:10px;line-height:1.45;color:#666;white-space:normal}.wcai-tour-info-card.is-safety .wcai-tour-info-icon{color:#6d4b2f}.wcai-tour-info-card.is-weather .wcai-tour-info-icon{color:#4d6375}.wcai-tour-info-card.is-difficulty .wcai-tour-info-icon{color:#4d5d4d}.wcai-tour-info-card.is-gear .wcai-tour-info-icon{color:#5d5666}.wcai-booking-top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding:22px 24px 16px;border-bottom:1px solid #eee}.wcai-booking-eyebrow{display:block;font-size:10px;letter-spacing:.16em;font-weight:800;color:#777}.wcai-booking-top h2{margin:5px 0 5px;font-size:23px;line-height:1.2}.wcai-booking-top p{margin:0;color:#666;font-size:13px}.wcai-booking-price{text-align:right;font-weight:800;font-size:19px;white-space:nowrap}.wcai-booking-price small{display:block;margin-top:2px;font-size:11px;font-weight:500;color:#777}.wcai-tour-facts{margin:0 0 18px;padding:14px 16px;border:1px solid #ececec;border-radius:12px;background:#fff}.wcai-tour-facts-heading{display:flex;justify-content:space-between;gap:12px;align-items:baseline;margin-bottom:10px}.wcai-tour-facts-heading strong{font-size:15px}.wcai-tour-facts-heading small{font-size:11px;color:#777}.wcai-tour-facts-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.wcai-tour-facts-grid>div{min-width:0}.wcai-tour-facts-grid span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#888}.wcai-tour-facts-grid strong{display:block;margin-top:2px;font-size:12px;line-height:1.35}.wcai-booking-context{display:flex;gap:10px;align-items:flex-start;margin:18px 24px 0;padding:11px 13px;border:1px solid #eee;border-radius:10px;background:#fafafa}.wcai-booking-context strong{display:block;white-space:nowrap;font-size:12px}.wcai-booking-context span{font-size:12px;line-height:1.4;color:#666}.wcai-booking-section{padding:18px 24px 0}.wcai-booking-layout{display:block}.wcai-date-picker{padding:0}.wcai-date-picker-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}.wcai-date-picker-heading strong{font-size:12px}.wcai-calendar-toggle{padding:5px 8px;border:1px solid #ddd;border-radius:7px;background:#fff;color:#555;font-size:10px;font-weight:700;cursor:pointer}.wcai-calendar-toggle:hover{border-color:#777}.wcai-quick-dates{display:flex;gap:7px;overflow-x:auto;padding:2px 2px 5px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}.wcai-quick-date{flex:0 0 82px;min-width:82px;padding:7px 5px;border:1px solid #e2e2e2;border-radius:9px;background:#fff;text-align:center;cursor:pointer}.wcai-quick-date strong{display:block;font-size:15px;line-height:1.1}.wcai-quick-date span{display:block;margin-top:3px;font-size:8px;text-transform:uppercase;letter-spacing:.04em;color:#777}.wcai-quick-date small{display:block;margin-top:3px;font-size:7px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wcai-quick-date:hover:not(:disabled){border-color:#777}.wcai-quick-date:disabled{cursor:not-allowed;opacity:.45}.wcai-quick-date.is-selected{border-color:#222;box-shadow:0 0 0 2px rgba(0,0,0,.06);background:#fafafa}.wcai-booking-section .wcai-participant-picker{margin:12px 0 0;padding:14px;border:1px solid #e8e8e8;border-radius:12px;background:#fbfbfb}.wcai-participant-picker[hidden]{display:none!important}.wcai-booking-section .wcai-participant-picker .wcai-booking-section-title{margin-bottom:11px}.wcai-calendar-full{margin-top:8px;padding:8px 0 0;border-top:1px solid #eee}.wcai-calendar-full[hidden]{display:none!important}.wcai-booking-section-title{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}.wcai-booking-section-title>span{display:flex;align-items:center;justify-content:center;width:25px;height:25px;border-radius:50%;background:#202020;color:#fff;font-size:11px;flex:0 0 25px}.wcai-booking-section-title strong{display:block;font-size:15px}.wcai-booking-section-title small{display:block;margin-top:2px;color:#777;font-size:11px}.wcai-calendar{max-width:100%;margin:0 auto}.wcai-calendar-toolbar{display:grid;grid-template-columns:30px 1fr 30px;align-items:center;gap:4px;margin:0 auto 4px}.wcai-calendar-month{text-align:center;text-transform:capitalize;font-size:14px}.wcai-calendar-nav{width:30px;height:28px;border:1px solid #ddd;border-radius:7px;background:#fff;font-size:18px;line-height:1;cursor:pointer}.wcai-calendar-nav:hover:not(:disabled){border-color:#777}.wcai-calendar-nav:disabled{opacity:.35;cursor:not-allowed}.wcai-calendar.is-loading{opacity:.7}.wcai-calendar-weekdays,.wcai-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}.wcai-calendar-weekdays{margin-bottom:2px}.wcai-calendar-weekdays span{text-align:center;font-size:8px;font-weight:800;text-transform:uppercase;color:#999;padding:1px 0}.wcai-calendar-day{height:31px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;box-sizing:border-box}.wcai-calendar-day.is-empty{visibility:hidden}.wcai-calendar-day.is-empty-date{color:#bbb;border:1px solid transparent}.wcai-calendar-day.state-available,.wcai-calendar-day.state-few,.wcai-calendar-day.state-insufficient,.wcai-calendar-day.state-full,.wcai-calendar-day.state-closed{border:1px solid #e1e1e1;background:#fff;cursor:pointer}.wcai-calendar-day.state-available{box-shadow:inset 0 -2px 0 #3f8f5b}.wcai-calendar-day.state-few{box-shadow:inset 0 -2px 0 #c58a21}.wcai-calendar-day.state-insufficient{box-shadow:inset 0 -2px 0 #888}.wcai-calendar-day.state-full{opacity:.52;box-shadow:inset 0 -2px 0 #b54b4b}.wcai-calendar-day.state-closed{opacity:.5;box-shadow:inset 0 -2px 0 #999}.wcai-calendar-day.is-selected{outline:2px solid #222;outline-offset:1px}.wcai-calendar-day strong{font-size:12px;line-height:1}.wcai-calendar-dot{width:5px;height:5px;border-radius:50%;display:block}.wcai-calendar-day.state-available .wcai-calendar-dot{background:#3f8f5b}.wcai-calendar-day.state-few .wcai-calendar-dot{background:#c58a21}.wcai-calendar-day.state-insufficient .wcai-calendar-dot{background:#888}.wcai-calendar-day.state-full .wcai-calendar-dot{background:#b54b4b}.wcai-calendar-day.state-closed .wcai-calendar-dot{background:#999}.wcai-calendar-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin:6px 0 0;color:#666;font-size:9px}.wcai-calendar-legend span{display:flex;align-items:center;gap:4px}.wcai-calendar-legend i{width:6px;height:6px;border-radius:50%;display:inline-block;border:1px solid #999}.wcai-calendar-legend .is-available{background:#3f8f5b}.wcai-calendar-legend .is-few{background:#c58a21}.wcai-calendar-legend .is-full{background:#b54b4b}.wcai-calendar-legend .is-closed{background:#999}.wcai-calendar-selection{margin-top:16px;padding-top:14px;border-top:1px solid #eee}.wcai-selection-heading{display:flex;justify-content:space-between;gap:16px;align-items:baseline;margin-bottom:9px}.wcai-selection-heading strong{font-size:15px}.wcai-selection-heading small{color:#777;font-size:11px}.wcai-time-options{display:grid;grid-template-columns:1fr;gap:8px}.wcai-time-option{display:grid;grid-template-columns:auto 1fr;column-gap:12px;row-gap:3px;text-align:left;padding:12px;border:1px solid #e0e0e0;border-radius:10px;background:#fff;cursor:pointer;transition:.15s}.wcai-time-option:hover:not(:disabled){border-color:#777;transform:translateY(-1px)}.wcai-time-option:disabled{cursor:not-allowed;opacity:.52;background:#f8f8f8}.wcai-time-option>strong{font-size:19px;min-width:54px;grid-row:1/span 3}.wcai-time-option-content{min-width:0}.wcai-time-status{display:block;font-size:11px;font-weight:800}.wcai-time-formation{margin:6px 0 3px}.wcai-time-formation b{display:block;font-size:10px;line-height:1.3}.wcai-time-progress{display:block;height:5px;margin-top:4px;border-radius:999px;background:#ededed;overflow:hidden}.wcai-time-progress i{display:block;height:100%;border-radius:inherit;background:#222}.wcai-time-option small{display:block;font-size:9px;line-height:1.35;color:#777}.wcai-time-option.state-few{border-color:#c58a21}.wcai-time-option.state-full,.wcai-time-option.state-closed{border-color:#e2e2e2}.wcai-time-option.is-selected{border-color:#222;box-shadow:0 0 0 2px rgba(0,0,0,.07);background:#fafafa}.wcai-no-times{padding:13px;border:1px dashed #ccc;border-radius:10px;color:#666}.wcai-selected-departure{margin-top:9px;padding:11px 13px;border-radius:10px;background:#f7f7f7;border:1px solid #e5e5e5}.wcai-selected-departure>div{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.wcai-selected-departure span{color:#666;font-size:11px}.wcai-selected-departure p{margin:6px 0 0;font-size:11px;line-height:1.4}.wcai-selected-departure small{display:block;margin-top:6px;color:#777}.wcai-participant-picker{margin:18px 24px 0;padding:18px;border-top:1px solid #eee;background:#fbfbfb}.wcai-participant-rows{display:grid;grid-template-columns:1fr;gap:8px}.wcai-participant-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 14px;border:1px solid #e1e1e1;border-radius:10px;background:#fff}.wcai-participant-row>div:first-child strong{display:block;font-size:13px}.wcai-participant-row>div:first-child small{display:block;margin-top:2px;color:#777;font-size:10px}.wcai-stepper{display:flex;align-items:center;gap:8px}.wcai-stepper button{width:30px;height:30px;border:1px solid #d4d4d4;border-radius:50%;background:#fff;font-size:18px;line-height:1;cursor:pointer}.wcai-stepper button:disabled{opacity:.35;cursor:not-allowed}.wcai-stepper>strong{min-width:18px;text-align:center;font-size:14px}.wcai-participant-total{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px;padding:11px 13px;border-radius:9px;background:#fff;border:1px solid #e3e3e3}.wcai-participant-total strong{display:block;font-size:13px}.wcai-participant-total small{display:block;margin-top:2px;color:#777;font-size:10px}.wcai-participant-badge{font-size:10px;font-weight:700;color:#555}.wcai-booking-note{margin:14px 24px 20px;color:#777;font-size:10px;line-height:1.45}.single-product form.cart .single_add_to_cart_button{display:block;width:calc(100% - 48px);margin:12px 24px 20px;min-height:46px;border-radius:10px;font-weight:800}.wcai-cart-fixed-quantity{display:inline-block;min-width:28px;text-align:center;font-weight:700}.wcai-booking-empty{margin:18px 24px;padding:20px;border:1px dashed #ccc;border-radius:10px;background:#fafafa}.single-product form.cart .quantity{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;overflow:hidden!important}.single-product form.cart .quantity input[name="quantity"]{position:absolute!important;left:0!important;width:1px!important;height:1px!important;opacity:0!important}@media(max-width:700px){.wcai-tour-info-grid{grid-template-columns:1fr}.wcai-product-booking{margin:18px 0;border-radius:14px}.wcai-booking-top{display:block;padding:18px}.wcai-booking-price{text-align:left;margin-top:8px}.wcai-booking-section{padding-left:18px;padding-right:18px}.wcai-booking-section .wcai-participant-picker{padding:14px}.wcai-participant-rows{grid-template-columns:1fr}.wcai-calendar{max-width:100%}.wcai-calendar-day{height:30px}.wcai-time-options{grid-template-columns:1fr}.wcai-booking-note{margin-left:18px;margin-right:18px}}'        );
+            '.wcai-product-booking,.wcai-tour-info,.wcai-tour-facts{--wcai-muted:#595959;--wcai-ok:#2e7d4f;--wcai-few:#946200;--wcai-bad:#a33a3a;--wcai-error:#a3262a}.wcai-visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.wcai-calendar-error{margin:6px 0;padding:10px 12px;border:1px solid var(--wcai-error);border-radius:8px;background:#fdf2f2;color:var(--wcai-error);font-size:13px}.wcai-calendar-error[hidden],.wcai-cart-hint[hidden]{display:none!important}.wcai-cart-hint{margin:-12px 24px 20px;font-size:13px;color:var(--wcai-muted)}.single_add_to_cart_button[aria-disabled=true]{opacity:.55;cursor:not-allowed}.wcai-product-booking button:focus-visible,.single_add_to_cart_button:focus-visible{outline:2px solid #222;outline-offset:2px}.wcai-product-booking{margin:24px 0;padding:0;border:1px solid #e7e7e7;border-radius:18px;background:#fff;box-shadow:0 10px 32px rgba(0,0,0,.06);overflow:hidden}.single-product form.cart .wcai-product-booking{position:relative}.wcai-tour-info{margin:0 0 18px;padding:14px 16px;border:1px solid #ececec;border-radius:12px;background:#fff}.wcai-tour-info-heading{display:flex;justify-content:space-between;gap:12px;align-items:baseline;margin-bottom:10px}.wcai-tour-info-heading strong{font-size:15px}.wcai-tour-info-heading small{font-size:12px;color:var(--wcai-muted)}.wcai-tour-info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.wcai-tour-info-card{display:flex;gap:10px;align-items:flex-start;min-width:0;padding:11px 12px;border:1px solid #e8e8e8;border-radius:10px;background:#fafafa}.wcai-tour-info-icon{display:flex;align-items:center;justify-content:center;width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:#fff;border:1px solid #e1e1e1}.wcai-tour-info-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.wcai-tour-info-card-body{min-width:0}.wcai-tour-info-card-body strong{display:block;font-size:12px;line-height:1.25}.wcai-tour-info-card-body p{margin:3px 0 0;font-size:12px;line-height:1.45;color:#666;white-space:normal}.wcai-tour-info-card.is-safety .wcai-tour-info-icon{color:#6d4b2f}.wcai-tour-info-card.is-weather .wcai-tour-info-icon{color:#4d6375}.wcai-tour-info-card.is-difficulty .wcai-tour-info-icon{color:#4d5d4d}.wcai-tour-info-card.is-gear .wcai-tour-info-icon{color:#5d5666}.wcai-booking-top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding:22px 24px 16px;border-bottom:1px solid #eee}.wcai-booking-eyebrow{display:block;font-size:12px;letter-spacing:.16em;font-weight:800;color:var(--wcai-muted)}.wcai-booking-top h2{margin:5px 0 5px;font-size:23px;line-height:1.2}.wcai-booking-top p{margin:0;color:#666;font-size:13px}.wcai-booking-price{text-align:right;font-weight:800;font-size:19px;white-space:nowrap}.wcai-booking-price small{display:block;margin-top:2px;font-size:12px;font-weight:500;color:var(--wcai-muted)}.wcai-tour-facts{margin:0 0 18px;padding:14px 16px;border:1px solid #ececec;border-radius:12px;background:#fff}.wcai-tour-facts-heading{display:flex;justify-content:space-between;gap:12px;align-items:baseline;margin-bottom:10px}.wcai-tour-facts-heading strong{font-size:15px}.wcai-tour-facts-heading small{font-size:12px;color:var(--wcai-muted)}.wcai-tour-facts-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.wcai-tour-facts-grid>div{min-width:0}.wcai-tour-facts-grid span{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--wcai-muted)}.wcai-tour-facts-grid strong{display:block;margin-top:2px;font-size:12px;line-height:1.35}.wcai-booking-context{display:flex;gap:10px;align-items:flex-start;margin:18px 24px 0;padding:11px 13px;border:1px solid #eee;border-radius:10px;background:#fafafa}.wcai-booking-context strong{display:block;white-space:nowrap;font-size:12px}.wcai-booking-context span{font-size:12px;line-height:1.4;color:#666}.wcai-booking-section{padding:18px 24px 0}.wcai-booking-layout{display:block}.wcai-date-picker{padding:0}.wcai-date-picker-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}.wcai-date-picker-heading strong{font-size:12px}.wcai-calendar-toggle{min-height:44px;padding:5px 12px;border:1px solid #ddd;border-radius:7px;background:#fff;color:#555;font-size:12px;font-weight:700;cursor:pointer}.wcai-calendar-toggle:hover{border-color:#777}.wcai-quick-dates{display:flex;gap:7px;overflow-x:auto;padding:2px 2px 5px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}.wcai-quick-date{flex:0 0 96px;min-width:96px;min-height:64px;padding:7px 5px;border:1px solid #e2e2e2;border-radius:9px;background:#fff;text-align:center;cursor:pointer}.wcai-quick-date strong{display:block;font-size:15px;line-height:1.1}.wcai-quick-date span{display:block;margin-top:3px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--wcai-muted)}.wcai-quick-date small{display:block;margin-top:3px;font-size:12px;color:var(--wcai-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wcai-quick-date:hover:not(:disabled){border-color:#777}.wcai-quick-date:disabled{cursor:not-allowed;opacity:.45}.wcai-quick-date.is-selected{border-color:#222;box-shadow:0 0 0 2px rgba(0,0,0,.06);background:#fafafa}.wcai-booking-section .wcai-participant-picker{margin:12px 0 0;padding:14px;border:1px solid #e8e8e8;border-radius:12px;background:#fbfbfb}.wcai-participant-picker[hidden]{display:none!important}.wcai-booking-section .wcai-participant-picker .wcai-booking-section-title{margin-bottom:11px}.wcai-calendar-full{margin-top:8px;padding:8px 0 0;border-top:1px solid #eee}.wcai-calendar-full[hidden]{display:none!important}.wcai-booking-section-title{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}.wcai-booking-section-title>span{display:flex;align-items:center;justify-content:center;width:25px;height:25px;border-radius:50%;background:#202020;color:#fff;font-size:12px;flex:0 0 25px}.wcai-booking-section-title strong{display:block;font-size:15px}.wcai-booking-section-title small{display:block;margin-top:2px;color:var(--wcai-muted);font-size:12px}.wcai-calendar{max-width:100%;margin:0 auto}.wcai-calendar-toolbar{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:4px;margin:0 auto 4px}.wcai-calendar-month{text-align:center;text-transform:capitalize;font-size:14px}.wcai-calendar-nav{width:44px;height:44px;border:1px solid #ddd;border-radius:7px;background:#fff;font-size:18px;line-height:1;cursor:pointer}.wcai-calendar-nav:hover:not(:disabled){border-color:#777}.wcai-calendar-nav:disabled{opacity:.35;cursor:not-allowed}.wcai-date-picker.is-loading{opacity:.7}.wcai-calendar-weekdays,.wcai-calendar-row{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}.wcai-calendar-row{margin-bottom:2px}.wcai-calendar-cell{min-width:0}.wcai-calendar-weekdays{margin-bottom:2px}.wcai-calendar-weekdays span{text-align:center;font-size:12px;font-weight:800;text-transform:uppercase;color:var(--wcai-muted);padding:1px 0}.wcai-calendar-day{width:100%;height:44px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;box-sizing:border-box}.wcai-calendar-day.is-empty{visibility:hidden}.wcai-calendar-day.is-empty-date{color:var(--wcai-muted);border:1px solid transparent}.wcai-calendar-day.state-available,.wcai-calendar-day.state-few,.wcai-calendar-day.state-insufficient,.wcai-calendar-day.state-full,.wcai-calendar-day.state-closed{border:1px solid #e1e1e1;background:#fff;cursor:pointer}.wcai-calendar-day.state-available{box-shadow:inset 0 -2px 0 var(--wcai-ok)}.wcai-calendar-day.state-few{box-shadow:inset 0 -2px 0 var(--wcai-few)}.wcai-calendar-day.state-insufficient{box-shadow:inset 0 -2px 0 #888}.wcai-calendar-day.state-full{opacity:.52;box-shadow:inset 0 -2px 0 var(--wcai-bad)}.wcai-calendar-day.state-closed{opacity:.5;box-shadow:inset 0 -2px 0 #999}.wcai-calendar-day.is-selected{outline:2px solid #222;outline-offset:1px}.wcai-calendar-day strong{font-size:12px;line-height:1}.wcai-calendar-dot{display:block;font-style:normal;font-weight:700;font-size:12px;line-height:1}.wcai-calendar-day.state-available .wcai-calendar-dot{color:var(--wcai-ok)}.wcai-calendar-day.state-few .wcai-calendar-dot{color:var(--wcai-few)}.wcai-calendar-day.state-insufficient .wcai-calendar-dot{color:var(--wcai-muted)}.wcai-calendar-day.state-full .wcai-calendar-dot{color:var(--wcai-bad)}.wcai-calendar-day.state-closed .wcai-calendar-dot{color:var(--wcai-muted)}.wcai-calendar-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin:6px 0 0;color:#666;font-size:12px}.wcai-calendar-legend span{display:flex;align-items:center;gap:4px}.wcai-calendar-legend i{display:inline-block;font-style:normal;font-weight:700;font-size:12px;line-height:1}.wcai-calendar-legend .is-available{color:var(--wcai-ok)}.wcai-calendar-legend .is-few{color:var(--wcai-few)}.wcai-calendar-legend .is-full{color:var(--wcai-bad)}.wcai-calendar-legend .is-closed{color:var(--wcai-muted)}.wcai-calendar-selection{margin-top:16px;padding-top:14px;border-top:1px solid #eee}.wcai-selection-heading{display:flex;justify-content:space-between;gap:16px;align-items:baseline;margin-bottom:9px}.wcai-selection-heading strong{font-size:15px}.wcai-selection-heading small{color:var(--wcai-muted);font-size:12px}.wcai-time-options{display:grid;grid-template-columns:1fr;gap:8px}.wcai-time-option{display:grid;grid-template-columns:auto 1fr;column-gap:12px;row-gap:3px;text-align:left;padding:12px;border:1px solid #e0e0e0;border-radius:10px;background:#fff;cursor:pointer;transition:.15s}.wcai-time-option:hover:not(:disabled){border-color:#777;transform:translateY(-1px)}.wcai-time-option:disabled{cursor:not-allowed;opacity:.52;background:#f8f8f8}.wcai-time-option>strong{font-size:19px;min-width:54px;grid-row:1/span 3}.wcai-time-option-content{min-width:0}.wcai-time-status{display:block;font-size:12px;font-weight:800}.wcai-time-formation{margin:6px 0 3px}.wcai-time-formation b{display:block;font-size:12px;line-height:1.3}.wcai-time-progress{display:block;height:5px;margin-top:4px;border-radius:999px;background:#ededed;overflow:hidden}.wcai-time-progress i{display:block;height:100%;border-radius:inherit;background:#222}.wcai-time-option small{display:block;font-size:12px;line-height:1.35;color:var(--wcai-muted)}.wcai-time-option.state-few{border-color:var(--wcai-few)}.wcai-time-option.state-full,.wcai-time-option.state-closed{border-color:#e2e2e2}.wcai-time-option.is-selected{border-color:#222;box-shadow:0 0 0 2px rgba(0,0,0,.07);background:#fafafa}.wcai-no-times{padding:13px;border:1px dashed #ccc;border-radius:10px;color:#666}.wcai-selected-departure{margin-top:9px;padding:11px 13px;border-radius:10px;background:#f7f7f7;border:1px solid #e5e5e5}.wcai-selected-departure>div{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.wcai-selected-departure span{color:#666;font-size:12px}.wcai-selected-departure p{margin:6px 0 0;font-size:12px;line-height:1.4}.wcai-selected-departure small{display:block;margin-top:6px;color:var(--wcai-muted)}.wcai-participant-picker{margin:18px 24px 0;padding:18px;border-top:1px solid #eee;background:#fbfbfb}.wcai-participant-rows{display:grid;grid-template-columns:1fr;gap:8px}.wcai-participant-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 14px;border:1px solid #e1e1e1;border-radius:10px;background:#fff}.wcai-participant-row>div:first-child strong{display:block;font-size:13px}.wcai-participant-row>div:first-child small{display:block;margin-top:2px;color:var(--wcai-muted);font-size:12px}.wcai-stepper{display:flex;align-items:center;gap:8px}.wcai-stepper button{width:44px;height:44px;border:1px solid #d4d4d4;border-radius:50%;background:#fff;font-size:18px;line-height:1;cursor:pointer}.wcai-stepper button:disabled{opacity:.35;cursor:not-allowed}.wcai-stepper>strong{min-width:18px;text-align:center;font-size:14px}.wcai-participant-total{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px;padding:11px 13px;border-radius:9px;background:#fff;border:1px solid #e3e3e3}.wcai-participant-total strong{display:block;font-size:13px}.wcai-participant-total small{display:block;margin-top:2px;color:var(--wcai-muted);font-size:12px}.wcai-participant-badge{font-size:12px;font-weight:700;color:#555}.wcai-booking-note{margin:14px 24px 20px;color:var(--wcai-muted);font-size:12px;line-height:1.45}.single-product form.cart .single_add_to_cart_button{display:block;width:calc(100% - 48px);margin:12px 24px 20px;min-height:46px;border-radius:10px;font-weight:800}.wcai-cart-fixed-quantity{display:inline-block;min-width:28px;text-align:center;font-weight:700}.wcai-booking-empty{margin:18px 24px;padding:20px;border:1px dashed #ccc;border-radius:10px;background:#fafafa}.single-product form.cart .quantity{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;overflow:hidden!important}.single-product form.cart .quantity input[name="quantity"]{position:absolute!important;left:0!important;width:1px!important;height:1px!important;opacity:0!important}@media(max-width:700px){.wcai-tour-info-grid{grid-template-columns:1fr}.wcai-product-booking{margin:18px 0;border-radius:14px}.wcai-booking-top{display:block;padding:18px}.wcai-booking-price{text-align:left;margin-top:8px}.wcai-booking-section{padding-left:18px;padding-right:18px}.wcai-booking-section .wcai-participant-picker{padding:14px}.wcai-participant-rows{grid-template-columns:1fr}.wcai-calendar{max-width:100%}.wcai-calendar-day{height:44px}.wcai-time-options{grid-template-columns:1fr}.wcai-booking-note{margin-left:18px;margin-right:18px}}'        );
     }
 
     private function get_submitted_participant_counts( $product_id, $quantity ) {

@@ -34,6 +34,8 @@ class WCAI_Settings {
         register_setting( 'wcai_settings_group', 'wcai_seq_width', array( 'sanitize_callback' => array( $this, 'sanitize_seq_width' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_seq_next', array( 'sanitize_callback' => array( $this, 'sanitize_seq_next' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_calendar_statuses', array( 'sanitize_callback' => array( $this, 'sanitize_calendar_statuses' ) ) );
+        register_setting( 'wcai_settings_group', 'wcai_operation_name', array( 'sanitize_callback' => array( $this, 'sanitize_operation_name' ) ) );
+        register_setting( 'wcai_settings_group', 'wcai_terms_url', array( 'sanitize_callback' => 'esc_url_raw' ) );
     }
 
     public function settings_page() {
@@ -114,6 +116,20 @@ class WCAI_Settings {
                             </select>
                             <p class="description">Selecione a meta somente quando a fonte acima for uma opção legada. A lista consulta metas de pedido e item disponíveis no banco.</p>
                             <input type="hidden" name="wcai_date_meta_key" value="<?php echo esc_attr( $current_date_key ); ?>">
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row"><label for="wcai_operation_name"><?php echo esc_html__( 'Nome da operação', 'wooadventure-integration' ); ?></label></th>
+                        <td>
+                            <input type="text" id="wcai_operation_name" name="wcai_operation_name" value="<?php echo esc_attr( self::get_operation_name() ); ?>" class="regular-text" />
+                            <p class="description"><?php echo esc_html__( 'Aparece no app do scanner.', 'wooadventure-integration' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row"><label for="wcai_terms_url"><?php echo esc_html__( 'URL do termo', 'wooadventure-integration' ); ?></label></th>
+                        <td>
+                            <input type="url" id="wcai_terms_url" name="wcai_terms_url" value="<?php echo esc_attr( self::get_terms_url() ); ?>" class="regular-text" placeholder="https://" />
+                            <p class="description"><?php echo esc_html__( 'Link da página onde o participante assina o termo.', 'wooadventure-integration' ); ?></p>
                         </td>
                     </tr>
                     <tr valign="top">
@@ -286,6 +302,11 @@ class WCAI_Settings {
         return array_values( array_unique( $clean ) );
     }
 
+    public function sanitize_operation_name( $value ) {
+        $value = sanitize_text_field( (string) $value );
+        return '' !== $value ? $value : 'Operação';
+    }
+
     public function sanitize_blocked_cpfs( $value ) {
         $cpfs = preg_split( '/[\s,;]+/', (string) $value, -1, PREG_SPLIT_NO_EMPTY );
         $valid_cpfs = array();
@@ -319,6 +340,8 @@ class WCAI_Settings {
         return in_array( $cpf, $blocked, true );
     }
 
+    public static function get_operation_name() { return get_option( 'wcai_operation_name', 'Operação' ); }
+    public static function get_terms_url() { return get_option( 'wcai_terms_url', '' ); }
     public static function get_carta_oferta() { return get_option( 'wcai_carta_oferta', '' ); }
     public static function get_date_meta_key() { return get_option( 'wcai_event_date_meta_key', get_option( 'wcai_date_meta_key', 'tour_date' ) ); }
     public static function get_event_date_source() { return get_option( 'wcai_event_date_source', 'departure' ); }
