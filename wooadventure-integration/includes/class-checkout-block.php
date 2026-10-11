@@ -288,6 +288,18 @@ class WCAI_Checkout_Block {
     }
 
     public function process_checkout( $order ) {
+        try {
+            $this->reserve_order_items( $order );
+        } catch ( \Throwable $e ) {
+            // Falha em um item libera as reservas já criadas dos itens anteriores.
+            if ( $order instanceof WC_Order && class_exists( 'WCAI_Reservations' ) ) {
+                WCAI_Reservations::release_order( $order->get_id() );
+            }
+            throw $e;
+        }
+    }
+
+    private function reserve_order_items( $order ) {
         if ( ! $order instanceof WC_Order || ! $this->order_has_target_item( $order ) ) {
             return;
         }
@@ -370,7 +382,7 @@ class WCAI_Checkout_Block {
             $item->update_meta_data( 'Crianças', $children, true );
             $item->save();
 
-            $reservation = WCAI_Reservations::create( $departure_id, $quantity, 'pending', $order->get_id(), $item_id );
+            $reservation = WCAI_Reservations::create( $departure_id, $quantity, 'hold', $order->get_id(), $item_id );
 
             if ( is_wp_error( $reservation ) ) {
                 $this->fail( $reservation->get_error_message() );

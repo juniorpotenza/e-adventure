@@ -188,7 +188,7 @@ class WCAI_Checkout {
                 $reservation_id = 0;
 
                 if ( $departure_id && class_exists( 'WCAI_Reservations' ) ) {
-                    $reservation = WCAI_Reservations::create( $departure_id, $qty, 'pending', $order_id, $item_id );
+                    $reservation = WCAI_Reservations::create( $departure_id, $qty, 'hold', $order_id, $item_id );
 
                     if ( is_wp_error( $reservation ) ) {
                         $order->add_order_note( 'Reserva de saída não criada: ' . $reservation->get_error_message() );

@@ -52,7 +52,10 @@ function wcai_init() {
     if ( class_exists( 'WCAI_Capabilities' ) ) WCAI_Capabilities::register();
     if ( class_exists( 'WCAI_Departures' ) ) new WCAI_Departures();
     if ( class_exists( 'WCAI_Schedules' ) ) new WCAI_Schedules();
-    if ( class_exists( 'WCAI_Reservations' ) ) WCAI_Reservations::register_hooks();
+    if ( class_exists( 'WCAI_Reservations' ) ) {
+        WCAI_Reservations::register_hooks();
+        if ( ! wp_next_scheduled( 'wcai_expire_holds' ) ) wp_schedule_event( time() + MINUTE_IN_SECONDS, 'wcai_five_minutes', 'wcai_expire_holds' );
+    }
     if ( class_exists( 'WCAI_Product_Booking' ) ) new WCAI_Product_Booking();
     if ( class_exists( 'WCAI_Legal_Documents' ) ) new WCAI_Legal_Documents();
     if ( class_exists( 'WCAI_Settings' ) ) new WCAI_Settings();
@@ -111,6 +114,11 @@ function wcai_maybe_upgrade_database() {
 add_action( 'plugins_loaded', 'wcai_maybe_upgrade_database', 5 );
 
 register_activation_hook( __FILE__, 'wcai_activate_plugin' );
+register_deactivation_hook( __FILE__, 'wcai_deactivate_plugin' );
+
+function wcai_deactivate_plugin() {
+    wp_clear_scheduled_hook( 'wcai_expire_holds' );
+}
 
 function wcai_activate_plugin() {
     if ( class_exists( 'WCAI_Reservations' ) ) {

@@ -15,10 +15,109 @@ class WCAI_Reservations {
         add_action( 'woocommerce_order_status_cancelled', array( __CLASS__, 'cancel_order' ) );
         add_action( 'woocommerce_order_status_refunded', array( __CLASS__, 'cancel_order' ) );
         add_action( 'woocommerce_order_status_failed', array( __CLASS__, 'cancel_order' ) );
+        add_filter( 'cron_schedules', array( __CLASS__, 'add_cron_schedule' ) );
+        add_action( 'wcai_expire_holds', array( __CLASS__, 'expire_holds' ) );
     }
 
+    public static function add_cron_schedule( $schedules ) {
+        $schedules['wcai_five_minutes'] = array( 'interval' => 5 * MINUTE_IN_SECONDS, 'display' => 'A cada 5 minutos' );
+        return $schedules;
+    }
+
+    // Pagamento confirmado: cada reserva vira 'confirmed' dentro do lock da saída, revalidando a vaga.
     public static function confirm_order( $order_id ) {
-        self::update_status_for_order( $order_id, 'confirmed' );
+        global $wpdb;
+        $order_id = absint( $order_id );
+        $table = self::get_table_name();
+        $ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM $table WHERE order_id = %d AND status <> 'confirmed'", $order_id ) );
+
+        foreach ( $ids as $reservation_id ) {
+            $result = self::confirm_reservation( absint( $reservation_id ) );
+
+            if ( is_wp_error( $result ) ) {
+                $order = wc_get_order( $order_id );
+                if ( $order ) $order->add_order_note( 'Reserva #' . absint( $reservation_id ) . ' não confirmada: ' . $result->get_error_message() );
+                WCAI_Audit_Log::log( 'reservation_confirm_refused', 'reservation', absint( $reservation_id ), array( 'order_id' => $order_id, 'reason' => $result->get_error_code() ) );
+            }
+        }
+
+        do_action( 'wcai_reservations_changed', $order_id );
+    }
+
+    private static function confirm_reservation( $reservation_id ) {
+        global $wpdb;
+        $reservation = self::get_by_id( $reservation_id );
+        if ( ! $reservation ) return new WP_Error( 'wcai_invalid_reservation', 'Reserva inválida.' );
+
+        $departure_id = absint( $reservation->departure_id );
+        if ( ! self::lock_departure( $departure_id ) ) {
+            return new WP_Error( 'wcai_reservation_locked', 'Não foi possível confirmar a vaga. Tente novamente.' );
+        }
+
+        try {
+            $reservation = self::get_by_id( $reservation_id ); // relê dentro do lock
+            if ( ! $reservation ) return new WP_Error( 'wcai_invalid_reservation', 'Reserva inválida.' );
+            if ( 'confirmed' === $reservation->status ) return true;
+
+            // Só 'pending' e 'hold' não vencido já ocupam vaga; os demais precisam revalidar a capacidade.
+            $counted = 'pending' === $reservation->status || ( 'hold' === $reservation->status && $reservation->expires_at > current_time( 'mysql', true ) );
+            if ( ! $counted && absint( $reservation->quantity ) > self::get_available_quantity( $departure_id ) ) {
+                return new WP_Error( 'wcai_capacity_exceeded', 'Não há vagas suficientes nesta saída.' );
+            }
+
+            $updated = $wpdb->update(
+                self::get_table_name(),
+                array( 'status' => 'confirmed', 'expires_at' => null, 'updated_at' => current_time( 'mysql', true ) ),
+                array( 'id' => absint( $reservation_id ) ),
+                array( '%s', '%s', '%s' ),
+                array( '%d' )
+            );
+            if ( false === $updated ) return new WP_Error( 'wcai_reservation_failed', 'Não foi possível confirmar a reserva.' );
+
+            do_action( 'wcai_reservation_changed', $departure_id );
+            return true;
+        } finally {
+            self::unlock_departure( $departure_id );
+        }
+    }
+
+    private static function lock_departure( $departure_id ) {
+        global $wpdb;
+        return 1 === (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', 'wcai_departure_' . absint( $departure_id ), 5 ) );
+    }
+
+    private static function unlock_departure( $departure_id ) {
+        global $wpdb;
+        $wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', 'wcai_departure_' . absint( $departure_id ) ) );
+    }
+
+    // Cron 'wcai_expire_holds': 'hold' vencido vira 'expired' e deixa de contar vaga.
+    public static function expire_holds() {
+        global $wpdb;
+        $table = self::get_table_name();
+        $now = current_time( 'mysql', true );
+        $departure_ids = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT departure_id FROM $table WHERE status = 'hold' AND expires_at <= %s", $now ) );
+
+        foreach ( $departure_ids as $departure_id ) {
+            $departure_id = absint( $departure_id );
+            if ( ! self::lock_departure( $departure_id ) ) continue; // próxima execução tenta de novo
+
+            try {
+                $wpdb->query( $wpdb->prepare( "UPDATE $table SET status = 'expired', updated_at = %s WHERE departure_id = %d AND status = 'hold' AND expires_at <= %s", $now, $departure_id, $now ) );
+                do_action( 'wcai_reservation_changed', $departure_id );
+            } finally {
+                self::unlock_departure( $departure_id );
+            }
+        }
+    }
+
+    // Libera as reservas ainda não pagas de um pedido que falhou no checkout.
+    public static function release_order( $order_id ) {
+        global $wpdb;
+        $order_id = absint( $order_id );
+        $table = self::get_table_name();
+        $wpdb->query( $wpdb->prepare( "UPDATE $table SET status = 'cancelled', expires_at = NULL, updated_at = %s WHERE order_id = %d AND status IN ('hold', 'pending')", current_time( 'mysql', true ), $order_id ) );
+        do_action( 'wcai_reservations_changed', $order_id );
     }
 
     public static function cancel_order( $order_id ) {
@@ -288,6 +387,10 @@ class WCAI_Reservations {
         }
 
         try {
+            $table = self::get_table_name();
+            $now = current_time( 'mysql', true );
+            $expires_at = 'hold' === $status ? gmdate( 'Y-m-d H:i:s', time() + ( self::HOLD_MINUTES * MINUTE_IN_SECONDS ) ) : null;
+
             if ( $order_item_id ) {
                 $existing = self::get_by_order_item( $order_item_id );
 
@@ -296,7 +399,30 @@ class WCAI_Reservations {
                         return new WP_Error( 'wcai_reservation_conflict', 'Este item do pedido já possui uma reserva incompatível.' );
                     }
 
-                    if ( in_array( $existing->status, array( 'hold', 'pending', 'confirmed' ), true ) ) {
+                    $is_live_hold = 'hold' === $existing->status && $existing->expires_at > $now;
+
+                    if ( in_array( $existing->status, array( 'pending', 'confirmed' ), true ) || $is_live_hold ) {
+                        return absint( $existing->id );
+                    }
+
+                    // Hold vencido (ou já 'expired') no reenvio do checkout: revalida a vaga e reativa.
+                    if ( in_array( $existing->status, array( 'hold', 'expired' ), true ) ) {
+                        if ( $quantity > self::get_available_quantity( $departure_id ) ) {
+                            return new WP_Error( 'wcai_capacity_exceeded', 'Não há vagas suficientes nesta saída.' );
+                        }
+
+                        $revived = $wpdb->update(
+                            $table,
+                            array( 'status' => $status, 'expires_at' => $expires_at, 'updated_at' => $now ),
+                            array( 'id' => absint( $existing->id ) ),
+                            array( '%s', '%s', '%s' ),
+                            array( '%d' )
+                        );
+                        if ( false === $revived ) {
+                            return new WP_Error( 'wcai_reservation_failed', 'Não foi possível registrar a reserva.' );
+                        }
+
+                        do_action( 'wcai_reservation_changed', $departure_id );
                         return absint( $existing->id );
                     }
 
@@ -308,9 +434,6 @@ class WCAI_Reservations {
                 return new WP_Error( 'wcai_capacity_exceeded', 'Não há vagas suficientes nesta saída.' );
             }
 
-            $table = self::get_table_name();
-            $now = current_time( 'mysql', true );
-            $expires_at = 'hold' === $status ? gmdate( 'Y-m-d H:i:s', time() + ( self::HOLD_MINUTES * MINUTE_IN_SECONDS ) ) : null;
             $inserted = $wpdb->insert(
                 $table,
                 array(
