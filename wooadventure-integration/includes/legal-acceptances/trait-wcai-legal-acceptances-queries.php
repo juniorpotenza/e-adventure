@@ -1,0 +1,190 @@
+<?php
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+trait WCAI_Legal_Acceptances_Queries {
+
+    public static function table() {
+        global $wpdb;
+        return $wpdb->prefix . 'wcai_legal_acceptances';
+    }
+
+    public static function create_table() {
+        global $wpdb;
+
+        $table   = self::table();
+        $charset = $wpdb->get_charset_collate();
+
+        $sql = "CREATE TABLE $table (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            participant_id bigint(20) unsigned NOT NULL,
+            reservation_id bigint(20) unsigned DEFAULT NULL,
+            order_id bigint(20) unsigned NOT NULL,
+            departure_id bigint(20) unsigned DEFAULT NULL,
+            document_id bigint(20) unsigned NOT NULL,
+            document_version varchar(100) NOT NULL,
+            document_hash char(64) NOT NULL,
+            document_title varchar(255) DEFAULT NULL,
+            document_text longtext DEFAULT NULL,
+            document_date date DEFAULT NULL,
+            guardian_name varchar(255) DEFAULT NULL,
+            guardian_cpf_hash char(64) DEFAULT NULL,
+            acceptance_method varchar(30) NOT NULL,
+            signature_post_id bigint(20) unsigned DEFAULT NULL,
+            ip_hash char(64) DEFAULT NULL,
+            user_agent_hash char(64) DEFAULT NULL,
+            accepted_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_participant_reservation_version (participant_id, reservation_id, document_version),
+            KEY participant_lookup (participant_id, reservation_id),
+            KEY participant_document (participant_id, document_id),
+            KEY reservation_id (reservation_id),
+            KEY order_id (order_id),
+            KEY departure_id (departure_id),
+            KEY accepted_at (accepted_at)
+        ) $charset;";
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        dbDelta( $sql );
+    }
+
+    /**
+     * Migra aceites legados para o vínculo canônico Participant → Reservation → Departure.
+     */
+    public static function backfill_reservation_links() {
+        global $wpdb;
+
+        if ( ! class_exists( 'WCAI_Participants_DB' ) || ! class_exists( 'WCAI_Reservations' ) ) {
+            return;
+        }
+
+        $acceptances = self::table();
+        $participants = WCAI_Participants_DB::get_table_name();
+        $reservations = WCAI_Reservations::get_table_name();
+
+        $wpdb->query(
+            "UPDATE $acceptances a
+             INNER JOIN $participants p
+                ON p.id = a.participant_id
+             LEFT JOIN $reservations r
+                ON r.id = p.reservation_id
+             SET a.reservation_id = NULLIF(p.reservation_id, 0),
+                 a.departure_id = COALESCE(r.departure_id, a.departure_id)
+             WHERE (a.reservation_id IS NULL OR a.reservation_id = 0)
+                AND p.reservation_id IS NOT NULL
+                AND p.reservation_id <> 0"
+        );
+    }
+
+    public static function get_by_id( $acceptance_id ) {
+        global $wpdb;
+        return $wpdb->get_row(
+            $wpdb->prepare(
+                'SELECT * FROM ' . self::table() . ' WHERE id = %d',
+                absint( $acceptance_id )
+            ),
+            ARRAY_A
+        );
+    }
+
+    public static function get_by_participant( $participant_id, $reservation_id = 0 ) {
+        global $wpdb;
+
+        $sql   = 'SELECT * FROM ' . self::table() . ' WHERE participant_id = %d';
+        $args  = array( absint( $participant_id ) );
+
+        if ( $reservation_id ) {
+            $sql   .= ' AND reservation_id = %d';
+            $args[] = absint( $reservation_id );
+        }
+
+        $sql .= ' ORDER BY accepted_at DESC, id DESC';
+
+        return $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A );
+    }
+
+    public static function get_latest( $participant_id, $reservation_id = 0, $document_id = 0 ) {
+        global $wpdb;
+
+        $sql  = 'SELECT * FROM ' . self::table() . ' WHERE participant_id = %d';
+        $args = array( absint( $participant_id ) );
+
+        if ( $reservation_id ) {
+            $sql   .= ' AND reservation_id = %d';
+            $args[] = absint( $reservation_id );
+        }
+
+        if ( $document_id ) {
+            $sql   .= ' AND document_id = %d';
+            $args[] = absint( $document_id );
+        }
+
+        $sql .= ' ORDER BY accepted_at DESC, id DESC LIMIT 1';
+
+        return $wpdb->get_row( $wpdb->prepare( $sql, $args ), ARRAY_A );
+    }
+
+    /**
+     * Estado jurídico do participante. Não substitui o status operacional.
+     */
+    public static function legal_status( $participant_id, $reservation_id = 0, $document_id = 0 ) {
+        if ( ! class_exists( 'WCAI_Legal_Documents' ) ) {
+            return 'pending';
+        }
+
+        if ( ! $reservation_id && class_exists( 'WCAI_Participants_DB' ) ) {
+            $participant = WCAI_Participants_DB::get_by_id( $participant_id );
+            $reservation_id = $participant ? absint( $participant['reservation_id'] ) : 0;
+        }
+
+        $current = $document_id
+            ? WCAI_Legal_Documents::get_snapshot( $document_id )
+            : WCAI_Legal_Documents::get_active_snapshot();
+
+        if ( empty( $current ) ) {
+            return 'pending';
+        }
+
+        $acceptance = self::find_exact(
+            absint( $participant_id ),
+            absint( $reservation_id ),
+            absint( $current['document_id'] ),
+            $current['document_version'],
+            $current['document_hash']
+        );
+
+        if ( $acceptance ) {
+            return 'accepted';
+        }
+
+        $historical = self::get_latest(
+            $participant_id,
+            $reservation_id,
+            absint( $current['document_id'] )
+        );
+
+        return $historical ? 'version_outdated' : 'pending';
+    }
+
+    /**
+     * Mantido por compatibilidade com código legado.
+     * O novo código deve usar legal_status().
+     */
+    public static function participant_status( $participant_id, $order_id = 0, $departure_id = 0 ) {
+        global $wpdb;
+
+        $sql  = 'SELECT COUNT(*) FROM ' . self::table() . ' WHERE participant_id = %d';
+        $args = array( absint( $participant_id ) );
+
+        if ( $order_id ) {
+            $sql .= ' AND order_id = %d';
+            $args[] = absint( $order_id );
+        }
+
+        if ( $departure_id ) {
+            $sql .= ' AND departure_id = %d';
+            $args[] = absint( $departure_id );
+        }
+
+        return $wpdb->get_var( $wpdb->prepare( $sql, $args ) ) ? 'regular' : 'pending';
+    }
+}
