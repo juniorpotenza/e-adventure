@@ -40,6 +40,12 @@
         return dispatcher && typeof dispatcher.setExtensionData === 'function' ? dispatcher : null;
     }
 
+    // A action da store e setExtensionData(namespace, objeto, replace). Passar (NS, 'data', json)
+    // gravava a string 'data' em extensions[NS] e a Store API recusava: "is not of type object,null".
+    function pushExtensionData(checkout, json) {
+        checkout.setExtensionData(NS, { data: String(json) });
+    }
+
     function sync() {
         var checkout = checkoutDispatcher();
         if (!checkout) return;
@@ -58,7 +64,7 @@
             })
         };
 
-        checkout.setExtensionData(NS, 'data', JSON.stringify(payload));
+        pushExtensionData(checkout, JSON.stringify(payload));
     }
 
     function scheduleSync() {
@@ -1135,7 +1141,8 @@
             isMinAge: isMinAge,
             cpfMessage: cpfMessage,
             birthMessage: birthMessage,
-            collectAdditionalErrors: collectAdditionalErrors
+            collectAdditionalErrors: collectAdditionalErrors,
+            pushExtensionData: pushExtensionData
         };
         return;
     }

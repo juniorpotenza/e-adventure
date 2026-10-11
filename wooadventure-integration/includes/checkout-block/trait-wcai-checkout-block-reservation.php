@@ -27,13 +27,20 @@ trait WCAI_Checkout_Block_Reservation {
         return $html . $block_content;
     }
 
+    // Tolera extensions ou extensions[NAMESPACE] que nao sejam array (cliente antigo, string, null).
+    private function extension_payload_raw( $extensions ) {
+        $ns = is_array( $extensions ) && isset( $extensions[ self::NAMESPACE ] ) ? $extensions[ self::NAMESPACE ] : array();
+        $ns = is_array( $ns ) ? $ns : array();
+
+        return isset( $ns['data'] ) && is_scalar( $ns['data'] ) ? (string) $ns['data'] : '';
+    }
+
     public function capture_checkout_payload( $order, $request ) {
         if ( ! $order instanceof WC_Order || ! $request instanceof WP_REST_Request || ! $this->order_has_target_item( $order ) ) {
             return;
         }
 
-        $extensions = $request->get_param( 'extensions' );
-        $raw = isset( $extensions[ self::NAMESPACE ]['data'] ) ? (string) $extensions[ self::NAMESPACE ]['data'] : '';
+        $raw = $this->extension_payload_raw( $request->get_param( 'extensions' ) );
         $payload = $raw ? json_decode( $raw, true ) : null;
 
         if ( ! is_array( $payload ) || empty( $payload['items'] ) || ! is_array( $payload['items'] ) ) {
