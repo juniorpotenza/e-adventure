@@ -42,6 +42,8 @@ class Test_T1_Participants extends WP_Ajax_UnitTestCase {
         $_POST['security']      = wp_create_nonce( 'wcai_update_nonce' );
         $_POST['order_id']      = $order->get_id();
         $_POST['participantes'] = $rows;
+        // wp_die_handler do WP_Ajax_UnitTestCase concatena (.=) em _last_response; sem reset, 2+ chamadas no mesmo teste geram JSON invalido.
+        $this->_last_response = '';
         try {
             $this->_handleAjax( 'wcai_update_participants' );
         } catch ( WPAjaxDieContinueException $e ) {
