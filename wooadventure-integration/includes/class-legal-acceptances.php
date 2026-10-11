@@ -23,6 +23,9 @@ class WCAI_Legal_Acceptances {
             document_id bigint(20) unsigned NOT NULL,
             document_version varchar(100) NOT NULL,
             document_hash char(64) NOT NULL,
+            document_title varchar(255) DEFAULT NULL,
+            document_text longtext DEFAULT NULL,
+            document_date date DEFAULT NULL,
             guardian_name varchar(255) DEFAULT NULL,
             guardian_cpf_hash char(64) DEFAULT NULL,
             acceptance_method varchar(30) NOT NULL,
@@ -31,6 +34,7 @@ class WCAI_Legal_Acceptances {
             user_agent_hash char(64) DEFAULT NULL,
             accepted_at datetime NOT NULL,
             PRIMARY KEY (id),
+            UNIQUE KEY uniq_participant_reservation_version (participant_id, reservation_id, document_version),
             KEY participant_lookup (participant_id, reservation_id),
             KEY participant_document (participant_id, document_id),
             KEY reservation_id (reservation_id),
@@ -238,6 +242,11 @@ class WCAI_Legal_Acceptances {
             return absint( $existing['id'] );
         }
 
+        $guardian = self::validate_guardian( $participant, $guardian_name, $guardian_cpf );
+        if ( is_wp_error( $guardian ) ) {
+            return $guardian;
+        }
+
         return self::insert_acceptance(
             array(
                 'participant_id'      => $participant_id,
@@ -247,12 +256,49 @@ class WCAI_Legal_Acceptances {
                 'document_id'         => absint( $active['document_id'] ),
                 'document_version'   => $active['document_version'],
                 'document_hash'      => $active['document_hash'],
+                'document_title'     => $active['document_title'],
+                'document_text'      => $active['document_text'],
+                'document_date'      => $active['document_date'],
                 'guardian_name'      => $guardian_name,
                 'guardian_cpf'       => $guardian_cpf,
                 'acceptance_method'  => $acceptance_method,
                 'signature_post_id'  => $signature_post_id,
             )
         );
+    }
+
+    /**
+     * Menor de 18 anos exige responsável. Sem data de nascimento válida, trata como menor.
+     *
+     * @param array $participant Linha de wcai_participantes (data_nascimento em Y-m-d).
+     */
+    public static function guardian_required( $participant ) {
+        $birth = DateTime::createFromFormat( 'Y-m-d', isset( $participant['data_nascimento'] ) ? (string) $participant['data_nascimento'] : '' );
+
+        return ! $birth || ! WCAI_Utils::is_min_age( $birth->format( 'd/m/Y' ), 18 );
+    }
+
+    /**
+     * Menor exige nome e CPF válido do responsável, diferente do CPF do participante.
+     *
+     * @return true|WP_Error
+     */
+    public static function validate_guardian( $participant, $guardian_name, $guardian_cpf ) {
+        if ( ! self::guardian_required( $participant ) ) {
+            return true;
+        }
+
+        $cpf = preg_replace( '/\D/', '', (string) $guardian_cpf );
+
+        if (
+            '' === trim( (string) $guardian_name ) ||
+            ! WCAI_Utils::is_valid_cpf( $cpf ) ||
+            $cpf === preg_replace( '/\D/', '', (string) $participant['cpf'] )
+        ) {
+            return new WP_Error( 'wcai_acceptance_guardian_required', 'Participante menor de 18 anos: informe nome e CPF válido do responsável.' );
+        }
+
+        return true;
     }
 
     /**
@@ -307,9 +353,12 @@ class WCAI_Legal_Acceptances {
             'document_id'        => absint( $data['document_id'] ),
             'document_version'   => sanitize_text_field( $data['document_version'] ),
             'document_hash'      => strtolower( sanitize_text_field( $data['document_hash'] ) ),
+            'document_title'     => sanitize_text_field( $data['document_title'] ),
+            'document_text'      => (string) $data['document_text'],
+            'document_date'      => preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $data['document_date'] ) ? $data['document_date'] : null,
             'guardian_name'      => isset( $data['guardian_name'] ) && $data['guardian_name'] !== '' ? sanitize_text_field( $data['guardian_name'] ) : null,
             'guardian_cpf_hash'  => ! empty( $data['guardian_cpf'] )
-                ? hash_hmac( 'sha256', preg_replace( '/\D/', '', $data['guardian_cpf'] ), wp_salt( 'auth' ) )
+                ? hash_hmac( 'sha256', preg_replace( '/\D/', '', $data['guardian_cpf'] ), wp_salt( 'auth' ) . '|' . absint( $data['participant_id'] ) )
                 : null,
             'acceptance_method'  => sanitize_key( $data['acceptance_method'] ),
             'signature_post_id'  => absint( $data['signature_post_id'] ),
@@ -318,9 +367,26 @@ class WCAI_Legal_Acceptances {
             'accepted_at'        => current_time( 'mysql', true ),
         );
 
-        $ok = $wpdb->insert( self::table(), $row );
+        $suppress = $wpdb->suppress_errors( true );
+        $ok       = $wpdb->insert( self::table(), $row );
+        $wpdb->suppress_errors( $suppress );
 
         if ( false === $ok ) {
+            // Duplo clique ou corrida: a chave UNIQUE barrou; devolve o aceite que já existe.
+            $existing = $wpdb->get_row(
+                $wpdb->prepare(
+                    'SELECT id FROM ' . self::table() . ' WHERE participant_id = %d AND reservation_id = %d AND document_version = %s LIMIT 1',
+                    $row['participant_id'],
+                    $row['reservation_id'],
+                    $row['document_version']
+                ),
+                ARRAY_A
+            );
+
+            if ( $existing ) {
+                return absint( $existing['id'] );
+            }
+
             return new WP_Error( 'wcai_acceptance_failed', 'Não foi possível registrar o aceite.' );
         }
 

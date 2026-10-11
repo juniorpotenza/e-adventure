@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WooAdventure Integration
  * Description: Integração completa para Ecoturismo (Checkout, API Roca, Gestão de Participantes, Agenda, Assinaturas e Check-in).
- * Version: 2.21.0
+ * Version: 2.22.0
  * Author: Seu Nome
  * WC requires at least: 8.9
  * WC tested up to: 11.1
@@ -16,7 +16,7 @@ add_action( 'before_woocommerce_init', function() {
     }
 } );
 
-define( 'WCAI_VERSION', '2.21.0' );
+define( 'WCAI_VERSION', '2.22.0' ); // bump dispara dbDelta (colunas de snapshot e UNIQUE em wcai_legal_acceptances)
 
 if ( ! function_exists( 'wcai_safe_require' ) ) {
     function wcai_safe_require( $filename ) {
@@ -37,6 +37,7 @@ wcai_safe_require( 'class-reservations.php' );
 wcai_safe_require( 'class-product-booking.php' );
 wcai_safe_require( 'class-legal-documents.php' );
 wcai_safe_require( 'class-legal-acceptances.php' );
+wcai_safe_require( 'class-privacy.php' );
 wcai_safe_require( 'class-settings.php' );
 wcai_safe_require( 'class-participants-db.php' );
 wcai_safe_require( 'class-checkout.php' );
@@ -58,6 +59,7 @@ function wcai_init() {
     }
     if ( class_exists( 'WCAI_Product_Booking' ) ) new WCAI_Product_Booking();
     if ( class_exists( 'WCAI_Legal_Documents' ) ) new WCAI_Legal_Documents();
+    if ( class_exists( 'WCAI_Privacy' ) ) new WCAI_Privacy();
     if ( class_exists( 'WCAI_Settings' ) ) new WCAI_Settings();
     if ( class_exists( 'WCAI_Checkout' ) ) new WCAI_Checkout();
     if ( class_exists( 'WCAI_Checkout_Block' ) ) new WCAI_Checkout_Block();

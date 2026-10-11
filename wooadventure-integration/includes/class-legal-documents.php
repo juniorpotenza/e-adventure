@@ -131,10 +131,16 @@ class WCAI_Legal_Documents {
             return null;
         }
 
+        $effective = (string) get_post_meta( $document->ID, '_wcai_document_effective_at', true );
+
+        // Título e texto entram no snapshot gravado no aceite (hash = título + conteúdo + versão).
         return array(
             'document_id'      => absint( $document->ID ),
             'document_version' => $version,
             'document_hash'    => $hash,
+            'document_title'   => (string) $document->post_title,
+            'document_text'    => (string) $document->post_content,
+            'document_date'    => $effective ? $effective : substr( (string) $document->post_date, 0, 10 ),
         );
     }
 

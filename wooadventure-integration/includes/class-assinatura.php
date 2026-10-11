@@ -162,6 +162,7 @@ class WCAI_Assinatura {
             array(
                 'participant_id' => absint( $participant['id'] ),
                 'nome'           => $participant['nome_completo'],
+                'menor'          => class_exists( 'WCAI_Legal_Acceptances' ) && WCAI_Legal_Acceptances::guardian_required( $participant ),
             )
         );
     }
@@ -194,6 +195,17 @@ class WCAI_Assinatura {
             'accepted' === WCAI_Legal_Acceptances::legal_status( $participant['id'], $participant['reservation_id'] )
         ) {
             wp_send_json_error( 'Este participante já possui aceite da versão jurídica vigente.' );
+        }
+
+        // Campos novos do formulário de assinatura; obrigatórios só para menor de 18 anos.
+        $guardian_name = isset( $_POST['responsavel_nome'] ) ? sanitize_text_field( wp_unslash( $_POST['responsavel_nome'] ) ) : '';
+        $guardian_cpf  = isset( $_POST['responsavel_cpf'] ) ? preg_replace( '/\D/', '', wp_unslash( $_POST['responsavel_cpf'] ) ) : '';
+
+        if ( class_exists( 'WCAI_Legal_Acceptances' ) ) {
+            $guardian = WCAI_Legal_Acceptances::validate_guardian( $participant, $guardian_name, $guardian_cpf );
+            if ( is_wp_error( $guardian ) ) {
+                wp_send_json_error( $guardian->get_error_message(), 400 );
+            }
         }
 
         if ( empty( $img_base64 ) ) {
@@ -258,7 +270,7 @@ class WCAI_Assinatura {
         );
         update_post_meta( $post_id, '_wcai_data_hora', current_time( 'mysql' ) );
 
-        $ticket_data = $this->generate_and_save_ticket( $participant, $post_id );
+        $ticket_data = $this->generate_and_save_ticket( $participant, $post_id, $guardian_name, $guardian_cpf );
 
         if ( is_wp_error( $ticket_data ) ) {
             if ( file_exists( $stored['file'] ) ) {
@@ -419,7 +431,7 @@ class WCAI_Assinatura {
         return $remote ? $remote : 'unknown';
     }
 
-    private function generate_and_save_ticket( $participant, $signature_post_id = 0 ) {
+    private function generate_and_save_ticket( $participant, $signature_post_id = 0, $guardian_name = '', $guardian_cpf = '' ) {
         if (
             empty( $participant['id'] ) ||
             ! class_exists( 'WCAI_Participants_DB' ) ||
@@ -471,8 +483,8 @@ class WCAI_Assinatura {
             $participant['id'],
             0,
             'signature',
-            '',
-            '',
+            $guardian_name,
+            $guardian_cpf,
             $signature_post_id
         );
 
