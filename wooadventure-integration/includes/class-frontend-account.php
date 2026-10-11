@@ -254,7 +254,7 @@ class WCAI_Frontend_Account {
         if ( empty( $participants ) ) { echo '<span style="color:#999;">-</span>'; return; }
 
         $order_id = $order->get_id();
-        $is_locked = in_array( $order->get_status(), array('completed', 'cancelled', 'refunded', 'failed') );
+        $is_locked = $this->is_order_locked( $order );
         $modal_id = 'wcai-modal-' . $order_id;
         
         $total = count($participants);
@@ -386,9 +386,51 @@ class WCAI_Frontend_Account {
         $order_id = intval($_POST['order_id']);
         $order = wc_get_order($order_id);
         if (!$order || $order->get_customer_id() !== get_current_user_id()) wp_send_json_error('Erro permissão');
-        
-        $this->process_save($order, $_POST['participantes'], 'Frontend');
+        if ($this->is_order_locked($order)) wp_send_json_error('Pedido bloqueado para edição.');
+
+        $data = isset($_POST['participantes']) ? $_POST['participantes'] : array();
+        $error = $this->validate_frontend_rows($order, $data);
+        if ($error) wp_send_json_error($error);
+
+        $this->process_save($order, $data, 'Frontend');
         wp_send_json_success(array('message' => 'Salvo com sucesso!'));
+    }
+
+    private function is_order_locked($order) {
+        return in_array( $order->get_status(), array('completed', 'cancelled', 'refunded', 'failed') );
+    }
+
+    private function participant_belongs_to_order($participant_id, $order) {
+        $current = WCAI_Participants_DB::get_by_id($participant_id);
+        return $current && (int) $current['order_id'] === (int) $order->get_id();
+    }
+
+    // Reaplica as regras do checkout (CPF, idade mínima, CPF duplicado). Retorna a mensagem de erro ou ''.
+    private function validate_frontend_rows($order, $data) {
+        if (!is_array($data) || empty($data) || !class_exists('WCAI_Participants_DB')) return 'Dados inválidos.';
+
+        $cpfs_used = array();
+        foreach ($data as $row) {
+            if (!is_array($row)) return 'Dados inválidos.';
+
+            if (isset($row['id']) && is_numeric($row['id']) && !$this->participant_belongs_to_order($row['id'], $order)) {
+                return 'Participante não pertence a este pedido.';
+            }
+
+            $nome = isset($row['nome_completo']) ? sanitize_text_field($row['nome_completo']) : '';
+            $cpf  = isset($row['cpf']) ? $this->safe_cpf_pad($row['cpf']) : '';
+            $data_nasc = isset($row['data_nascimento']) ? sanitize_text_field($row['data_nascimento']) : '';
+
+            if ($nome === '') return 'Nome do participante é obrigatório.';
+            if (!WCAI_Utils::is_valid_cpf($cpf)) return "CPF inválido: $nome.";
+            if (class_exists('WCAI_Settings') && WCAI_Settings::is_cpf_blocked($cpf)) return "CPF restrito: $nome.";
+            if (!WCAI_Utils::is_valid_date($data_nasc) || !WCAI_Utils::is_min_age($data_nasc)) {
+                return "Data de nascimento inválida ou idade mínima de 7 anos não atendida: $nome.";
+            }
+            if (in_array($cpf, $cpfs_used, true)) return "CPF duplicado neste pedido: $nome.";
+            $cpfs_used[] = $cpf;
+        }
+        return '';
     }
 
     // =========================================================================
@@ -414,7 +456,8 @@ class WCAI_Frontend_Account {
         $order = $object instanceof WC_Order ? $object : wc_get_order($object->ID);
         wp_nonce_field( 'wcai_admin_participants', 'wcai_admin_participants_nonce' );
         $participants = $this->get_participants_safe($order);
-        
+        $can_view_sensitive = current_user_can( WCAI_Capabilities::VIEW_SENSITIVE );
+
         $total = count($participants);
         $signed = 0;
         foreach($participants as $p) {
@@ -501,8 +544,13 @@ class WCAI_Frontend_Account {
                 
                 // CPF ADMIN (PAD FIX)
                 $cpf_val_admin = class_exists('WCAI_Utils') ? WCAI_Utils::format_cpf($cpf_clean) : $cpf_clean;
-                echo '<td><input type="text" class="wcai-mask-cpf" name="wcai_admin_p['.$field_key.'][cpf]" value="'.esc_attr($cpf_val_admin).'"></td>';
-                echo '<td><input type="text" class="wcai-mask-date" name="wcai_admin_p['.$field_key.'][data_nascimento]" value="'.esc_attr($val_nasc).'" placeholder="dd/mm/aaaa"></td>';
+                if ( $can_view_sensitive ) {
+                    echo '<td><input type="text" class="wcai-mask-cpf" name="wcai_admin_p['.$field_key.'][cpf]" value="'.esc_attr($cpf_val_admin).'"></td>';
+                    echo '<td><input type="text" class="wcai-mask-date" name="wcai_admin_p['.$field_key.'][data_nascimento]" value="'.esc_attr($val_nasc).'" placeholder="dd/mm/aaaa"></td>';
+                } else {
+                    echo '<td>' . esc_html( WCAI_Utils::mask_cpf($cpf_clean) ) . '</td>';
+                    echo '<td>-</td>';
+                }
                 
                 // COLUNA ENTRADA
                 echo '<td>' . $html_in . '</td>';
@@ -524,7 +572,17 @@ class WCAI_Frontend_Account {
         $order = wc_get_order( $post_id );
         if ( ! $order ) return;
 
-        $this->process_save( $order, wp_unslash( $_POST['wcai_admin_p'] ), 'Admin' );
+        $rows = wp_unslash( $_POST['wcai_admin_p'] );
+        if ( ! current_user_can( WCAI_Capabilities::VIEW_SENSITIVE ) ) {
+            // Sem a capability, a tela não mostra CPF/nascimento: só edita nome de participantes existentes.
+            $rows = array_map( function ( $row ) {
+                return array( 'id' => isset( $row['id'] ) ? $row['id'] : null, 'nome_completo' => isset( $row['nome_completo'] ) ? $row['nome_completo'] : '' );
+            }, array_filter( (array) $rows, function ( $row ) {
+                return is_array( $row ) && isset( $row['id'] ) && is_numeric( $row['id'] );
+            } ) );
+        }
+
+        $this->process_save( $order, $rows, 'Admin' );
     }
 
     // --- 5. BUSCA E SALVAMENTO ---
@@ -571,17 +629,20 @@ class WCAI_Frontend_Account {
         $has_changes = false;
         
         foreach ($data as $row) {
-            // PAD FIX NA HORA DE SALVAR
-            $cpf_raw = preg_replace('/[^0-9]/', '', $row['cpf']);
-            $cpf_padded = str_pad($cpf_raw, 11, '0', STR_PAD_LEFT);
+            if (!is_array($row)) continue;
 
-            $item = array(
-                'nome_completo' => sanitize_text_field($row['nome_completo']),
-                'cpf' => $cpf_padded, // Salva sempre com 11 dígitos
-                'data_nascimento' => sanitize_text_field($row['data_nascimento']) 
-            );
+            $item = array('nome_completo' => sanitize_text_field($row['nome_completo']));
+            // Campos sensíveis são opcionais: admin sem VIEW_SENSITIVE não os envia.
+            if (isset($row['cpf'])) {
+                $item['cpf'] = $this->safe_cpf_pad($row['cpf']); // Salva sempre com 11 dígitos
+            }
+            if (isset($row['data_nascimento'])) {
+                $item['data_nascimento'] = sanitize_text_field($row['data_nascimento']);
+            }
 
             if (isset($row['id']) && is_numeric($row['id'])) {
+                // Nunca atualiza participante de outro pedido (IDOR).
+                if (!$this->participant_belongs_to_order($row['id'], $order)) continue;
                 WCAI_Participants_DB::update($row['id'], $item);
                 $has_changes = true;
             } else {
