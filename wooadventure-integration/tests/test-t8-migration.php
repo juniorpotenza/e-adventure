@@ -5,7 +5,7 @@
  */
 class Test_T8_Migration extends WP_UnitTestCase {
 
-    private function insert_acceptance( $participant, $reservation, $version, $guardian = null ) {
+    private function insert_acceptance( $participant, $reservation, $version, $guardian = null, $hash = null, $signature_post = null ) {
         global $wpdb;
         $wpdb->insert(
             WCAI_Legal_Acceptances::table(),
@@ -15,7 +15,8 @@ class Test_T8_Migration extends WP_UnitTestCase {
                 'order_id'          => 500,
                 'document_id'       => 1,
                 'document_version'  => $version,
-                'document_hash'     => str_repeat( 'a', 64 ),
+                'document_hash'     => $hash ? $hash : str_repeat( 'a', 64 ),
+                'signature_post_id' => $signature_post,
                 'acceptance_method' => 'signature',
                 'guardian_name'     => $guardian,
                 'accepted_at'       => '2026-01-01 10:00:00',
@@ -63,6 +64,33 @@ class Test_T8_Migration extends WP_UnitTestCase {
         $this->assertSame( 'Maria', $wpdb->get_var( $wpdb->prepare( "SELECT guardian_name FROM $table WHERE id = %d", $keep ) ) );
         $this->assertTrue( $this->unique_key_exists(), 'dbDelta deve criar a UNIQUE depois do dedupe.' );
         $this->assertSame( WCAI_VERSION, get_option( 'wcai_version' ) );
+    }
+
+    public function test_dedupe_keeps_row_with_signature_and_archives_rows_with_different_hash() {
+        global $wpdb;
+        $table   = WCAI_Legal_Acceptances::table();
+        $archive = $wpdb->prefix . 'wcai_legal_acceptances_archive';
+
+        if ( $this->unique_key_exists() ) {
+            $wpdb->query( "ALTER TABLE $table DROP INDEX uniq_participant_reservation_version" );
+        }
+        $wpdb->query( "DELETE FROM $table" );
+        $wpdb->query( "DROP TABLE IF EXISTS $archive" );
+
+        $first_same_hash = $this->insert_acceptance( 30, 40, 'v1' );
+        $signed          = $this->insert_acceptance( 30, 40, 'v1', null, null, 99 );
+        $other_hash      = $this->insert_acceptance( 30, 40, 'v1', null, str_repeat( 'b', 64 ) );
+
+        update_option( 'wcai_version', '2.21.0' );
+        wcai_run_migrations();
+
+        $ids = array_map( 'intval', wp_list_pluck( $this->rows(), 'id' ) );
+        $this->assertSame( array( $signed ), $ids, 'Fica a linha com signature_post_id.' );
+
+        $archived = array_map( 'intval', $wpdb->get_col( "SELECT id FROM $archive" ) );
+        $this->assertSame( array( $other_hash ), $archived, 'So a linha com hash diferente vai para o arquivo.' );
+        $this->assertNotContains( $first_same_hash, $archived );
+        $this->assertTrue( $this->unique_key_exists() );
     }
 
     public function test_current_version_runs_no_step() {

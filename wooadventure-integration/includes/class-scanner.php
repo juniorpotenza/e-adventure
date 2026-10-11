@@ -154,6 +154,7 @@ class WCAI_Scanner {
         // Página: rede primeiro, cache como fallback offline. Scripts: cache primeiro.
         echo 'const CACHE_NAME=' . wp_json_encode( 'wcai-op-v38' ) . ';const PAGE=' . wp_json_encode( $page ) . ';const URLS=' . wp_json_encode( array( self::JQUERY_SRC, self::QRCODE_SRC ) ) . ';'
             . "self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(URLS)))});"
+            . "self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith('wcai-op-')&&k!==CACHE_NAME).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});"
             . "self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;"
             . "if(r.mode==='navigate'&&r.url===PAGE){e.respondWith(fetch(r).then(x=>{if(x.ok){const k=x.clone();caches.open(CACHE_NAME).then(c=>c.put(r,k))}return x}).catch(()=>caches.match(r)));return}"
             . "if(URLS.includes(r.url))e.respondWith(caches.match(r).then(x=>x||fetch(r)))});";

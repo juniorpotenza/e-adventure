@@ -2,7 +2,7 @@
 Contributors: juniorpotenza
 Requires at least: 5.3
 Tested up to: 6.8
-Requires PHP: 7.0
+Requires PHP: 7.3
 Stable tag: 2.22.0
 License: Proprietary
 
@@ -23,10 +23,10 @@ O plugin gerencia a operação de passeios sobre o WooCommerce.
 == Requirements ==
 
 * WordPress 5.3 ou superior.
-* PHP 7.0 ou superior.
+* PHP 7.3 ou superior.
 * WooCommerce 8.9 ou superior.
 
-Os mínimos de WordPress e PHP vêm das funções usadas no código (wp_timezone, wp_date, operador ??, random_bytes). O mínimo do WooCommerce vem do cabeçalho do plugin.
+Os mínimos de WordPress e PHP vêm das funções usadas no código (wp_timezone, wp_date, operador ??, random_bytes, setcookie com array de opções). O mínimo do WooCommerce vem do cabeçalho do plugin.
 
 == Installation ==
 

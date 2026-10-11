@@ -3,7 +3,7 @@
  * Bootstrap da suite WordPress (phpunit.xml.dist).
  * Requer WP_TESTS_DIR (instalado por bin/install-wp-tests.sh) e WooCommerce em wp-content/plugins.
  */
-$tests_dir = getenv( 'WP_TESTS_DIR' ) ?: rtrim( sys_get_temp_dir(), '/\' ) . '/wordpress-tests-lib';
+$tests_dir = getenv( 'WP_TESTS_DIR' ) ?: rtrim( sys_get_temp_dir(), '/\\' ) . '/wordpress-tests-lib';
 
 if ( ! file_exists( $tests_dir . '/includes/functions.php' ) ) {
     fwrite( STDERR, "WP test suite nao encontrada em $tests_dir. Rode bin/install-wp-tests.sh.\n" );

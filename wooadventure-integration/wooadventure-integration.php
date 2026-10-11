@@ -6,7 +6,7 @@
  * Author: juniorpotenza
  * Text Domain: wooadventure-integration
  * Domain Path: /languages
- * Requires PHP: 7.0
+ * Requires PHP: 7.3
  * Requires at least: 5.3
  * WC requires at least: 8.9
  * WC tested up to: 11.1
@@ -121,7 +121,8 @@ function wcai_install_capabilities() {
     }
 }
 
-// Mantém o menor id por participant_id + reservation_id + document_version.
+// Por participant_id + reservation_id + document_version mantém a linha com signature_post_id (senão o menor id).
+// Linhas removidas com document_hash diferente do mantido vão antes para {prefix}wcai_legal_acceptances_archive.
 // Sem isso o dbDelta falha em silêncio ao criar a UNIQUE. Linhas com reservation_id NULL não colidem na UNIQUE.
 function wcai_dedupe_legal_acceptances() {
     global $wpdb;
@@ -130,7 +131,8 @@ function wcai_dedupe_legal_acceptances() {
         return;
     }
 
-    $table = WCAI_Legal_Acceptances::table();
+    $table   = WCAI_Legal_Acceptances::table();
+    $archive = $wpdb->prefix . 'wcai_legal_acceptances_archive';
 
     // Sem autojoin: o suite de testes do WP usa tabelas temporárias, que o MySQL não deixa citar duas vezes.
     $groups = $wpdb->get_results(
@@ -141,23 +143,71 @@ function wcai_dedupe_legal_acceptances() {
          HAVING COUNT(*) > 1"
     );
 
+    $removed  = 0;
+    $archived = 0;
+
     foreach ( (array) $groups as $group ) {
-        $ids = $wpdb->get_col(
+        $rows = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT id FROM $table WHERE participant_id = %d AND reservation_id = %d AND document_version = %s ORDER BY id ASC",
+                "SELECT id, document_hash, signature_post_id FROM $table WHERE participant_id = %d AND reservation_id = %d AND document_version = %s ORDER BY id ASC",
                 $group->participant_id,
                 $group->reservation_id,
                 $group->document_version
             )
         );
 
-        array_shift( $ids ); // mantém o menor id
+        // Mantém a linha com assinatura (senão o menor id).
+        $keep = $rows[0];
+        foreach ( $rows as $row ) {
+            if ( (int) $row->signature_post_id > 0 ) {
+                $keep = $row;
+                break;
+            }
+        }
 
-        if ( $ids ) {
-            $wpdb->query( "DELETE FROM $table WHERE id IN (" . implode( ',', array_map( 'absint', $ids ) ) . ')' );
+        $drop_ids    = array();
+        $archive_ids = array();
+        foreach ( $rows as $row ) {
+            if ( (int) $row->id === (int) $keep->id ) {
+                continue;
+            }
+            $drop_ids[] = absint( $row->id );
+            if ( $row->document_hash !== $keep->document_hash ) {
+                $archive_ids[] = absint( $row->id ); // evidência diferente: copia antes de apagar
+            }
+        }
+
+        if ( $archive_ids ) {
+            // LIKE copia as colunas; a UNIQUE ainda não existe neste ponto da migração.
+            $wpdb->query( "CREATE TABLE IF NOT EXISTS $archive LIKE $table" );
+            $wpdb->query( "INSERT INTO $archive SELECT * FROM $table WHERE id IN (" . implode( ',', $archive_ids ) . ')' );
+            $archived += count( $archive_ids );
+        }
+
+        if ( $drop_ids ) {
+            $wpdb->query( "DELETE FROM $table WHERE id IN (" . implode( ',', $drop_ids ) . ')' );
+            $removed += count( $drop_ids );
         }
     }
+
+    if ( $removed && class_exists( 'WCAI_Audit_Log' ) ) {
+        WCAI_Audit_Log::log( 'legal_acceptances_dedupe', 'migration', null, array( 'groups' => count( (array) $groups ), 'removed' => $removed, 'archived' => $archived ) );
+    }
 }
+
+// Migra assinaturas legadas em lotes; reagenda enquanto sobrar trabalho.
+function wcai_migrate_signatures() {
+    if ( ! method_exists( 'WCAI_Assinatura', 'migrate_legacy_signatures' ) ) {
+        return;
+    }
+
+    $remaining = (int) WCAI_Assinatura::migrate_legacy_signatures();
+
+    if ( $remaining > 0 && ! wp_next_scheduled( 'wcai_migrate_signatures' ) ) {
+        wp_schedule_single_event( time() + 60, 'wcai_migrate_signatures' );
+    }
+}
+add_action( 'wcai_migrate_signatures', 'wcai_migrate_signatures' );
 
 // Passos ordenados por versão. Cada passo roda uma vez, quando a versão instalada é menor que a chave.
 function wcai_migration_steps() {
@@ -172,6 +222,7 @@ function wcai_migration_steps() {
             wcai_dedupe_legal_acceptances();
             wcai_create_tables();           // dbDelta: colunas de snapshot/responsável + UNIQUE
             wcai_install_capabilities();
+            wcai_migrate_signatures();
         },
     );
 }

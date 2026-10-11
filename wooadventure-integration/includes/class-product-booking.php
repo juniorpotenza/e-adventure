@@ -652,7 +652,6 @@ class WCAI_Product_Booking {
         wp_register_script( 'wcai-product-booking-calendar', false, array(), WCAI_VERSION, true );
         wp_enqueue_script( 'wcai-product-booking-calendar' );
 
-        // needs follow-up: add Text Domain header + load_plugin_textdomain in main file (T8).
         wp_add_inline_script(
             'wcai-product-booking-calendar',
             'window.wcaiBookingI18n = ' . wp_json_encode(
