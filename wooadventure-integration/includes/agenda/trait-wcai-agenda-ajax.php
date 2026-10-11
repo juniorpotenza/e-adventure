@@ -3,6 +3,11 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 trait WCAI_Agenda_Ajax {
 
+    // Mesma regra do scanner (guide_scope_join): quem não gerencia saídas só vê as saídas em que é o guia.
+    private function departure_in_guide_scope( $departure_id ) {
+        return (string) get_current_user_id() === (string) get_post_meta( $departure_id, '_wcai_guide_id', true );
+    }
+
     public function ajax_get_events() {
         check_ajax_referer( 'wcai_calendar_nonce', 'nonce' );
         if ( ! current_user_can( WCAI_Capabilities::VIEW_MANIFEST ) ) {
@@ -11,7 +16,9 @@ trait WCAI_Agenda_Ajax {
 
         $start = isset( $_POST['start'] ) ? substr( sanitize_text_field( wp_unslash( $_POST['start'] ) ), 0, 10 ) : wp_date( 'Y-m-01' );
         $end   = isset( $_POST['end'] ) ? substr( sanitize_text_field( wp_unslash( $_POST['end'] ) ), 0, 10 ) : wp_date( 'Y-m-t' );
-        $cache_key = 'wcai_events_' . md5( $start . '|' . $end );
+        // Chave por escopo ('all' ou 'u<id>'); prefixo 'wcai_events_' mantido p/ clear_calendar_cache_internal (LIKE).
+        $scope_all = current_user_can( WCAI_Capabilities::MANAGE_DEPARTURES );
+        $cache_key = 'wcai_events_' . ( $scope_all ? 'all' : 'u' . get_current_user_id() ) . '_' . md5( $start . '|' . $end );
         $cached = get_transient( $cache_key );
 
         if ( false !== $cached ) {
@@ -23,6 +30,9 @@ trait WCAI_Agenda_Ajax {
 
         foreach ( $departures as $departure ) {
             $departure_id = absint( $departure->ID );
+            if ( ! $scope_all && ! $this->departure_in_guide_scope( $departure_id ) ) {
+                continue;
+            }
             $starts_at = get_post_meta( $departure_id, '_wcai_starts_at', true );
             if ( empty( $starts_at ) ) {
                 continue;
@@ -92,6 +102,9 @@ trait WCAI_Agenda_Ajax {
         }
 
         $departure_id = isset( $_POST['departure_id'] ) ? absint( $_POST['departure_id'] ) : 0;
+        if ( ! current_user_can( WCAI_Capabilities::MANAGE_DEPARTURES ) && ! $this->departure_in_guide_scope( $departure_id ) ) {
+            wp_send_json_error( array( 'message' => 'Acesso negado.' ), 403 );
+        }
         $departure = $departure_id ? get_post( $departure_id ) : false;
 
         if ( ! $departure || WCAI_Departures::POST_TYPE !== $departure->post_type || 'publish' !== $departure->post_status ) {

@@ -204,6 +204,7 @@ trait WCAI_Scanner_Data {
                     COUNT(DISTINCT d.ID) AS departure_count
                 FROM {$wpdb->posts} d
                 INNER JOIN {$wpdb->postmeta} dm ON dm.post_id = d.ID AND dm.meta_key = '_wcai_starts_at'
+                {$this->guide_scope_join()}
                 WHERE d.post_type = %s
                   AND d.post_status = 'publish'
                   AND dm.meta_value BETWEEN %s AND %s
