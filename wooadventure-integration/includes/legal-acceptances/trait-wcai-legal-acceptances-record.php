@@ -32,6 +32,10 @@ trait WCAI_Legal_Acceptances_Record {
             return new WP_Error( 'wcai_acceptance_reservation_invalid', 'Reserva do participante não encontrada.' );
         }
 
+        if ( 'confirmed' !== $reservation->status ) {
+            return new WP_Error( 'wcai_acceptance_reservation_not_confirmed', 'A reserva do participante não está confirmada.' );
+        }
+
         $document_id = absint( $document_id );
         if ( ! $document_id ) {
             $active = WCAI_Legal_Documents::get_active_snapshot();
@@ -160,6 +164,11 @@ trait WCAI_Legal_Acceptances_Record {
         );
     }
 
+    // Mesma derivação de WCAI_Assinatura::hmac (classe independente: este arquivo carrega sem ela). Um contexto por uso.
+    private static function hmac( $context, $data ) {
+        return hash_hmac( 'sha256', (string) $data, hash_hmac( 'sha256', 'wcai|' . $context, wp_salt( 'auth' ) ) );
+    }
+
     private static function insert_acceptance( $data ) {
         global $wpdb;
 
@@ -179,12 +188,12 @@ trait WCAI_Legal_Acceptances_Record {
             'document_date'      => preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $data['document_date'] ) ? $data['document_date'] : null,
             'guardian_name'      => isset( $data['guardian_name'] ) && $data['guardian_name'] !== '' ? sanitize_text_field( $data['guardian_name'] ) : null,
             'guardian_cpf_hash'  => ! empty( $data['guardian_cpf'] )
-                ? hash_hmac( 'sha256', preg_replace( '/\D/', '', $data['guardian_cpf'] ), wp_salt( 'auth' ) . '|' . absint( $data['participant_id'] ) )
+                ? self::hmac( 'guardian-cpf', absint( $data['participant_id'] ) . '|' . preg_replace( '/\D/', '', $data['guardian_cpf'] ) )
                 : null,
             'acceptance_method'  => sanitize_key( $data['acceptance_method'] ),
             'signature_post_id'  => absint( $data['signature_post_id'] ),
-            'ip_hash'            => $ip ? hash_hmac( 'sha256', $ip, wp_salt( 'auth' ) ) : null,
-            'user_agent_hash'    => $agent ? hash_hmac( 'sha256', $agent, wp_salt( 'auth' ) ) : null,
+            'ip_hash'            => $ip ? self::hmac( 'ip', $ip ) : null,
+            'user_agent_hash'    => $agent ? self::hmac( 'device', $agent ) : null,
             'accepted_at'        => current_time( 'mysql', true ),
         );
 

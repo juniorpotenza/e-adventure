@@ -6,7 +6,7 @@ trait WCAI_Assinatura_Session {
     private function set_ticket_session_cookie( $order_id, $participant_id, $signature_post_id ) {
         $expires = time() + 5 * MINUTE_IN_SECONDS;
         $payload = absint( $order_id ) . '|' . absint( $participant_id ) . '|' . absint( $signature_post_id ) . '|' . $expires;
-        $signature = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+        $signature = self::hmac( 'ticket-cookie', $payload );
 
         setcookie(
             'wcai_ticket_session',
@@ -24,7 +24,7 @@ trait WCAI_Assinatura_Session {
     private function set_session_cookie( $order_id, $participant_id ) {
         $expires = time() + HOUR_IN_SECONDS;
         $payload = absint( $order_id ) . '|' . absint( $participant_id ) . '|' . $expires;
-        $signature = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+        $signature = self::hmac( 'pax-cookie', $payload );
         $value = $payload . '|' . $signature;
 
         setcookie(
@@ -52,7 +52,7 @@ trait WCAI_Assinatura_Session {
         }
 
         $payload = absint( $parts[0] ) . '|' . absint( $parts[1] ) . '|' . absint( $parts[2] );
-        $expected = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+        $expected = self::hmac( 'pax-cookie', $payload );
 
         return absint( $parts[0] ) === absint( $order_id)
             && absint( $parts[1] ) === absint( $participant_id )

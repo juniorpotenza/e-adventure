@@ -108,7 +108,7 @@ trait WCAI_Assinatura_Ticket {
         $signature_post_id = absint( $parts[2] );
         $expires = absint( $parts[3] );
         $payload = $order_id . '|' . $participant_id . '|' . $signature_post_id . '|' . $expires;
-        $expected = hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
+        $expected = self::hmac( 'ticket-cookie', $payload );
 
         setcookie(
             'wcai_ticket_session',

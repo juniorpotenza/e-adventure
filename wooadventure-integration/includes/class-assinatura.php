@@ -31,6 +31,11 @@ class WCAI_Assinatura {
     use WCAI_Assinatura_Session;
     use WCAI_Assinatura_Admin;
 
+    // Chave derivada por contexto ('pax-cookie', 'ticket-cookie', 'ip', 'device'): valor assinado num contexto não vale em outro.
+    public static function hmac( $context, $data ) {
+        return hash_hmac( 'sha256', (string) $data, hash_hmac( 'sha256', 'wcai|' . $context, wp_salt( 'auth' ) ) );
+    }
+
     public function __construct() {
         add_action( 'init', array( $this, 'register_cpt' ) );
         add_filter( 'manage_wcai_assinatura_posts_columns', array( $this, 'set_custom_columns' ) );

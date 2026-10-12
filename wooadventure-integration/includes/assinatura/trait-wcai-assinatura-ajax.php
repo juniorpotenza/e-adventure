@@ -12,21 +12,22 @@ trait WCAI_Assinatura_Ajax {
     public function ajax_check_order() {
         $this->verify_ajax_request();
 
-        $id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+        $id        = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
+        $order_key = isset( $_POST['order_key'] ) ? sanitize_text_field( wp_unslash( $_POST['order_key'] ) ) : '';
 
-        if ( ! $id ) {
-            wp_send_json_error( 'Pedido inválido.', 400 );
-        }
-
+        // Limite antes de qualquer consulta; só depende de IP + id enviado, nunca da existência do pedido.
         if ( $this->signature_rate_limited( 'check', $id ) ) {
             wp_send_json_error( 'Muitas tentativas. Aguarde alguns minutos e tente novamente.', 429 );
         }
 
-        if ( wc_get_order( $id ) ) {
+        // Pedido inexistente, chave errada e pedido sem reserva confirmada: mesma resposta (sem oráculo).
+        $order = $id ? wc_get_order( $id ) : false;
+
+        if ( $order && $this->order_key_matches( $order, $order_key ) && $this->order_has_signable_participant( $order ) ) {
             wp_send_json_success();
         }
 
-        wp_send_json_error();
+        wp_send_json_error( self::LOOKUP_ERROR, 403 );
     }
 
     public function ajax_check_pax_deep() {
@@ -154,12 +155,12 @@ trait WCAI_Assinatura_Ajax {
         update_post_meta(
             $post_id,
             '_wcai_ip_hash',
-            $ip ? hash_hmac( 'sha256', $ip, wp_salt( 'auth' ) ) : ''
+            $ip ? self::hmac( 'ip', $ip ) : ''
         );
         update_post_meta(
             $post_id,
             '_wcai_device_hash',
-            $agent ? hash_hmac( 'sha256', $agent, wp_salt( 'auth' ) ) : ''
+            $agent ? self::hmac( 'device', $agent ) : ''
         );
         update_post_meta( $post_id, '_wcai_data_hora', current_time( 'mysql' ) );
 
@@ -228,6 +229,22 @@ trait WCAI_Assinatura_Ajax {
             }
 
             return $participant;
+        }
+
+        return false;
+    }
+
+    private function order_has_signable_participant( $order ) {
+        if ( ! class_exists( 'WCAI_Participants_DB' ) || ! class_exists( 'WCAI_Reservations' ) ) {
+            return false;
+        }
+
+        foreach ( WCAI_Participants_DB::get_by_order( $order->get_id() ) as $participant ) {
+            $reservation = WCAI_Reservations::get_by_id( absint( $participant['reservation_id'] ) );
+
+            if ( $reservation && 'confirmed' === $reservation->status ) {
+                return true;
+            }
         }
 
         return false;

@@ -29,11 +29,11 @@ trait WCAI_Assinatura_Rate_Limit {
         $limit = 'save' === $action ? self::RATE_LIMIT_SAVE : self::RATE_LIMIT;
 
         $keys = array(
-            'wcai_sig_rate_' . $action . '_order_' . md5( $ip . '|' . $order_id ),
+            'wcai_sig_rate_' . $action . '_order_' . self::hmac( 'rate', $ip . '|' . $order_id ),
         );
 
         if ( '' !== $identifier ) {
-            $keys[] = 'wcai_sig_rate_' . $action . '_identifier_' . md5( $ip . '|' . $order_id . '|' . $identifier );
+            $keys[] = 'wcai_sig_rate_' . $action . '_identifier_' . self::hmac( 'rate', $ip . '|' . $order_id . '|' . $identifier );
         }
 
         $limited = false;
@@ -59,7 +59,18 @@ trait WCAI_Assinatura_Rate_Limit {
             }
         }
 
-        // shortcut: sem object cache persistente o contador é transient (não atômico); instalar Redis/Memcached.
+        // Sem object cache persistente o transient vive em wp_options: o UPDATE incrementa de forma atômica.
+        // shortcut: só a criação do contador (1º hit) é não atômica; instalar Redis/Memcached elimina.
+        global $wpdb;
+
+        if ( false !== get_transient( $key ) && isset( $wpdb ) && is_object( $wpdb ) ) {
+            $name = '_transient_' . $key;
+
+            if ( $wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = option_value + 1 WHERE option_name = %s", $name ) ) ) {
+                return (int) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name ) );
+            }
+        }
+
         $count = absint( get_transient( $key ) ) + 1;
         set_transient( $key, $count, $ttl );
 

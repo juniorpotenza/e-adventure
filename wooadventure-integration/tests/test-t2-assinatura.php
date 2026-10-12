@@ -122,7 +122,7 @@ class Test_T2_Assinatura extends TestCase {
     public function test_expired_session_cookie_fails_and_valid_one_passes() {
         $cookie = function ( $expires ) {
             $payload = '7|5|' . $expires;
-            return $payload . '|' . hash_hmac( 'sha256', $payload, 'test-salt' );
+            return $payload . '|' . WCAI_Assinatura::hmac( 'pax-cookie', $payload );
         };
 
         $_COOKIE['wcai_pax_session'] = $cookie( time() - 10 );

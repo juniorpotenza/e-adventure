@@ -21,6 +21,7 @@ trait WCAI_Assinatura_Shortcode {
                 var $this = $(this);
                 var val = $this.val().trim();
                 var $msg = $('#wcai-msg-pedido');
+                var orderKey = ( $('input[name="wcai_order_key"]').val() || new URLSearchParams( window.location.search ).get('key') || '' ).trim();
 
                 if ( val.length === 0 ) {
                     $msg.html('');
@@ -32,6 +33,7 @@ trait WCAI_Assinatura_Shortcode {
                 $.post( ajaxUrl, {
                     action: 'wcai_check_order_only',
                     order_id: val,
+                    order_key: orderKey,
                     security: security
                 }, function( response ) {
                     if ( response.success ) {
