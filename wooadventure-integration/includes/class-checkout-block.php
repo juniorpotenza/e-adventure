@@ -24,6 +24,7 @@ class WCAI_Checkout_Block {
         add_action( 'woocommerce_set_additional_field_value', array( $this, 'sync_identity_field' ), 10, 4 );
         add_action( 'woocommerce_blocks_loaded', array( $this, 'register_store_api' ) );
         add_filter( 'render_block_woocommerce/checkout-fields-block', array( $this, 'render_checkout_ui' ), 20 );
+        add_filter( 'render_block_woocommerce/checkout-actions-block', array( $this, 'render_checkout_footer' ), 20 );
         add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( $this, 'capture_checkout_payload' ), 10, 2 );
         add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'process_checkout' ), 10, 1 );
     }

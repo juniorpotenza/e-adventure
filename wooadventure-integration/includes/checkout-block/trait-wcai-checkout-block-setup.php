@@ -63,6 +63,15 @@ trait WCAI_Checkout_Block_Setup {
             file_exists( $file ) ? (string) filemtime( $file ) : WCAI_VERSION,
             true
         );
+
+        wp_localize_script(
+            self::SCRIPT_HANDLE,
+            'wcaiCheckout',
+            array(
+                'consentText' => class_exists( 'WCAI_Privacy' ) ? WCAI_Privacy::consent_text() : '',
+                'termsUrl'    => esc_url_raw( (string) WCAI_Settings::get_terms_url() ),
+            )
+        );
     }
 
     public function register_store_api() {

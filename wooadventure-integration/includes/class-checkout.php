@@ -16,6 +16,7 @@ class WCAI_Checkout {
             wp_enqueue_script( 'jquery-mask', 'https://cdnjs.cloudflare.com/ajax/libs/jquery.mask/1.14.16/jquery.mask.min.js', array( 'jquery' ), '1.14.16', true );
             wp_add_inline_script( 'jquery-mask', "
                 jQuery(document).ready(function($) {
+                    if (!$.fn.mask) { return; }
                     $('input[name^=\"cpf_\"]').mask('000.000.000-00');
                     $('input[name^=\"data_nascimento_\"]').mask('00/00/0000');
                 });

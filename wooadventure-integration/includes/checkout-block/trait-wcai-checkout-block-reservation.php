@@ -27,6 +27,32 @@ trait WCAI_Checkout_Block_Reservation {
         return $html . $block_content;
     }
 
+    // Barra Voltar/Continuar: fica dentro de .wc-block-checkout__main, depois do bloco de ações (abaixo do conteúdo da etapa).
+    public function render_checkout_footer( $block_content ) {
+        if ( ! $this->has_target_cart_item() ) {
+            return $block_content;
+        }
+
+        return $block_content . '<div id="wcai-checkout-wizard-footer" class="wcai-wizard-footer"></div>';
+    }
+
+    // O aceite do consentimento (dados de terceiros) é obrigatório e vem no payload do checkout.
+    private function assert_consent( $payload ) {
+        if ( ! isset( $payload['consent'] ) || true !== $payload['consent'] ) {
+            $this->fail( 'Aceite o consentimento para o uso dos dados dos participantes para finalizar o pedido.' );
+        }
+    }
+
+    private function store_consent( $order ) {
+        $order->update_meta_data(
+            '_wcai_third_party_consent',
+            array(
+                'accepted_at' => gmdate( 'c' ),
+                'text_sha256' => hash( 'sha256', WCAI_Privacy::consent_text() ),
+            )
+        );
+    }
+
     // Tolera extensions ou extensions[NAMESPACE] que nao sejam array (cliente antigo, string, null).
     private function extension_payload_raw( $extensions ) {
         $ns = is_array( $extensions ) && isset( $extensions[ self::NAMESPACE ] ) ? $extensions[ self::NAMESPACE ] : array();
@@ -86,6 +112,8 @@ trait WCAI_Checkout_Block_Reservation {
         if ( ! is_array( $payload ) ) {
             $this->fail( 'Os dados da reserva não foram recebidos. Atualize o checkout e tente novamente.' );
         }
+
+        $this->assert_consent( $payload );
 
         $billing_cpf = WCAI_Data_Resolver::get_billing_cpf( $order );
         $billing_birthdate = WCAI_Data_Resolver::get_billing_birthdate( $order );
@@ -180,6 +208,7 @@ trait WCAI_Checkout_Block_Reservation {
             }
         }
 
+        $this->store_consent( $order );
         $order->save();
 
         if ( function_exists( 'WC' ) && WC()->session ) {

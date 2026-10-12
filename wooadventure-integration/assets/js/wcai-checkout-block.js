@@ -10,6 +10,9 @@
     var syncTimer = null;
     var attempted = false;
     var flaggedNative = [];
+    var consent = false;
+    var NBSP = String.fromCharCode(160);
+    var BR_UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
     var MIN_AGE = 7; // espelha WCAI_Utils::is_min_age (includes/class-utils.php)
     var CPF_SELECTORS = [
         'input[name="billing_cpf"]',
@@ -28,10 +31,24 @@
         '#wcai-billing-birthdate'
     ];
 
+    var CPF_SEL = CPF_SELECTORS.join(',');
+    var BIRTH_SEL = BIRTH_SELECTORS.join(',');
+
+    // Dados do servidor (WCAI_Privacy::consent_text, wcai_terms_url) via wp_localize_script.
+    function config() {
+        return typeof window !== 'undefined' && window.wcaiCheckout ? window.wcaiCheckout : {};
+    }
+
     function cart() {
         if (!window.wp || !wp.data) return null;
         var store = wp.data.select('wc/store/cart');
         return store && typeof store.getCartData === 'function' ? store.getCartData() : null;
+    }
+
+    function customerData() {
+        if (!window.wp || !wp.data) return null;
+        var store = wp.data.select('wc/store/cart');
+        return store && typeof store.getCustomerData === 'function' ? store.getCustomerData() : null;
     }
 
     function checkoutDispatcher() {
@@ -50,8 +67,14 @@
         var checkout = checkoutDispatcher();
         if (!checkout) return;
 
-        var payload = {
-            items: state.items.map(function (item) {
+        pushExtensionData(checkout, JSON.stringify(buildPayload(state.items, consent)));
+    }
+
+    // consent: boolean estrito; o servidor recusa o pedido se não for true.
+    function buildPayload(items, accepted) {
+        return {
+            consent: accepted === true,
+            items: items.map(function (item) {
                 return {
                     key: item.key,
                     product_id: item.product_id,
@@ -63,8 +86,6 @@
                 };
             })
         };
-
-        pushExtensionData(checkout, JSON.stringify(payload));
     }
 
     function scheduleSync() {
@@ -152,11 +173,11 @@
         return date;
     }
 
-    // Idade em anos completos. Data futura dá idade negativa (o servidor ainda não recusa futuro).
-    function isMinAge(value, years, now) {
+    // Idade em anos completos (null se a data é inválida). Data futura dá idade negativa (o servidor ainda não recusa futuro).
+    function ageOn(value, now) {
         var birth = parseDate(value);
 
-        if (!birth) return false;
+        if (!birth) return null;
 
         now = now || new Date();
 
@@ -166,7 +187,90 @@
             age--;
         }
 
-        return age >= (years || MIN_AGE);
+        return age;
+    }
+
+    function isMinAge(value, years, now) {
+        var age = ageOn(value, now);
+
+        return age !== null && age >= (years || MIN_AGE);
+    }
+
+    // Rascunho restaurado pelo Woo pode vir sem máscara ou duplicado ('1505199015051990'). Devolve '' se não aproveitável.
+    function sanitizeDraft(kind, value) {
+        var d = digits(value);
+
+        if (!d) return '';
+        if (kind === 'cpf') return cpfMask(d.slice(0, 11));
+
+        var masked = dateMask(d.slice(0, 8));
+
+        return parseDate(masked) ? masked : '';
+    }
+
+    function maskCpfForReview(value) {
+        var d = digits(value);
+
+        return d.length === 11 ? d.slice(0, 3) + '.***.***-' + d.slice(9) : '';
+    }
+
+    // Linhas do resumo da revisão: titular primeiro, depois os adicionais de cada item.
+    function participantSummary(items, holder, now) {
+        var rows = [{
+            role: 'Titular',
+            name: holder && holder.name ? holder.name : '',
+            age: ageOn(holder && holder.birthdate, now),
+            cpf: maskCpfForReview(holder && holder.cpf),
+            category: 'Adulto'
+        }];
+
+        items.forEach(function (item) {
+            item.additional_participants.forEach(function (person, index) {
+                rows.push({
+                    role: 'Participante ' + (index + 2),
+                    name: person.name || '',
+                    age: ageOn(person.birthdate, now),
+                    cpf: maskCpfForReview(person.cpf),
+                    category: person.type === 'child' ? 'Criança' : 'Adulto'
+                });
+            });
+        });
+
+        return rows;
+    }
+
+    // Erro de validação do Woo que bloqueia o pedido enquanto o aceite não é marcado.
+    function consentErrors(accepted) {
+        var errors = {};
+
+        if (accepted !== true) {
+            addError(errors, 'wcai-consent', 'Aceite o consentimento e os termos de participação para finalizar o pedido.');
+        }
+
+        return errors;
+    }
+
+    // Total do carrinho (store API: valor em unidade menor + separadores da moeda).
+    function formatTotal(totals) {
+        if (!totals || totals.total_price === undefined) return '';
+
+        var minor = parseInt(totals.currency_minor_unit, 10);
+        if (isNaN(minor)) minor = 2;
+
+        var raw = String(Math.abs(parseInt(totals.total_price, 10) || 0));
+        while (raw.length <= minor) raw = '0' + raw;
+
+        var whole = raw.slice(0, raw.length - minor).replace(/\B(?=(\d{3})+(?!\d))/g, totals.currency_thousand_separator || '.');
+        var fraction = minor ? (totals.currency_decimal_separator || ',') + raw.slice(raw.length - minor) : '';
+        var prefix = totals.currency_prefix ? String(totals.currency_prefix).trim() + NBSP : '';
+        var suffix = totals.currency_suffix ? NBSP + String(totals.currency_suffix).trim() : '';
+
+        return prefix + whole + fraction + suffix;
+    }
+
+    // Endereço antigo: estado é UF brasileira, mas o país não é o Brasil.
+    function suspectCountry(country, state) {
+        return !!country && country !== 'BR' && BR_UFS.indexOf(String(state || '').toUpperCase()) !== -1;
     }
 
     function cpfMessage(value, who) {
@@ -322,47 +426,62 @@
         return null;
     }
 
+    // Seletores por seção nativa: o atributo data-block-name some do DOM depois que o Woo monta o React;
+    // as classes wc-block-checkout__* e os ids são o que existe no HTML final.
+    var NATIVE_GROUPS = {
+        contact: ['[data-block-name="woocommerce/checkout-contact-information-block"]', '.wc-block-checkout__contact-fields', '#contact-fields'],
+        billing: ['[data-block-name="woocommerce/checkout-billing-address-block"]', '.wc-block-checkout__billing-fields', '#billing-fields'],
+        shipping: [
+            '[data-block-name="woocommerce/checkout-shipping-address-block"]',
+            '[data-block-name="woocommerce/checkout-shipping-methods-block"]',
+            '[data-block-name="woocommerce/checkout-shipping-method-block"]',
+            '[data-block-name="woocommerce/checkout-pickup-options-block"]',
+            '.wc-block-checkout__shipping-fields', '#shipping-fields',
+            '.wc-block-checkout__shipping-option', '#shipping-option',
+            '.wc-block-checkout__pickup-options', '#pickup-options'
+        ],
+        payment: ['[data-block-name="woocommerce/checkout-payment-block"]', '.wc-block-checkout__payment-method', '#payment-method'],
+        note: ['[data-block-name="woocommerce/checkout-order-note-block"]', '.wc-block-checkout__add-note'],
+        terms: ['[data-block-name="woocommerce/checkout-terms-block"]', '.wc-block-checkout__terms'],
+        actions: ['[data-block-name="woocommerce/checkout-actions-block"]', '.wc-block-checkout__actions'],
+        express: [
+            '[data-block-name="woocommerce/checkout-express-payment-block"]',
+            '.wc-block-components-express-payment',
+            '.wc-block-components-express-payment-continue-rule'
+        ]
+    };
+
+    // Seções nativas escondidas em cada etapa (só CSS: o DOM do React nunca é alterado).
+    var HIDDEN_BY_STEP = {
+        1: ['contact', 'billing', 'shipping', 'payment', 'note', 'terms', 'actions', 'express'],
+        2: ['shipping', 'payment', 'note', 'terms', 'actions', 'express'],
+        3: ['contact', 'billing', 'shipping', 'payment', 'note', 'terms', 'actions', 'express'],
+        4: ['contact', 'billing']
+    };
+
+    // Função pura: CSS de visibilidade por etapa.
+    function stageGateCss() {
+        return [1, 2, 3, 4].map(function (step) {
+            var selectors = [];
+
+            HIDDEN_BY_STEP[step].forEach(function (group) {
+                NATIVE_GROUPS[group].forEach(function (selector) {
+                    selectors.push('body.wcai-checkout-step-' + step + ' ' + selector);
+                });
+            });
+
+            return selectors.join(',') + '{display:none!important;visibility:hidden!important;pointer-events:none!important}';
+        }).join('');
+    }
+
     function nativeSections() {
-        return {
-            contact: firstExisting([
-                '[data-block-name="woocommerce/checkout-contact-information-block"]',
-                '.wc-block-checkout__contact-fields'
-            ]),
-            billing: firstExisting([
-                '[data-block-name="woocommerce/checkout-billing-address-block"]',
-                '.wc-block-checkout__billing-fields'
-            ]),
-            shippingAddress: firstExisting([
-                '[data-block-name="woocommerce/checkout-shipping-address-block"]'
-            ]),
-            shippingMethods: firstExisting([
-                '[data-block-name="woocommerce/checkout-shipping-methods-block"]'
-            ]),
-            shippingMethod: firstExisting([
-                '[data-block-name="woocommerce/checkout-shipping-method-block"]'
-            ]),
-            pickup: firstExisting([
-                '[data-block-name="woocommerce/checkout-pickup-options-block"]'
-            ]),
-            payment: firstExisting([
-                '[data-block-name="woocommerce/checkout-payment-block"]',
-                '.wc-block-components-checkout-payment-methods',
-                '.wc-block-checkout__payment-method',
-                '.wc-block-checkout__payment-methods'
-            ]),
-            terms: firstExisting([
-                '[data-block-name="woocommerce/checkout-terms-block"]'
-            ]),
-            actions: firstExisting([
-                '[data-block-name="woocommerce/checkout-actions-block"]'
-            ]),
-            orderNote: firstExisting([
-                '[data-block-name="woocommerce/checkout-order-note-block"]'
-            ]),
-            express: firstExisting([
-                '[data-block-name="woocommerce/checkout-express-payment-block"]'
-            ])
-        };
+        var sections = {};
+
+        Object.keys(NATIVE_GROUPS).forEach(function (group) {
+            sections[group] = firstExisting(NATIVE_GROUPS[group]);
+        });
+
+        return sections;
     }
 
     function setHidden(node, hidden) {
@@ -386,6 +505,7 @@
 
         document.body.classList.toggle('wcai-checkout-before-payment', currentStep !== 4);
         document.body.classList.toggle('wcai-checkout-payment-step', currentStep === 4);
+        document.body.classList.toggle('wcai-consent-missing', !consent);
     }
 
     function clearCheckoutStageClasses() {
@@ -397,6 +517,7 @@
 
         document.body.classList.remove('wcai-checkout-before-payment');
         document.body.classList.remove('wcai-checkout-payment-step');
+        document.body.classList.remove('wcai-consent-missing');
     }
 
     function applyNativeStepVisibility() {
@@ -444,46 +565,36 @@
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary:only-child{margin-right:auto}' +
             '#wcai-checkout-wizard .wcai-warning{padding:10px 11px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-billing-address-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-payment-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-payment-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-billing-address-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-payment-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-billing-address-block"],' +
-            'body:not(.wcai-checkout-step-4) .wc-block-components-checkout-place-order-button,' +
-            'body:not(.wcai-checkout-step-4) #place_order,' +
-            'body:not(.wcai-checkout-step-4) button[name="woocommerce_checkout_place_order"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-order-note-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-order-note-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-order-note-block"]{display:none!important;visibility:hidden!important;pointer-events:none!important}' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-payment-block"],' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-billing-address-block"]{display:block}' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-actions-block"] .wc-block-components-checkout-place-order-button{display:block;width:100%;min-height:44px;font-weight:800;border-radius:8px}' +
-            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{gap:3px}#wcai-checkout-wizard .wcai-wizard-progress button{padding:4px 3px}}';
+            stageGateCss() +
+            'body.wcai-checkout-before-payment .wc-block-components-checkout-place-order-button,body.wcai-checkout-before-payment #place_order,body.wcai-checkout-before-payment button[name="woocommerce_checkout_place_order"]{display:none!important}' +
+            'body.wcai-checkout-step-4 .wc-block-checkout__actions .wc-block-components-checkout-place-order-button{display:block;width:100%;min-height:44px;font-weight:800;border-radius:8px}' +
+            'body.wcai-checkout-step-4.wcai-consent-missing .wc-block-components-checkout-place-order-button{opacity:.45;cursor:not-allowed}' +
+            'body[class*="wcai-checkout-step-"] input[aria-invalid="true"],body[class*="wcai-checkout-step-"] select[aria-invalid="true"]{border-color:#b3261e!important;box-shadow:0 0 0 1px #b3261e!important}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-text-input:has(input[aria-invalid="true"]) label{color:#b3261e!important}' +
+            '#wcai-checkout-wizard .wcai-wizard-field select{appearance:none;-webkit-appearance:none;font:inherit;color:inherit;padding-right:34px;background:#fff url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' fill=\'none\' stroke=\'%23222\' stroke-width=\'2\'/%3E%3C/svg%3E") no-repeat right 12px center}' +
+            '#wcai-checkout-wizard .wcai-link{display:inline;padding:0;border:0;background:none;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-review-people{margin:10px 0;padding:0;list-style:none}' +
+            '#wcai-checkout-wizard .wcai-review-people li{display:flex;flex-wrap:wrap;gap:2px 10px;margin:0 0 6px;padding:8px 10px;border:1px solid #ededed;border-radius:8px;background:#fafafa;font-size:12px}' +
+            '#wcai-checkout-wizard .wcai-review-people strong{min-width:96px}' +
+            '#wcai-checkout-wizard .wcai-consent{margin:12px 0 0;padding:12px;border:1px solid #d9d9d9;border-radius:10px;background:#fff}' +
+            '#wcai-checkout-wizard .wcai-consent p{margin:0 0 10px}' +
+            '#wcai-checkout-wizard .wcai-consent-row{display:flex;align-items:flex-start;gap:10px;min-height:44px;font-size:13px;line-height:1.4;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-consent-row input{flex:none;width:24px;height:24px;margin:0}' +
+            '#wcai-checkout-wizard-footer{margin:14px 0 0}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions{display:flex;justify-content:space-between;align-items:center;gap:9px;margin:0;padding-top:11px;border-top:1px solid #eee}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions button{min-height:44px;padding:8px 14px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions button:not(.wcai-wizard-secondary){background:#222;color:#fff}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions button:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}' +
+            '#wcai-checkout-wizard-footer .wcai-order-total{font-weight:800;font-size:15px}' +
+            '#wcai-checkout-wizard-footer .wcai-consent-hint{margin:8px 0 0;color:#b3261e;font-size:12px;font-weight:700}' +
+            '@media(max-width:600px){' +
+            '#wcai-checkout-wizard-footer{position:sticky;bottom:0;z-index:30;margin:14px -4px 0;padding:0 4px 8px;background:#fff;box-shadow:0 -6px 12px rgba(0,0,0,.06)}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button{padding:6px 8px;overflow-wrap:anywhere}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-radio-control__option{min-height:44px;padding-top:12px;padding-bottom:12px}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-checkbox label{min-height:44px;align-items:center}' +
+            '}';
 
         document.head.appendChild(style);
     }
@@ -539,10 +650,32 @@
         return errors;
     }
 
+    // Erros de participantes + aceite pendente: tudo no store de validação do Woo (bloqueia o pedido).
+    function publishErrors(errors) {
+        var all = {};
+        var pending = consentErrors(consent);
+
+        Object.keys(errors).forEach(function (id) { all[id] = errors[id]; });
+        Object.keys(pending).forEach(function (id) { all[id] = pending[id]; });
+
+        setValidationErrors(all);
+    }
+
+    function setConsent(value) {
+        consent = value === true;
+        setCheckoutStageClass();
+        publishErrors(collectAdditionalErrors(state.items));
+
+        var hint = document.querySelector('[data-wcai-consent-hint]');
+        if (hint) hint.hidden = consent;
+
+        scheduleSync();
+    }
+
     function validateAdditional() {
         var errors = collectAdditionalErrors(state.items);
 
-        setValidationErrors(errors);
+        publishErrors(errors);
 
         if (attempted) renderInlineErrors(errors);
 
@@ -574,8 +707,10 @@
         });
     }
 
-    // Resumo no topo da etapa. entries: [{ el, message }]. Foca o 1º campo inválido (ou o resumo).
-    function reportErrors(panel, entries) {
+    // Resumo no topo da etapa. entries: [{ el, message }]. Cada campo vira um link que foca o campo.
+    // Escolha: não inserimos <p role=alert> ao lado dos inputs do Woo (nós alheios dentro da árvore React).
+    // Foca o 1º campo inválido (ou o resumo) quando focus !== false.
+    function reportErrors(panel, entries, focus) {
         var summary = panel.querySelector('.wcai-error-summary');
         if (!summary) return;
 
@@ -592,11 +727,27 @@
 
         entries.forEach(function (entry) {
             var li = document.createElement('li');
-            li.textContent = entry.message;
+
+            if (entry.el) {
+                var link = document.createElement('button');
+                link.type = 'button';
+                link.className = 'wcai-link';
+                link.textContent = entry.message;
+                link.addEventListener('click', function () {
+                    entry.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    entry.el.focus();
+                });
+                li.appendChild(link);
+            } else {
+                li.textContent = entry.message;
+            }
+
             list.appendChild(li);
         });
 
         summary.appendChild(list);
+
+        if (focus === false) return;
 
         var first = entries.filter(function (entry) {
             return entry.el;
@@ -659,7 +810,7 @@
     }
 
     // Campos nativos do WooCommerce: o bloco é React, então só marcamos aria-invalid e listamos no resumo.
-    function validateBillingStep(panel) {
+    function validateBillingStep(panel, focus) {
         var identity = readBillingIdentityFields();
         var sections = nativeSections();
         var entries = [];
@@ -687,7 +838,7 @@
             return entry.el;
         });
 
-        reportErrors(panel, entries);
+        reportErrors(panel, entries, focus);
 
         return entries.length === 0;
     }
@@ -730,6 +881,78 @@
         return wrap;
     }
 
+    // Botões Voltar/Continuar vão para a barra abaixo dos campos nativos; sem a barra, ficam no painel.
+    function mountActions(panel, step, nodes) {
+        var footer = document.getElementById('wcai-checkout-wizard-footer');
+        var host = panel;
+
+        if (footer) {
+            host = footer.querySelector('[data-wcai-actions="' + step + '"]');
+
+            if (!host) {
+                host = document.createElement('div');
+                host.setAttribute('data-wcai-actions', step);
+                footer.appendChild(host);
+            }
+
+            host.textContent = '';
+        }
+
+        nodes.forEach(function (node) {
+            host.appendChild(node);
+        });
+    }
+
+    function setNativeValue(input, value) {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Rascunho restaurado pelo Woo: limpa lixo ('1505199015051990') só em campo que o usuário não tocou nem está editando.
+    function restoreNativeDrafts() {
+        [[CPF_SELECTORS, 'cpf'], [BIRTH_SELECTORS, 'date']].forEach(function (pair) {
+            var field = firstExisting(pair[0]);
+
+            if (!field || !field.value || field === document.activeElement || field.getAttribute('data-wcai-touched')) return;
+
+            var clean = sanitizeDraft(pair[1], field.value);
+
+            if (clean !== field.value) setNativeValue(field, clean);
+        });
+    }
+
+    function updateTotal() {
+        var data = cart();
+        var text = data ? formatTotal(data.totals) : '';
+
+        Array.prototype.slice.call(document.querySelectorAll('[data-wcai-total]')).forEach(function (node) {
+            var label = text ? 'Pedido de ' + text : '';
+            if (node.textContent !== label) node.textContent = label;
+        });
+    }
+
+    function refreshCountryHint() {
+        var node = document.querySelector('[data-wcai-country-hint]');
+        if (!node) return;
+
+        var customer = customerData();
+        var address = customer && customer.billingAddress ? customer.billingAddress : {};
+
+        node.hidden = !suspectCountry(address.country, address.state);
+    }
+
+    function holderInfo() {
+        var identity = readBillingIdentityFields();
+        var customer = customerData();
+        var address = customer && customer.billingAddress ? customer.billingAddress : {};
+
+        return {
+            name: [address.first_name, address.last_name].filter(Boolean).join(' '),
+            cpf: identity.cpf,
+            birthdate: identity.birthdate
+        };
+    }
+
     function setStep(step, moveFocus) {
         var next = Math.max(1, Math.min(4, step));
 
@@ -758,6 +981,18 @@
             }
         });
 
+        if (currentStep === 4) {
+            buildStepFour(root.querySelector('[data-wcai-step="4"]'));
+        }
+
+        if (currentStep === 2) {
+            restoreNativeDrafts();
+        }
+
+        Array.prototype.slice.call(document.querySelectorAll('[data-wcai-actions]')).forEach(function (host) {
+            host.hidden = parseInt(host.getAttribute('data-wcai-actions'), 10) !== currentStep;
+        });
+
         applyNativeStepVisibility();
 
         if (moveFocus) {
@@ -778,24 +1013,7 @@
             validateAdditional();
         }
 
-        if (currentStep === 2) {
-            setTimeout(function () {
-                var sections = nativeSections();
-                var target = sections.contact || sections.billing;
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 100);
-        } else if (currentStep === 4) {
-            setTimeout(function () {
-                var sections = nativeSections();
-                if (sections.payment) {
-                    sections.payment.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 120);
-        } else {
-            root.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        root.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function buildStepOne(panel) {
@@ -846,7 +1064,7 @@
             panel.appendChild(box);
         });
 
-        panel.appendChild(
+        mountActions(panel, 1, [
             actions('Continuar para seus dados', function () {
                 if (!validateDeparture()) {
                     reportErrors(panel, [{ el: null, message: 'Escolha a data e o horário da saída na página do passeio.' }]);
@@ -855,7 +1073,7 @@
 
                 setStep(2, true);
             })
-        );
+        ]);
     }
 
     function buildStepTwo(panel) {
@@ -870,14 +1088,23 @@
         text.textContent = 'Preencha os dados do titular abaixo. Os campos de identificação do passeio fazem parte desta etapa e não precisam ser repetidos depois.';
         panel.appendChild(text);
 
-        panel.appendChild(
+        var countryHint = document.createElement('div');
+        countryHint.className = 'wcai-warning';
+        countryHint.setAttribute('role', 'status');
+        countryHint.setAttribute('data-wcai-country-hint', '');
+        countryHint.hidden = true;
+        countryHint.textContent = 'Confira o país: o endereço tem um estado do Brasil, mas o país informado é outro.';
+        panel.appendChild(countryHint);
+
+        mountActions(panel, 2, [
             actions('Continuar para participantes', function () {
+                attempted = true;
                 if (!validateBillingStep(panel)) return;
                 setStep(3, true);
             }, function () {
                 setStep(1, true);
             })
-        );
+        ]);
     }
 
     function buildStepThree(panel) {
@@ -953,7 +1180,7 @@
             panel.appendChild(none);
         }
 
-        panel.appendChild(
+        mountActions(panel, 3, [
             actions('Revisar e pagar', function () {
                 attempted = true;
 
@@ -971,7 +1198,7 @@
             }, function () {
                 setStep(2, true);
             })
-        );
+        ]);
     }
 
     function buildStepFour(panel) {
@@ -1013,15 +1240,96 @@
             panel.appendChild(box);
         });
 
-        var note = document.createElement('p');
-        note.textContent = 'Confira a saída e os participantes. Abaixo estão a forma de pagamento, os termos e o botão Finalizar pedido.';
-        panel.appendChild(note);
+        var peopleTitle = document.createElement('h4');
+        peopleTitle.textContent = 'Participantes';
+        panel.appendChild(peopleTitle);
+        panel.appendChild(reviewPeople());
+        panel.appendChild(consentBlock());
 
-        panel.appendChild(
-            actions('Voltar para participantes', function () {
-                setStep(3, true);
-            }, null)
-        );
+        var back = actions(null, null, function () {
+            setStep(3, true);
+        });
+        var total = document.createElement('span');
+        total.className = 'wcai-order-total';
+        total.setAttribute('data-wcai-total', '');
+        back.appendChild(total);
+
+        var hint = document.createElement('p');
+        hint.className = 'wcai-consent-hint';
+        hint.setAttribute('role', 'status');
+        hint.setAttribute('data-wcai-consent-hint', '');
+        hint.hidden = consent;
+        hint.textContent = 'Marque o aceite para finalizar o pedido.';
+
+        mountActions(panel, 4, [back, hint]);
+        updateTotal();
+    }
+
+    function reviewPeople() {
+        var list = document.createElement('ul');
+        list.className = 'wcai-review-people';
+
+        participantSummary(state.items, holderInfo()).forEach(function (row) {
+            var li = document.createElement('li');
+            var role = document.createElement('strong');
+            role.textContent = row.role;
+            li.appendChild(role);
+
+            [row.name || 'Nome não informado', row.age === null ? '' : row.age + ' anos', row.cpf ? 'CPF ' + row.cpf : ''].forEach(function (part) {
+                if (!part) return;
+                var span = document.createElement('span');
+                span.textContent = part;
+                li.appendChild(span);
+            });
+
+            list.appendChild(li);
+        });
+
+        return list;
+    }
+
+    function consentBlock() {
+        var cfg = config();
+        var box = document.createElement('div');
+        box.className = 'wcai-consent';
+
+        if (cfg.consentText) {
+            var text = document.createElement('p');
+            text.textContent = cfg.consentText;
+            box.appendChild(text);
+        }
+
+        var row = document.createElement('label');
+        row.className = 'wcai-consent-row';
+
+        var input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = 'wcai-consent';
+        input.checked = consent;
+        input.setAttribute('aria-required', 'true');
+        input.addEventListener('change', function () {
+            setConsent(input.checked);
+        });
+        row.appendChild(input);
+
+        var label = document.createElement('span');
+        label.appendChild(document.createTextNode('Li e aceito os '));
+
+        if (/^https?:\/\//i.test(cfg.termsUrl || '')) {
+            var link = document.createElement('a');
+            link.href = cfg.termsUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'termos de participação';
+            label.appendChild(link);
+        } else {
+            label.appendChild(document.createTextNode('termos de participação'));
+        }
+
+        row.appendChild(label);
+        box.appendChild(row);
+
+        return box;
     }
 
     function render() {
@@ -1086,10 +1394,22 @@
             var data = cart();
             var next = sig(data);
 
-            if (next !== signature) {
+            if (next !== signature || domLost()) {
                 signature = next;
                 render();
             }
+
+            updateTotal();
+            refreshCountryHint();
+            restoreNativeDrafts();
+        }
+
+        // O React do Woo pode recriar nós estáticos: se o painel 1 ou a barra ficaram vazios, monta de novo.
+        function domLost() {
+            var panelOne = document.querySelector('#' + ROOT + ' [data-wcai-step="1"]');
+            var footer = document.getElementById('wcai-checkout-wizard-footer');
+
+            return state.items.length > 0 && ((panelOne && !panelOne.firstChild) || (footer && !footer.firstChild));
         }
 
         update();
@@ -1120,17 +1440,47 @@
             target.setAttribute('placeholder', hint);
         });
 
-        // Máscara de CPF no campo nativo do titular (bloco React: usa o setter nativo para o estado atualizar).
+        // Máscara de CPF e de data no campo nativo do titular (bloco React: usa o setter nativo para o estado atualizar).
         document.addEventListener('input', function (event) {
             var target = event.target;
-            if (!target || !target.matches || !target.matches(CPF_SELECTORS.join(','))) return;
+            if (!target || !target.matches) return;
 
-            var masked = cpfMask(target.value);
-            if (masked === target.value) return;
+            var mask = target.matches(CPF_SEL) ? cpfMask : (target.matches(BIRTH_SEL) ? dateMask : null);
+            if (!mask) return;
 
-            Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(target, masked);
-            target.dispatchEvent(new Event('input', { bubbles: true }));
+            // Evento sintético (nosso) não conta como edição do usuário.
+            if (event.isTrusted) target.setAttribute('data-wcai-touched', '1');
+
+            var masked = mask(target.value);
+
+            if (masked !== target.value) {
+                setNativeValue(target, masked);
+                return;
+            }
+
+            var root = document.getElementById(ROOT);
+            var panel = root && root.querySelector('[data-wcai-step="2"]');
+
+            if (attempted && currentStep === 2 && panel) validateBillingStep(panel, false);
         });
+
+        // Sem aceite, o clique em "Finalizar pedido" não chega ao Woo (o teclado também gera clique).
+        document.addEventListener('click', function (event) {
+            var target = event.target;
+
+            if (consent || !target || !target.closest || !document.body.classList.contains('wcai-checkout-step-4')) return;
+            if (!target.closest('.wc-block-components-checkout-place-order-button')) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            var box = document.getElementById('wcai-consent');
+
+            if (box) {
+                box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                box.focus();
+            }
+        }, true);
     }
 
     // Ambiente de teste (Node): expõe só as funções puras, sem tocar no DOM.
@@ -1142,7 +1492,18 @@
             cpfMessage: cpfMessage,
             birthMessage: birthMessage,
             collectAdditionalErrors: collectAdditionalErrors,
-            pushExtensionData: pushExtensionData
+            pushExtensionData: pushExtensionData,
+            cpfMask: cpfMask,
+            dateMask: dateMask,
+            ageOn: ageOn,
+            sanitizeDraft: sanitizeDraft,
+            maskCpfForReview: maskCpfForReview,
+            participantSummary: participantSummary,
+            consentErrors: consentErrors,
+            buildPayload: buildPayload,
+            formatTotal: formatTotal,
+            suspectCountry: suspectCountry,
+            stageGateCss: stageGateCss
         };
         return;
     }
