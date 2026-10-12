@@ -5,8 +5,12 @@ trait WCAI_Frontend_Account_Admin {
     // =========================================================================
     // 4. ADMIN (LAYOUT OTIMIZADO - COLUNAS DIVIDIDAS)
     // =========================================================================
+    private function is_hpos_orders_screen() {
+        return class_exists( 'Automattic\\WooCommerce\\Utilities\\OrderUtil' ) && Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled();
+    }
+
     public function register_admin_metabox() {
-        if ( class_exists( 'Automattic\\WooCommerce\\Utilities\\OrderUtil' ) && Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ) {
+        if ( $this->is_hpos_orders_screen() ) {
             return;
         }
 
@@ -14,7 +18,8 @@ trait WCAI_Frontend_Account_Admin {
     }
 
     public function render_hpos_admin_content( $order ) {
-        if ( ! $order instanceof WC_Order ) {
+        // Sem HPOS o meta box já mostra a lista: imprimir aqui duplicaria tabela e nonce.
+        if ( ! $order instanceof WC_Order || ! $this->is_hpos_orders_screen() ) {
             return;
         }
 
@@ -41,7 +46,11 @@ trait WCAI_Frontend_Account_Admin {
         $border = ($signed == $total && $total > 0) ? 'none' : '1px solid #ddd';
 
         echo '<style>
-            .wcai-table input { width: 100%; box-sizing: border-box; } 
+            .wcai-table input { width: 100%; box-sizing: border-box; }
+            .wcai-table .wcai-name-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+            .wcai-table .wcai-name-cell input { flex: 1 1 180px; min-width: 180px; width: auto; }
+            .wcai-table .wcai-name-cell .dashicons { margin: 0 !important; flex-shrink: 0; }
+            .wcai-restricted { color: #50575e; cursor: help; border-bottom: 1px dotted #8c8f94; }
             .wcai-table td { padding: 8px; vertical-align: middle; }
             .wcai-col-id { width: 30px; }
             .wcai-col-cpf { width: 140px; } 
@@ -60,6 +69,11 @@ trait WCAI_Frontend_Account_Admin {
             }
         </style>';
         
+        $tour_quantity = $this->order_tour_quantity($order);
+        if ($tour_quantity > 0 && $tour_quantity !== $total) {
+            echo '<div class="notice notice-warning inline" style="margin:0 0 10px;"><p>' . esc_html( sprintf( 'Atenção: %d ingressos, %d participantes.', $tour_quantity, $total ) ) . '</p></div>';
+        }
+
         if($total > 0) {
             echo '<div style="margin-bottom: 10px; padding: 8px 12px; background: '.esc_attr($color_bar).'; color:'.esc_attr($text_color).'; border-radius: 4px; border: '.esc_attr($border).'; font-weight: 500;">';
             echo '📝 <strong>Status dos Termos:</strong> ' . $signed . '/' . $total . ' Assinados (' . $percent . '%)';
@@ -109,7 +123,7 @@ trait WCAI_Frontend_Account_Admin {
 
                 echo '<tr>';
                 echo '<td>' . ($idx + 1) . '</td>';
-                echo '<td><div style="display: flex; align-items: center;">' . $badge . $status_icon . $id_input . '<input type="text" name="wcai_admin_p['.$field_key.'][nome_completo]" value="'.esc_attr($p['nome_completo']).'" style="flex-grow:1;"></div></td>';
+                echo '<td><div class="wcai-name-cell">' . $badge . $status_icon . $id_input . '<input type="text" name="wcai_admin_p['.$field_key.'][nome_completo]" value="'.esc_attr($p['nome_completo']).'"></div></td>';
                 
                 // CPF ADMIN (PAD FIX)
                 $cpf_val_admin = class_exists('WCAI_Utils') ? WCAI_Utils::format_cpf($cpf_clean) : $cpf_clean;
@@ -118,7 +132,9 @@ trait WCAI_Frontend_Account_Admin {
                     echo '<td><input type="text" class="wcai-mask-date" name="wcai_admin_p['.$field_key.'][data_nascimento]" value="'.esc_attr($val_nasc).'" placeholder="dd/mm/aaaa"></td>';
                 } else {
                     echo '<td>' . esc_html( WCAI_Utils::mask_cpf($cpf_clean) ) . '</td>';
-                    echo '<td>-</td>';
+                    // Sem a capability: idade em vez da data, com a razão no tooltip (nunca um '-' mudo).
+                    $age_label = $this->participant_age_label( $p['data_nascimento'] );
+                    echo '<td><span class="wcai-restricted" title="Data de nascimento restrita">' . esc_html( '' !== $age_label ? $age_label : 'Restrita' ) . '</span></td>';
                 }
                 
                 // COLUNA ENTRADA
@@ -152,5 +168,32 @@ trait WCAI_Frontend_Account_Admin {
         }
 
         $this->process_save( $order, $rows, 'Admin' );
+    }
+
+    // Ingressos de passeio (itens com saída ou produto configurado) para comparar com a lista de participantes.
+    private function order_tour_quantity($order) {
+        $target_ids = class_exists('WCAI_Settings') ? WCAI_Settings::get_product_ids() : array();
+        $quantity = 0;
+        foreach ($order->get_items() as $item) {
+            if ($item->get_meta('_wcai_departure_id', true) || in_array($item->get_variation_id(), $target_ids) || in_array($item->get_product_id(), $target_ids)) {
+                $quantity += (int) $item->get_quantity();
+            }
+        }
+        return $quantity;
+    }
+
+    public function hide_departure_itemmeta($keys) {
+        $keys[] = '_wcai_departure_id';
+        return $keys;
+    }
+
+    public function render_departure_itemmeta($item_id, $item) {
+        if (!is_admin() || !is_object($item) || !method_exists($item, 'get_meta')) return;
+        $departure_id = absint($item->get_meta('_wcai_departure_id', true));
+        if (!$departure_id) return;
+
+        $timestamp = WCAI_Data_Resolver::parse_timestamp(WCAI_Data_Resolver::get_departure_start($departure_id));
+        $label = 'Passeio: ' . $item->get_name() . ($timestamp ? ' — ' . wp_date('d/m/Y H:i', $timestamp) : '');
+        echo '<div class="wcai-item-departure" style="margin-top:4px;"><strong>' . esc_html($label) . '</strong></div>';
     }
 }

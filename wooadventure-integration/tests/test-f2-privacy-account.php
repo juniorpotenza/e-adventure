@@ -144,7 +144,7 @@ class Test_F2_Privacy_Account extends TestCase {
     }
 
     private function row( $id, $cpf, $birth = '01/01/1990' ) {
-        return array( 'id' => $id, 'nome_completo' => 'Ana', 'cpf' => $cpf, 'data_nascimento' => $birth );
+        return array( 'id' => $id, 'nome_completo' => 'Pessoa ' . $id, 'cpf' => $cpf, 'data_nascimento' => $birth );
     }
 
     // --- 1. eraser: metas do pedido, QR e log sem PII ---

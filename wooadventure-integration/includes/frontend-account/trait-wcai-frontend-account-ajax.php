@@ -50,10 +50,15 @@ trait WCAI_Frontend_Account_Ajax {
             $data_nasc = isset($row['data_nascimento']) ? sanitize_text_field($row['data_nascimento']) : '';
 
             if ($nome === '') return 'Nome do participante é obrigatório.';
+            if (!$this->is_valid_participant_name($nome)) return 'Nome inválido: informe o nome completo do participante (use letras ou números).';
             if (!WCAI_Utils::is_valid_cpf($cpf)) return "CPF inválido: $nome.";
             if (class_exists('WCAI_Settings') && WCAI_Settings::is_cpf_blocked($cpf)) return "CPF restrito: $nome.";
             if (!WCAI_Utils::is_valid_date($data_nasc) || !WCAI_Utils::is_min_age($data_nasc)) {
                 return "Data de nascimento inválida ou idade mínima de 7 anos não atendida: $nome.";
+            }
+            // Com aceite ou check-in, o nome também é identidade do ingresso: só o suporte altera.
+            if ($current && $this->identity_locked($current) && $nome !== sanitize_text_field($current['nome_completo'])) {
+                return "O nome não pode ser alterado após o aceite do termo ou check-in. Fale com o suporte: $nome.";
             }
             // Com aceite ou check-in, CPF e nascimento são identidade do ingresso (regra do responsável legal): só o admin altera.
             if ($current && $this->identity_locked($current)

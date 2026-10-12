@@ -137,14 +137,18 @@ trait WCAI_Frontend_Account_Modal {
                                 // CORREÇÃO: Garante zero à esquerda para exibição no campo
                                 $cpf_raw = $this->safe_cpf_pad($p['cpf']);
                                 $cpf_value = class_exists('WCAI_Utils') ? WCAI_Utils::format_cpf($cpf_raw) : $cpf_raw;
+                                $name_locked = isset($p['id']) && is_numeric($p['id']) && $this->identity_locked($p);
                             ?>
                                 <tr>
                                     <td><?php echo ($idx + 1); ?></td>
                                     <td>
-                                        <div style="display: flex; align-items: center;">
+                                        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
                                             <?php echo $badge; echo $icon; echo $id_input; ?>
-                                            <input type="text" name="participantes[<?php echo $field_key; ?>][nome_completo]" value="<?php echo esc_attr($p['nome_completo']); ?>" <?php echo $readonly; ?> required style="flex-grow: 1;" aria-label="<?php echo esc_attr( sprintf( __( 'Nome completo do participante %d', 'wooadventure-integration' ), $idx + 1 ) ); ?>">
+                                            <input type="text" name="participantes[<?php echo $field_key; ?>][nome_completo]" value="<?php echo esc_attr($p['nome_completo']); ?>" <?php echo $readonly; ?><?php echo $name_locked ? ' readonly' : ''; ?> required style="flex: 1 1 180px; min-width: 180px;" aria-label="<?php echo esc_attr( sprintf( __( 'Nome completo do participante %d', 'wooadventure-integration' ), $idx + 1 ) ); ?>">
                                         </div>
+                                        <?php if ( $name_locked ) : ?>
+                                            <small style="color:#595959;">🔒 <?php echo esc_html__( 'Nome bloqueado após o aceite do termo ou check-in. Para alterar, fale com o suporte.', 'wooadventure-integration' ); ?></small>
+                                        <?php endif; ?>
                                     </td>
                                     <td><input type="text" class="wcai-mask-cpf" name="participantes[<?php echo $field_key; ?>][cpf]" value="<?php echo esc_attr($cpf_value); ?>" <?php echo $readonly; ?> required aria-label="<?php echo esc_attr( sprintf( __( 'CPF do participante %d', 'wooadventure-integration' ), $idx + 1 ) ); ?>"></td>
                                     <td><input type="text" class="wcai-mask-date" name="participantes[<?php echo $field_key; ?>][data_nascimento]" value="<?php echo esc_attr($val_nasc); ?>" <?php echo $readonly; ?> required placeholder="dd/mm/aaaa" aria-label="<?php echo esc_attr( sprintf( __( 'Data de nascimento do participante %d', 'wooadventure-integration' ), $idx + 1 ) ); ?>"></td>

@@ -5,7 +5,6 @@ class WCAI_Order {
 
     public function __construct() {
         add_action( 'woocommerce_checkout_create_order', array( $this, 'add_tour_date_meta' ), 20, 2 );
-        add_filter( 'woocommerce_order_number', array( $this, 'custom_order_number' ), 10, 2 );
     }
 
     public function add_tour_date_meta( $order, $data ) {
@@ -28,26 +27,5 @@ class WCAI_Order {
                 return;
             }
         }
-    }
-
-    public function custom_order_number( $order_number, $order ) {
-        $datetime = '';
-
-        foreach ( $order->get_items() as $item ) {
-            $datetime = WCAI_Data_Resolver::get_event_datetime_for_order_item( $order, $item );
-            if ( $datetime ) {
-                break;
-            }
-        }
-
-        if ( $datetime ) {
-            $timestamp = WCAI_Data_Resolver::parse_timestamp( $datetime );
-
-            if ( $timestamp ) {
-                return $order_number . ' - ' . wp_date( 'd/m/Y H:i', $timestamp );
-            }
-        }
-
-        return $order_number;
     }
 }

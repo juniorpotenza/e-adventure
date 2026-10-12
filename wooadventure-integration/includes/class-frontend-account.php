@@ -26,7 +26,8 @@ class WCAI_Frontend_Account {
 
         // 3. Visualização do Pedido (Site e E-mail)
         add_action( 'woocommerce_order_details_after_order_table', array( $this, 'render_participants_on_order_view' ), 10, 1 );
-        add_action( 'woocommerce_email_after_order_table', array( $this, 'render_participants_on_order_view' ), 10, 1 );
+        add_action( 'woocommerce_thankyou', array( $this, 'render_participants_on_thankyou' ), 20, 1 );
+        add_action( 'woocommerce_email_after_order_table', array( $this, 'render_participants_in_email' ), 10, 4 );
 
         // 4. Scripts e Modais
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts')); 
@@ -38,6 +39,8 @@ class WCAI_Frontend_Account {
         add_action('add_meta_boxes', array($this, 'register_admin_metabox'));
         add_action('woocommerce_process_shop_order_meta', array($this, 'admin_save'), 10, 2);
         add_action('woocommerce_admin_order_data_after_order_details', array($this, 'render_hpos_admin_content'), 20, 1);
+        add_filter('woocommerce_hidden_order_itemmeta', array($this, 'hide_departure_itemmeta'));
+        add_action('woocommerce_after_order_itemmeta', array($this, 'render_departure_itemmeta'), 10, 2);
     }
 
 }

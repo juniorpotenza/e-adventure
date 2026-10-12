@@ -9,8 +9,10 @@ trait WCAI_Frontend_Account_Save {
             $list = WCAI_Participants_DB::get_by_order($order->get_id());
         }
         if (!is_array($list)) $list = array();
+        $table_is_empty = empty($list);
+        $list = array_values(array_filter($list, function ($p) { return $this->is_valid_participant_name($p['nome_completo']); }));
 
-        $b_name = $order->get_billing_first_name() . ' ' . $order->get_billing_last_name();
+        $b_name = trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
         $b_cpf_raw  = $order->get_meta('billing_cpf') ?: $order->get_meta('_billing_cpf');
         $b_dob  = $order->get_meta('billing_birthdate') ?: $order->get_meta('_billing_birthdate');
         // Pad titular se necessário
@@ -24,20 +26,27 @@ trait WCAI_Frontend_Account_Save {
             }
         }
 
-        if (!$titular_exists && !empty($b_name)) {
+        if (!$titular_exists && $this->is_valid_participant_name($b_name)) {
             $virtual = array('id' => 'virtual_titular', 'nome_completo' => $b_name, 'cpf' => $b_cpf_raw, 'data_nascimento' => $b_dob);
             array_unshift($list, $virtual);
         }
-        
-        if (count($list) <= 1) {
+
+        // Meta legado só vale quando a tabela não tem nenhuma linha do pedido; senão duplica participantes.
+        if ($table_is_empty) {
             $meta = $order->get_meta('_additional_participants');
             if (!empty($meta) && is_array($meta)) {
                 foreach($meta as $k => $v) {
-                    $list[] = array('id'=>'legacy_'.$k, 'nome_completo'=>$v['nome_completo'], 'cpf'=>$v['cpf'], 'data_nascimento'=>$v['data_nascimento']);
+                    if (!is_array($v) || !$this->is_valid_participant_name(isset($v['nome_completo']) ? $v['nome_completo'] : '')) continue;
+                    $list[] = array('id'=>'legacy_'.$k, 'nome_completo'=>$v['nome_completo'], 'cpf'=>isset($v['cpf']) ? $v['cpf'] : '', 'data_nascimento'=>isset($v['data_nascimento']) ? $v['data_nascimento'] : '');
                 }
             }
         }
         return $list;
+    }
+
+    // Nome precisa ter ao menos uma letra ou dígito: bloqueia placeholders como "." ou "'".
+    private function is_valid_participant_name($name) {
+        return (bool) preg_match('/[\p{L}\p{N}]/u', (string) $name);
     }
 
     private function process_save($order, $data, $source) {
@@ -47,6 +56,10 @@ trait WCAI_Frontend_Account_Save {
         
         foreach ($data as $row) {
             if (!is_array($row)) continue;
+            if (!isset($row['nome_completo']) || !$this->is_valid_participant_name($row['nome_completo'])) {
+                $order->add_order_note("Participante com nome inválido ignorado ($source).");
+                continue;
+            }
 
             $item = array('nome_completo' => sanitize_text_field($row['nome_completo']));
             // Campos sensíveis são opcionais: admin sem VIEW_SENSITIVE não os envia.

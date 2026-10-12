@@ -16,10 +16,81 @@ trait WCAI_Frontend_Account_View {
     // =========================================================================
     // RENDERIZAÇÃO DA LISTA (SITE E E-MAIL)
     // =========================================================================
-    public function render_participants_on_order_view( $order ) {
-        if ( ! $order ) return;
+    public function render_participants_on_thankyou( $order_id ) {
+        $order = wc_get_order( $order_id );
+        if ( $order ) {
+            $this->render_participants_on_order_view( $order );
+        }
+    }
+
+    private function participant_age_label( $date_string ) {
+        $age = $this->participant_age( $date_string );
+        if ( null === $age ) return '';
+        return 1 === $age ? '1 ano' : $age . ' anos';
+    }
+
+    private function participant_is_signed( $order, $p ) {
+        $cpf = $this->safe_cpf_pad( $p['cpf'] );
+        return ! empty( $p['ticket_hash'] ) || ( $cpf && $order->get_meta( '_waiver_signed_' . $cpf ) ) || ( isset( $p['termo_assinado'] ) && 1 == $p['termo_assinado'] );
+    }
+
+    // QR só com reserva confirmada; participante sem reserva (legado) não depende dela.
+    private function participant_reservation_confirmed( $p ) {
+        $reservation_id = isset( $p['reservation_id'] ) ? absint( $p['reservation_id'] ) : 0;
+        if ( ! $reservation_id || ! class_exists( 'WCAI_Reservations' ) ) return true;
+        $reservation = WCAI_Reservations::get_by_id( $reservation_id );
+        return $reservation && 'confirmed' === $reservation->status;
+    }
+
+    // E-mail: texto puro vira linhas de texto; HTML vira tabela compacta (sem QR nem ações de edição).
+    public function render_participants_in_email( $order, $sent_to_admin = false, $plain_text = false, $email = null ) {
+        if ( ! is_object( $order ) ) return;
         $participants = $this->get_participants_safe( $order );
         if ( empty( $participants ) ) return;
+
+        $rows = array();
+        foreach ( $participants as $p ) {
+            $rows[] = array(
+                'name'   => trim( preg_replace( '/\s+/', ' ', wp_strip_all_tags( (string) $p['nome_completo'] ) ) ),
+                'age'    => $this->participant_age_label( $p['data_nascimento'] ),
+                'cpf'    => WCAI_Utils::mask_cpf( $this->safe_cpf_pad( $p['cpf'] ) ),
+                'signed' => $this->participant_is_signed( $order, $p ),
+            );
+        }
+
+        if ( $plain_text ) {
+            echo "\n" . __( 'Lista de Participantes', 'wooadventure-integration' ) . "\n";
+            foreach ( $rows as $i => $r ) {
+                $parts = array_filter( array( $r['name'], $r['age'], 'CPF ' . $r['cpf'] ) );
+                echo sprintf( 'Visitante %d: %s', $i + 1, implode( ' — ', $parts ) ) . "\n";
+            }
+            echo "\n";
+            return;
+        }
+
+        $cell = 'text-align:left; padding:8px; border:1px solid #e5e5e5;';
+        echo '<h2 style="margin:20px 0 10px;">' . esc_html__( 'Lista de Participantes', 'wooadventure-integration' ) . '</h2>';
+        echo '<table cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; margin-bottom:20px; border:1px solid #e5e5e5;"><thead><tr>';
+        foreach ( array( 'Nome', 'Idade', 'CPF', 'Termo' ) as $h ) {
+            echo '<th style="' . esc_attr( $cell ) . '">' . esc_html( $h ) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
+        foreach ( $rows as $r ) {
+            echo '<tr><td style="' . esc_attr( $cell ) . '">' . esc_html( $r['name'] ) . '</td>'
+                . '<td style="' . esc_attr( $cell ) . '">' . esc_html( $r['age'] ) . '</td>'
+                . '<td style="' . esc_attr( $cell ) . '">' . esc_html( $r['cpf'] ) . '</td>'
+                . '<td style="' . esc_attr( $cell ) . '">' . esc_html( $r['signed'] ? 'Assinado' : 'Pendente' ) . '</td></tr>';
+        }
+        echo '</tbody></table>';
+    }
+
+    // Página do pedido/obrigado: hooks diferentes podem disparar no mesmo pedido; imprime uma vez por requisição.
+    public function render_participants_on_order_view( $order ) {
+        static $rendered = array();
+        if ( ! is_object( $order ) || isset( $rendered[ $order->get_id() ] ) ) return;
+        $participants = $this->get_participants_safe( $order );
+        if ( empty( $participants ) ) return;
+        $rendered[ $order->get_id() ] = true;
 
         $terms_url = $this->get_terms_url( $order );
         ?>
@@ -56,7 +127,8 @@ trait WCAI_Frontend_Account_View {
                         }
 
                         $badge = $this->get_age_badge_html( $p['data_nascimento'] );
-                        
+                        $show_qr = $has_ticket && ! empty( $ticket_hash ) && $this->participant_reservation_confirmed( $p );
+
                         // APLICA MÁSCARA LGPD VISUAL (***)
                         $cpf_display = ( class_exists('WCAI_Utils') && method_exists('WCAI_Utils', 'mask_cpf') )
                             ? WCAI_Utils::mask_cpf($cpf_full) 
@@ -71,7 +143,7 @@ trait WCAI_Frontend_Account_View {
                             </div>
                         </td>
                         <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle; text-align:center;">
-                            <?php if ( $has_ticket && !empty($ticket_hash) ): ?>
+                            <?php if ( $show_qr ): ?>
                                 <?php $ticket_qr_url = class_exists('WCAI_Assinatura') ? WCAI_Assinatura::generate_local_qr($ticket_hash, absint($p['id'])) : false; ?>
                                 <?php if ( $ticket_qr_url && ! is_wp_error($ticket_qr_url) ) : ?>
                                     <img src="<?php echo esc_url($ticket_qr_url); ?>" style="width:80px; height:80px; border:1px solid #ccc; padding:2px;" alt="QR Code">
@@ -80,15 +152,15 @@ trait WCAI_Frontend_Account_View {
                                 <?php endif; ?>
                                 <div style="font-size:12px; color:#1e7e34; font-weight:bold; margin-top:2px;">✅ Ativo</div>
                             <?php elseif ( $has_ticket ): ?>
-                                <span style="color:#1e7e34; font-weight:bold;">✅ Assinado</span><br><small style="color:#595959;">(QR gerando...)</small>
+                                <span style="color:#1e7e34; font-weight:bold;">✅ Assinado</span><br><small style="color:#595959;"><?php echo esc_html( ! empty( $ticket_hash ) ? 'QR disponível após a confirmação da reserva.' : '(QR gerando...)' ); ?></small>
                             <?php else: ?>
                                 <span style="color:#ccc; font-size:30px; line-height:1;" aria-hidden="true">⬜</span>
                                 <div style="font-size:12px; color:#595959;">Pendente</div>
                             <?php endif; ?>
                         </td>
                         <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle;">
-                            <?php if ( $has_ticket && !empty($ticket_hash) ): ?>
-                                <?php 
+                            <?php if ( $show_qr ): ?>
+                                <?php
                                     $ticket_qr_url = class_exists('WCAI_Assinatura') ? WCAI_Assinatura::generate_local_qr($ticket_hash, absint($p['id'])) : false;
                                     $msg_whats = "Olá " . $p['nome_completo'] . ", aqui está seu ingresso para o passeio! Acesse o QR Code: " . ( $ticket_qr_url && ! is_wp_error($ticket_qr_url) ? $ticket_qr_url : '' );
                                     $link_whats = "https://wa.me/?text=" . urlencode($msg_whats);
@@ -184,15 +256,18 @@ trait WCAI_Frontend_Account_View {
         return null;
     }
 
-    private function get_age_badge_html( $date_string ) {
-        if ( empty($date_string) || $date_string == '0000-00-00' ) return '';
+    private function participant_age( $date_string ) {
+        if ( empty($date_string) || $date_string == '0000-00-00' ) return null;
         try {
             $calc_date = $this->force_date_to_db($date_string);
-            if(!$calc_date) return '';
-            $dob = new DateTime( $calc_date );
-            $now = new DateTime();
-            $age = $now->diff($dob)->y;
-        } catch (Exception $e) { return ''; }
+            if(!$calc_date) return null;
+            return (new DateTime())->diff(new DateTime( $calc_date ))->y;
+        } catch (Exception $e) { return null; }
+    }
+
+    private function get_age_badge_html( $date_string ) {
+        $age = $this->participant_age( $date_string );
+        if ( null === $age ) return '';
 
         $icon_adult = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>';
         $icon_child = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"></circle><path d="M9 12h6"></path><path d="M12 21v-9"></path><path d="M8 21h8"></path><path d="M6 12v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-3"></path></svg>';
@@ -201,6 +276,6 @@ trait WCAI_Frontend_Account_View {
         else { $color = '#d63638'; $bg = '#fbeaea'; $icon = $icon_child; }
 
         $style = "display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: {$color}; background: {$bg}; padding: 3px 8px; border-radius: 12px; border: 1px solid {$color}; margin-right: 8px; white-space: nowrap; flex-shrink: 0;";
-        return sprintf('<span style="%s">%s %s anos</span>', $style, $icon, $age);
+        return sprintf('<span style="%s">%s %s</span>', $style, $icon, esc_html( $this->participant_age_label( $date_string ) ));
     }
 }
