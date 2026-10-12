@@ -13,7 +13,7 @@ trait WCAI_Frontend_Account_Modal {
     }
 
     public function append_status_column($order) {
-        $participants = $this->get_participants_safe( $order );
+        $participants = $this->can_view_order_participants( $order ) ? $this->get_participants_safe( $order ) : array();
         if ( empty( $participants ) ) { echo esc_html( wc_get_order_status_name( $order->get_status() ) ); return; }
 
         $summary = $this->terms_summary( $order, $participants );
@@ -32,7 +32,7 @@ trait WCAI_Frontend_Account_Modal {
     }
 
     public function column_content($order) {
-        $participants = $this->get_participants_safe( $order );
+        $participants = $this->can_view_order_participants( $order ) ? $this->get_participants_safe( $order ) : array();
         if ( empty( $participants ) ) { echo '<span style="color:#999;">-</span>'; return; }
 
         $order_id = $order->get_id();

@@ -62,6 +62,7 @@ if ( ! class_exists( 'WcaiF10Order' ) ) {
         public function get_payment_method() { return $this->method; }
         public function get_status() { return $this->status; }
         public function get_order_key() { return 'wc_order_abc'; }
+        public function get_customer_id() { return 7; }
         public function get_items() { return array( new WcaiF10Item() ); }
         public function get_formatted_order_total() { return '<span class="amount"><bdi><span>R$&nbsp;</span>100,00</bdi></span>'; }
         public function get_billing_first_name() { return 'Titular'; }
@@ -86,6 +87,8 @@ if ( ! function_exists( 'is_wp_error' ) ) { function is_wp_error( $v ) { return 
 if ( ! function_exists( 'is_wc_endpoint_url' ) ) { function is_wc_endpoint_url() { return $GLOBALS['wcai_f10_received']; } }
 if ( ! function_exists( 'get_post_meta' ) ) { function get_post_meta( $id, $key ) { return array( '_wcai_starts_at' => '2026-10-20 09:00', '_wcai_meeting_point' => 'Portaria do parque' )[ $key ]; } }
 if ( ! function_exists( 'wp_date' ) ) { function wp_date( $format, $ts ) { return gmdate( $format, $ts ); } }
+if ( ! function_exists( 'get_current_user_id' ) ) { function get_current_user_id() { return 7; } }
+if ( ! function_exists( 'current_user_can' ) ) { function current_user_can() { return false; } }
 if ( ! function_exists( 'wc_get_order_status_name' ) ) { function wc_get_order_status_name( $s ) { return $s; } }
 
 require_once dirname( __DIR__ ) . '/includes/class-utils.php';

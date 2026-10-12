@@ -87,7 +87,7 @@ trait WCAI_Frontend_Account_View {
     // Página do pedido/obrigado: hooks diferentes podem disparar no mesmo pedido; imprime uma vez por requisição.
     public function render_participants_on_order_view( $order ) {
         static $rendered = array();
-        if ( ! is_object( $order ) || isset( $rendered[ $order->get_id() ] ) ) return;
+        if ( ! is_object( $order ) || isset( $rendered[ $order->get_id() ] ) || ! $this->can_view_order_participants( $order ) ) return;
         $participants = $this->get_participants_safe( $order );
         if ( empty( $participants ) ) return;
         $rendered[ $order->get_id() ] = true;

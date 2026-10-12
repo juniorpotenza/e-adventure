@@ -5,6 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 // próximos passos e máscara de CPF nos campos adicionais do Woo.
 trait WCAI_Frontend_Account_Order_Page {
     private $cpf_buffer_level = 0;
+    private $cpf_holder = '';
 
     private function terms_summary( $order, $participants ) {
         $signed = 0;
@@ -129,24 +130,39 @@ trait WCAI_Frontend_Account_Order_Page {
 
     // Template clássico: o Woo 11 não tem filtro de valor para campos adicionais, então o HTML do detalhe do cliente
     // passa por um buffer aberto após a tabela do pedido e fechado em ..._after_customer_details.
-    // shortcut: se o Woo não disparar o hook de fechamento, o buffer é descarregado no fim da requisição sem máscara.
+    // O buffer tem callback que sempre mascara: se o Woo não disparar o hook de fechamento (ex.: detalhes do cliente
+    // ocultos para admin ou convidado), o flush do fim da requisição também sai mascarado.
     public function begin_cpf_mask_buffer( $order ) {
         if ( $this->cpf_buffer_level || ! is_object( $order ) ) return;
-        ob_start();
+        $this->cpf_holder = $this->safe_cpf_pad( $order->get_meta( 'billing_cpf' ) ?: $order->get_meta( '_billing_cpf' ) );
+        ob_start( array( $this, 'mask_cpf_buffer' ) );
         $this->cpf_buffer_level = ob_get_level();
     }
 
+    // Callback do buffer: roda no flush (hook de fechamento ou fim da requisição).
+    public function mask_cpf_buffer( $html ) {
+        if ( '' !== $this->cpf_holder ) {
+            $html = str_replace( $this->cpf_holder, WCAI_Utils::mask_cpf( $this->cpf_holder ), (string) $html );
+        }
+        return $this->mask_cpf_in_html( $html );
+    }
+
+    // Fecha uma única vez; se outro plugin deixou um buffer aberto por cima, não mexe (o callback mascara no fim).
     public function end_cpf_mask_buffer( $order = null ) {
         if ( ! $this->cpf_buffer_level ) return;
         $level = $this->cpf_buffer_level;
         $this->cpf_buffer_level = 0;
-        if ( ob_get_level() !== $level ) return;
+        if ( ob_get_level() === $level ) ob_end_flush();
+    }
 
-        $html = (string) ob_get_clean();
-        $holder = is_object( $order ) ? $this->safe_cpf_pad( $order->get_meta( 'billing_cpf' ) ?: $order->get_meta( '_billing_cpf' ) ) : '';
-        if ( '' !== $holder ) {
-            $html = str_replace( $holder, WCAI_Utils::mask_cpf( $holder ), $html );
-        }
-        echo $this->mask_cpf_in_html( $html ); // phpcs:ignore WordPress.Security.EscapeOutput -- HTML do Woo já escapado, só troca de dígitos.
+    // Dono do pedido, gestor da loja ou quem tem a chave do pedido na URL (convidado na página de pedido recebido).
+    // Todo renderizador de dados de participantes (nomes, QR, link do termo com a chave) passa por aqui.
+    private function can_view_order_participants( $order ) {
+        if ( ! is_object( $order ) ) return false;
+        $user_id = (int) get_current_user_id();
+        if ( $user_id && (int) $order->get_customer_id() === $user_id ) return true;
+        if ( current_user_can( 'manage_woocommerce' ) ) return true;
+        $key = isset( $_GET['key'] ) && is_string( $_GET['key'] ) ? sanitize_text_field( wp_unslash( $_GET['key'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification -- chave do pedido, não ação.
+        return '' !== $key && hash_equals( (string) $order->get_order_key(), $key );
     }
 }
