@@ -6,6 +6,9 @@
         <testsuite name="f5"><file>tests/test-f5-extension-data.php</file></testsuite>
         <testsuite name="f6"><file>tests/test-f6-signature-hardening.php</file></testsuite>
         <testsuite name="f7"><file>tests/test-f7-participants-display.php</file></testsuite>
+        <testsuite name="f8"><file>tests/test-f8-product-page.php</file></testsuite>
+        <testsuite name="f9"><file>tests/test-f9-checkout-consent.php</file></testsuite>
+        <testsuite name="f10"><file>tests/test-f10-order-pages.php</file></testsuite>
         <testsuite name="f4"><file>tests/test-f4-guide-scope.php</file></testsuite>
         <testsuite name="t2"><file>tests/test-t2-assinatura.php</file></testsuite>
         <testsuite name="t4"><file>tests/test-t4-scanner.php</file></testsuite>
