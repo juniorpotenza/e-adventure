@@ -1,7 +1,6 @@
 <?php
-// PHPUnit com stubs (sem WP). Suite "f11"; processo separado (stubs guardados por function_exists/class_exists).
-// Cobre: dados de participantes so para dono/gestor/chave valida, flush do buffer de CPF sem hook de fechamento,
-// consentimento obrigatorio no checkout classico e no bloco sem payload.
+// PHPUnit com stubs (sem WP). Suite "f12"; processo separado (stubs guardados por function_exists/class_exists).
+// Cobre: consentimento obrigatorio no checkout classico e no bloco (Store API) sem payload ou com payload velho.
 use PHPUnit\Framework\TestCase;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -33,8 +32,8 @@ if ( ! class_exists( 'WCAI_Settings' ) ) {
     }
 }
 if ( ! class_exists( 'WCAI_Privacy' ) ) { class WCAI_Privacy { public static function consent_text() { return 'Texto de consentimento de teste'; } } }
-if ( ! class_exists( 'WcaiF11Item' ) ) {
-    class WcaiF11Item {
+if ( ! class_exists( 'WcaiF11ItemB' ) ) {
+    class WcaiF11ItemB {
         public function get_product_id() { return 99; }
         public function get_variation_id() { return 0; }
         public function get_quantity() { return 1; }
@@ -43,8 +42,8 @@ if ( ! class_exists( 'WcaiF11Item' ) ) {
     }
 }
 
-if ( ! class_exists( 'WcaiF11Order' ) ) {
-    class WcaiF11Order extends WC_Order {
+if ( ! class_exists( 'WcaiF11OrderB' ) ) {
+    class WcaiF11OrderB extends WC_Order {
         public $customer_id = 7; public $meta = array(); public $status = 'pending'; public $saved = false;
         public function get_id() { return 94; }
         public function get_customer_id() { return $this->customer_id; }
@@ -56,26 +55,26 @@ if ( ! class_exists( 'WcaiF11Order' ) ) {
         public function add_order_note() {}
         public function get_payment_method() { return 'bacs'; }
         public function get_status() { return 'processing'; }
-        public function get_items() { return array( 1 => new WcaiF11Item() ); }
+        public function get_items() { return array( 1 => new WcaiF11ItemB() ); }
         public function get_billing_first_name() { return 'Titular'; }
         public function get_billing_last_name() { return 'Teste'; }
     }
 }
 
-if ( ! class_exists( 'WcaiF11Session' ) ) {
-    class WcaiF11Session {
+if ( ! class_exists( 'WcaiF11SessionB' ) ) {
+    class WcaiF11SessionB {
         public $data = array();
         public function get( $k ) { return isset( $this->data[ $k ] ) ? $this->data[ $k ] : null; }
         public function set( $k, $v ) { $this->data[ $k ] = $v; }
         public function __unset( $k ) { unset( $this->data[ $k ] ); }
     }
 }
-if ( ! class_exists( 'WcaiF11Woo' ) ) {
-    class WcaiF11Woo {
+if ( ! class_exists( 'WcaiF11WooB' ) ) {
+    class WcaiF11WooB {
         public static $instance;
         public $session; public $cart;
         public function __construct() {
-            $this->session = new WcaiF11Session();
+            $this->session = new WcaiF11SessionB();
             $this->cart = new class { public $items = array(); public function get_cart() { return $this->items; } };
         }
     }
@@ -86,7 +85,7 @@ $GLOBALS['wcai_f11_admin'] = false;
 $GLOBALS['wcai_f11_notices'] = array();
 $GLOBALS['wcai_f11_order'] = null;
 
-if ( ! function_exists( 'WC' ) ) { function WC() { if ( ! WcaiF11Woo::$instance ) { WcaiF11Woo::$instance = new WcaiF11Woo(); } return WcaiF11Woo::$instance; } }
+if ( ! function_exists( 'WC' ) ) { function WC() { if ( ! WcaiF11WooB::$instance ) { WcaiF11WooB::$instance = new WcaiF11WooB(); } return WcaiF11WooB::$instance; } }
 if ( ! function_exists( 'add_filter' ) ) { function add_filter() {} }
 if ( ! function_exists( 'add_action' ) ) { function add_action() {} }
 if ( ! function_exists( 'add_query_arg' ) ) { function add_query_arg( $k, $v, $url ) { return $url . '?' . $k . '=' . $v; } }
@@ -121,8 +120,8 @@ require_once dirname( __DIR__ ) . '/includes/checkout-block/trait-wcai-checkout-
 require_once dirname( __DIR__ ) . '/includes/checkout-block/trait-wcai-checkout-block-validation.php';
 require_once dirname( __DIR__ ) . '/includes/checkout-block/trait-wcai-checkout-block-participants.php';
 
-if ( ! class_exists( 'WcaiF11Host' ) ) {
-    class WcaiF11Host {
+if ( ! class_exists( 'WcaiF11HostB' ) ) {
+    class WcaiF11HostB {
         const NAMESPACE = 'wcai-checkout';
         use WCAI_Checkout_Block_Cart;
         use WCAI_Checkout_Block_Reservation;
@@ -137,117 +136,7 @@ if ( ! class_exists( 'WcaiF11Host' ) ) {
  * @runTestsInSeparateProcesses
  * @preserveGlobalState disabled
  */
-class Test_F11_Review_Fixes extends TestCase {
-
-    private function row() {
-        return array( 'id' => 1, 'order_id' => 94, 'nome_completo' => 'Ana Participante', 'cpf' => '11144477735',
-            'data_nascimento' => '1990-01-01', 'termo_assinado' => 0, 'ticket_hash' => '', 'reservation_id' => 0 );
-    }
-
-    private function render( $order ) {
-        WCAI_Participants_DB::$rows = array( $this->row() );
-        ob_start();
-        ( new WCAI_Frontend_Account() )->render_participants_on_order_view( $order );
-        return ob_get_clean();
-    }
-
-    private function guest_order() {
-        $GLOBALS['wcai_f11_user'] = 0;
-        $order = new WcaiF11Order();
-        $order->customer_id = 0; // 0 === 0 nao pode contar como dono
-        return $order;
-    }
-
-    // --- Finding A: titularidade do pedido ---
-
-    public function test_guest_without_key_sees_nothing() {
-        unset( $_GET['key'] );
-
-        $this->assertSame( '', $this->render( $this->guest_order() ) );
-    }
-
-    public function test_guest_with_wrong_key_sees_nothing() {
-        $_GET['key'] = 'wc_order_errada';
-
-        $this->assertSame( '', $this->render( $this->guest_order() ) );
-    }
-
-    public function test_guest_with_valid_key_sees_participants_and_sign_link() {
-        $_GET['key'] = 'wc_order_abc';
-
-        $html = $this->render( $this->guest_order() );
-        $this->assertStringContainsString( 'Ana Participante', $html );
-        $this->assertStringContainsString( 'key=wc_order_abc', $html );
-    }
-
-    public function test_other_logged_user_without_key_sees_nothing_but_admin_does() {
-        $GLOBALS['wcai_f11_user'] = 8; // nao e o dono (7)
-        unset( $_GET['key'] );
-        $this->assertSame( '', $this->render( new WcaiF11Order() ) );
-
-        $GLOBALS['wcai_f11_admin'] = true;
-        $this->assertStringContainsString( 'Ana Participante', $this->render( new WcaiF11Order() ) );
-    }
-
-    public function test_owner_sees_participants_with_masked_cpf() {
-        $html = $this->render( new WcaiF11Order() );
-
-        $this->assertStringContainsString( 'Ana Participante', $html );
-        $this->assertStringNotContainsString( '11144477735', $html );
-        $this->assertStringContainsString( '111.***.***-35', $html );
-    }
-
-    public function test_orders_list_column_and_status_hide_participants_from_non_owner() {
-        $GLOBALS['wcai_f11_user'] = 8;
-        unset( $_GET['key'] );
-        WCAI_Participants_DB::$rows = array( $this->row() );
-        $account = new WCAI_Frontend_Account();
-
-        ob_start();
-        $account->column_content( new WcaiF11Order() );
-        $col = ob_get_clean();
-        ob_start();
-        $account->append_status_column( new WcaiF11Order() );
-        $status = ob_get_clean();
-
-        $this->assertStringNotContainsString( 'Ana Participante', $col );
-        $this->assertStringNotContainsString( 'wc_order_abc', $col );
-        $this->assertStringNotContainsString( 'Termo pendente', $status );
-    }
-
-    // --- Finding A: buffer de mascara de CPF ---
-
-    public function test_buffer_flushed_without_closing_hook_is_still_masked() {
-        $account = new WCAI_Frontend_Account();
-        $order = new WcaiF11Order();
-        $order->meta = array( 'billing_cpf' => '52998224725' );
-        $level = ob_get_level();
-
-        ob_start(); // captura o que iria para o navegador
-        $account->begin_cpf_mask_buffer( $order );
-        echo '<dd>529.982.247-25</dd><dd>52998224725</dd><p>rodape</p>';
-        ob_end_flush(); // flush de fim de requisicao: o hook de fechamento nunca disparou
-        $out = ob_get_clean();
-
-        $this->assertSame( $level, ob_get_level() );
-        $this->assertSame( '<dd>529.***.***-25</dd><dd>529.***.***-25</dd><p>rodape</p>', $out );
-    }
-
-    public function test_buffer_closes_once_and_second_end_is_a_noop() {
-        $account = new WCAI_Frontend_Account();
-        $order = new WcaiF11Order();
-        $level = ob_get_level();
-
-        ob_start();
-        $account->begin_cpf_mask_buffer( $order );
-        $account->begin_cpf_mask_buffer( $order ); // segundo begin nao abre outro buffer
-        $this->assertSame( $level + 2, ob_get_level() );
-        echo 'x';
-        $account->end_cpf_mask_buffer( $order );
-        $account->end_cpf_mask_buffer( $order );
-        $this->assertSame( $level + 1, ob_get_level() );
-        $this->assertSame( 'x', ob_get_clean() );
-    }
+class Test_F12_Consent_Gate extends TestCase {
 
     // --- Finding B: checkout classico ---
 
@@ -297,7 +186,7 @@ class Test_F11_Review_Fixes extends TestCase {
 
     public function test_classic_order_without_consent_fails_closed() {
         $this->classic_cart( 99 );
-        $order = new WcaiF11Order();
+        $order = new WcaiF11OrderB();
         $GLOBALS['wcai_f11_order'] = $order;
 
         ( new WCAI_Checkout() )->save_fields_and_notes( 94 );
@@ -309,7 +198,7 @@ class Test_F11_Review_Fixes extends TestCase {
     public function test_classic_order_with_consent_stores_same_meta_as_block_path() {
         $this->classic_cart( 99 );
         $_POST['wcai_consent'] = '1';
-        $order = new WcaiF11Order();
+        $order = new WcaiF11OrderB();
         $GLOBALS['wcai_f11_order'] = $order;
 
         ( new WCAI_Checkout() )->save_fields_and_notes( 94 );
@@ -326,7 +215,7 @@ class Test_F11_Review_Fixes extends TestCase {
 
     private function assert_rejected( $order, $needle ) {
         try {
-            ( new WcaiF11Host() )->run( $order );
+            ( new WcaiF11HostB() )->run( $order );
             $this->fail( 'Pedido deveria ser recusado.' );
         } catch ( Exception $e ) {
             $this->assertStringContainsString( $needle, $e->getMessage() );
@@ -335,7 +224,7 @@ class Test_F11_Review_Fixes extends TestCase {
     }
 
     public function test_store_api_without_extension_payload_is_rejected() {
-        $host = new WcaiF11Host();
+        $host = new WcaiF11HostB();
         $cases = array(
             array(),
             array( 'wcai-checkout' => array() ),
@@ -346,15 +235,15 @@ class Test_F11_Review_Fixes extends TestCase {
         );
         foreach ( $cases as $ext ) {
             WC()->session->data = array();
-            $order = new WcaiF11Order();
+            $order = new WcaiF11OrderB();
             $host->capture( $order, $this->request( $ext ) );
             $this->assert_rejected( $order, 'não foram recebidos' );
         }
     }
 
     public function test_stale_session_payload_with_consent_is_not_reused_by_a_later_request_without_payload() {
-        $host = new WcaiF11Host();
-        $order = new WcaiF11Order();
+        $host = new WcaiF11HostB();
+        $order = new WcaiF11OrderB();
         $payload = json_encode( array( 'consent' => true, 'items' => array( array( 'product_id' => 99, 'variation_id' => 0, 'departure_id' => 5 ) ) ) );
 
         $host->capture( $order, $this->request( array( 'wcai-checkout' => array( 'data' => $payload ) ) ) );
@@ -366,9 +255,9 @@ class Test_F11_Review_Fixes extends TestCase {
     }
 
     public function test_store_api_payload_without_consent_is_rejected() {
-        $order = new WcaiF11Order();
+        $order = new WcaiF11OrderB();
         $payload = json_encode( array( 'items' => array( array( 'product_id' => 99, 'variation_id' => 0, 'departure_id' => 5 ) ) ) );
-        ( new WcaiF11Host() )->capture( $order, $this->request( array( 'wcai-checkout' => array( 'data' => $payload ) ) ) );
+        ( new WcaiF11HostB() )->capture( $order, $this->request( array( 'wcai-checkout' => array( 'data' => $payload ) ) ) );
 
         $this->assert_rejected( $order, 'consentimento' );
     }
