@@ -164,10 +164,13 @@ trait WCAI_Product_Booking_Js_A {
             if (bookable.length) {
                 var best = Math.max.apply(null, bookable.map(function (item) { return parseInt(item.available, 10); }));
                 var forming = bookable.filter(function (item) { return item.group_status === 'forming' && parseInt(item.minimum, 10) > 1; })[0];
-                if (forming) {
-                    return { state: best <= 3 ? 'few' : 'available', label: forming.reserved + '/' + forming.minimum };
-                }
-                return best <= 3 ? { state: 'few', label: best + ' vaga' + (best === 1 ? '' : 's') } : { state: 'available', label: best + ' vagas' };
+                // O número do chip é sempre de vagas livres; grupo mínimo é dica secundária.
+                var seats = best + ' vaga' + (best === 1 ? '' : 's');
+                return {
+                    state: best <= 3 ? 'few' : 'available',
+                    label: seats,
+                    hint: forming ? 'mín. ' + forming.minimum + ' · faltam ' + forming.remaining_to_minimum : ''
+                };
             }
 
             var openItems = items.filter(function (item) { return item.booking_open; });
@@ -175,7 +178,7 @@ trait WCAI_Product_Booking_Js_A {
 
             if (hasSeats) return { state: 'insufficient', label: 'menos vagas' };
             if (items.some(function (item) { return item.state === 'closed'; })) return { state: 'closed', label: 'encerrado' };
-            return { state: 'full', label: 'lotado' };
+            return { state: 'full', label: 'Esgotado' };
         }
 
         function monthName(key) {
@@ -248,7 +251,7 @@ trait WCAI_Product_Booking_Js_A {
                 button.type = 'button';
                 button.className = 'wcai-quick-date state-' + state.state;
                 button.disabled = state.state === 'empty' || state.state === 'full' || state.state === 'closed' || state.state === 'insufficient';
-                button.setAttribute('aria-label', dayNumber + ' de ' + shortMonth(date) + ', ' + (state.label || state.state));
+                button.setAttribute('aria-label', dayNumber + ' de ' + shortMonth(date) + ', ' + (state.label || state.state) + (state.hint ? ', ' + state.hint : ''));
 
                 button.setAttribute('aria-pressed', selectedDate === date ? 'true' : 'false');
                 if (selectedDate === date) {

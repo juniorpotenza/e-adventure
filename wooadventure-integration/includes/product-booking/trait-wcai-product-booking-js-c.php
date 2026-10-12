@@ -103,7 +103,7 @@ trait WCAI_Product_Booking_Js_C {
                 cartHint.id = 'wcai-cart-hint';
                 cartHint.className = 'wcai-cart-hint';
                 cartHint.textContent = i18n.cartHint || 'Escolha data e horário';
-                buttons[0].insertAdjacentElement('afterend', cartHint);
+                buttons[0].insertAdjacentElement('beforebegin', cartHint);
             }
 
             buttons.forEach(function (button) {

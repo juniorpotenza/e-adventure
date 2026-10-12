@@ -90,6 +90,23 @@ trait WCAI_Product_Booking_Departure {
     }
 
 
+    // Legenda das datas: o número é de vagas livres; "mín." só aparece se alguma saída tem grupo mínimo.
+    public static function availability_legend( $has_minimum ) {
+        $legend = 'Vagas livres em cada data.';
+
+        return $has_minimum ? $legend . ' "mín." é o grupo mínimo para o passeio sair.' : $legend;
+    }
+
+    private function has_group_minimum( array $departures ) {
+        foreach ( $departures as $departure ) {
+            if ( ! empty( $departure['minimum'] ) && (int) $departure['minimum'] > 1 ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function render_departure_selector() {
         global $product;
 
@@ -116,7 +133,7 @@ trait WCAI_Product_Booking_Departure {
         echo '<div>';
         echo '<span class="wcai-booking-eyebrow">RESERVE SEU PASSEIO</span>';
         echo '<h2 id="wcai-booking-title">Escolha quando você quer ir</h2>';
-        echo '<p>Veja as datas, horários e vagas disponíveis antes de reservar.</p>';
+        echo '<p>Escolha data e horário. Cada participante ocupa 1 vaga.</p>';
         echo '</div>';
         echo '<div class="wcai-booking-price">' . wp_kses_post( $product->get_price_html() ) . '<small>por participante</small></div>';
         echo '</div>';
@@ -133,12 +150,8 @@ trait WCAI_Product_Booking_Departure {
         $child_enabled = ! empty( $profile['children_allowed'] );
         $child_max = ! empty( $profile['children_max'] ) ? absint( $profile['children_max'] ) : 99;
 
-        echo '<div class="wcai-booking-context">';
-        echo '<strong>Escolha sua experiência</strong><span>Selecione a data e o horário. Depois informe quantos adultos e crianças participarão. Cada participante ocupa 1 vaga.</span>';
-        echo '</div>';
-
         echo '<div class="wcai-booking-section">';
-        echo '<div class="wcai-booking-section-title"><span>1</span><div><strong>Escolha a data</strong><small>Primeiro escolha o dia. Depois mostramos apenas os horários daquele dia.</small></div></div>';
+        echo '<div class="wcai-booking-section-title"><span>1</span><div><strong>Escolha a data</strong></div></div>';
 
         echo '<div class="wcai-booking-layout">';
 
@@ -146,6 +159,7 @@ trait WCAI_Product_Booking_Departure {
         echo '<div class="wcai-date-picker-heading"><strong>Próximas datas</strong><button type="button" class="wcai-calendar-toggle" data-calendar-toggle aria-expanded="false">Ver todas as datas</button></div>';
         echo '<div class="wcai-calendar-error" data-calendar-error role="alert" hidden></div>';
         echo '<div class="wcai-visually-hidden" data-calendar-status role="status" aria-live="polite" aria-atomic="true"></div>';
+        echo '<p class="wcai-quick-legend">' . esc_html( self::availability_legend( $this->has_group_minimum( $calendar_departures ) ) ) . '</p>';
         echo '<div class="wcai-quick-dates" data-calendar-quick></div>';
         echo '<div class="wcai-calendar-full" data-calendar-full hidden>';
         echo '<div class="wcai-calendar-toolbar">';
@@ -189,7 +203,6 @@ trait WCAI_Product_Booking_Departure {
 
         echo '</div>';
 
-        echo '<p class="wcai-booking-note"><strong>Você escolhe em 3 momentos:</strong> data → horário → participantes. As próximas opções aparecem conforme sua escolha.</p>';
         echo '</section>';
 
         $this->enqueue_styles();

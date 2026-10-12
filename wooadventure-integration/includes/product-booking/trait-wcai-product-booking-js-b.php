@@ -5,13 +5,20 @@ trait WCAI_Product_Booking_Js_B {
 
     private function calendar_js_b() {
         return <<<'JS'
-                    label.textContent = 'Últimas vagas';
+                    label.textContent = state.label || 'Últimas vagas';
                 } else if (state.state === 'available') {
                     label.textContent = state.label || 'Disponível';
                 } else {
                     label.textContent = state.label || 'Indisponível';
                 }
                 button.appendChild(label);
+
+                if (state.hint) {
+                    var hint = document.createElement('small');
+                    hint.className = 'wcai-quick-date-hint';
+                    hint.textContent = state.hint;
+                    button.appendChild(hint);
+                }
 
                 button.addEventListener('click', function () {
                     if (button.disabled) return;
@@ -88,7 +95,8 @@ trait WCAI_Product_Booking_Js_B {
             }
 
             selection.hidden = false;
-            if ( participantRoot ) participantRoot.hidden = true;
+            // Re-render após mudar a quantidade não pode esconder o seletor com saída já escolhida.
+            if ( participantRoot ) participantRoot.hidden = !selectedDepartureId;
 
             options.forEach(function (departure) {
                 var button = document.createElement('button');
