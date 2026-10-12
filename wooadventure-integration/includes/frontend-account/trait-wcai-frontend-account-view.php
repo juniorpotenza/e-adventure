@@ -93,111 +93,84 @@ trait WCAI_Frontend_Account_View {
         $rendered[ $order->get_id() ] = true;
 
         $terms_url = $this->get_terms_url( $order );
+        $summary = $this->terms_summary( $order, $participants );
+        $rows = array();
+        foreach ( $participants as $p ) {
+            $hash = isset( $p['ticket_hash'] ) ? $p['ticket_hash'] : '';
+            $signed = $this->participant_is_signed( $order, $p );
+            $confirmed = $this->participant_reservation_confirmed( $p );
+            $rows[] = array(
+                'p'       => $p,
+                'signed'  => $signed,
+                'hash'    => $hash,
+                'show_qr' => $signed && ! empty( $hash ) && $confirmed,
+                'qr_note' => $this->qr_explanation( $signed, $confirmed ),
+                'cpf'     => WCAI_Utils::mask_cpf( $this->safe_cpf_pad( $p['cpf'] ) ),
+            );
+        }
+        // Coluna "Ações" só existe quando alguma linha tem ação (evita coluna vazia).
+        $has_actions = (bool) array_filter( array_column( $rows, 'show_qr' ) );
+        $th = 'text-align:left; padding:10px; border-bottom:2px solid #eee; background-color: #f8f8f8;';
         ?>
         <section class="wcai-order-details-participants" style="margin-bottom: 40px; margin-top: 30px; font-family: inherit;">
             <h2 class="woocommerce-column__title" style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 10px;">👥 Lista de Participantes</h2>
-            
+
+            <?php if ( $terms_url && $this->terms_cta_visible( $order, $participants, $summary['pending'] ) ) : ?>
+                <p><a class="button wc-forward wcai-sign-all" href="<?php echo esc_url( $terms_url ); ?>" style="font-weight:700;"><?php echo esc_html( sprintf( $summary['pending'] > 1 ? 'Assinar termos (%d pendentes)' : 'Assinar termos (%d pendente)', $summary['pending'] ) ); ?></a></p>
+            <?php endif; ?>
+
             <table class="woocommerce-table shop_table" style="width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #e5e5e5;">
                 <thead>
                     <tr>
-                        <th style="text-align:left; padding:10px; border-bottom:2px solid #eee; background-color: #f8f8f8;">Nome / Idade</th>
-                        <th style="text-align:center; padding:10px; border-bottom:2px solid #eee; background-color: #f8f8f8;"><?php echo esc_html__( 'Ingresso (QR Code)', 'wooadventure-integration' ); ?></th>
-                        <th style="text-align:left; padding:10px; border-bottom:2px solid #eee; background-color: #f8f8f8;">Ações</th>
+                        <th scope="col" style="<?php echo esc_attr( $th ); ?>">Nome / Idade</th>
+                        <th scope="col" style="<?php echo esc_attr( $th ); ?>"><?php echo esc_html__( 'Termo', 'wooadventure-integration' ); ?></th>
+                        <th scope="col" style="<?php echo esc_attr( $th ); ?> text-align:center;"><?php echo esc_html__( 'Ingresso (QR Code)', 'wooadventure-integration' ); ?></th>
+                        <?php if ( $has_actions ) : ?><th scope="col" style="<?php echo esc_attr( $th ); ?>">Ações</th><?php endif; ?>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php 
-                    foreach ( $participants as $p ) : 
-                        // Garante CPF completo
-                        $cpf_full = $this->safe_cpf_pad($p['cpf']);
-                        $cpf_clean = preg_replace('/[^0-9]/', '', $cpf_full);
-                        
-                        // Verifica se tem ticket/termo assinado
-                        $has_ticket = false;
-                        $ticket_hash = isset($p['ticket_hash']) ? $p['ticket_hash'] : '';
-                        
-                        // Fallback para meta antigo
-                        if ( empty($ticket_hash) ) {
-                            $meta_signed = $order->get_meta('_waiver_signed_' . $cpf_clean);
-                            if ( $meta_signed ) {
-                                $has_ticket = true;
-                            }
-                        } else {
-                            $has_ticket = true;
-                        }
-
-                        $badge = $this->get_age_badge_html( $p['data_nascimento'] );
-                        $show_qr = $has_ticket && ! empty( $ticket_hash ) && $this->participant_reservation_confirmed( $p );
-
-                        // APLICA MÁSCARA LGPD VISUAL (***)
-                        $cpf_display = ( class_exists('WCAI_Utils') && method_exists('WCAI_Utils', 'mask_cpf') )
-                            ? WCAI_Utils::mask_cpf($cpf_full) 
-                            : '***';
-                    ?>
+                    <?php foreach ( $rows as $r ) : $p = $r['p']; ?>
                     <tr>
                         <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle;">
                             <div style="display:flex; flex-direction:column; gap:4px;">
                                 <strong><?php echo esc_html( $p['nome_completo'] ); ?></strong>
-                                <?php echo $badge; ?>
-                                <small style="color:#777;">CPF: <?php echo esc_html( $cpf_display ); ?></small>
+                                <?php echo $this->get_age_badge_html( $p['data_nascimento'] ); ?>
+                                <small style="color:#777;">CPF: <?php echo esc_html( $r['cpf'] ); ?></small>
                             </div>
                         </td>
+                        <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle;">
+                            <?php echo $this->term_chip_html( $r['signed'] ); ?>
+                            <?php if ( ! $r['signed'] && $terms_url ) : ?>
+                                <div style="margin-top:6px;"><a class="button" href="<?php echo esc_url( $terms_url ); ?>" rel="noopener"><?php echo esc_html__( 'Assinar termo', 'wooadventure-integration' ); ?></a></div>
+                            <?php endif; ?>
+                        </td>
                         <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle; text-align:center;">
-                            <?php if ( $show_qr ): ?>
-                                <?php $ticket_qr_url = class_exists('WCAI_Assinatura') ? WCAI_Assinatura::generate_local_qr($ticket_hash, absint($p['id'])) : false; ?>
-                                <?php if ( $ticket_qr_url && ! is_wp_error($ticket_qr_url) ) : ?>
-                                    <img src="<?php echo esc_url($ticket_qr_url); ?>" style="width:80px; height:80px; border:1px solid #ccc; padding:2px;" alt="QR Code">
+                            <?php $qr_url = false; ?>
+                            <?php if ( $r['show_qr'] ) : ?>
+                                <?php $qr_url = class_exists( 'WCAI_Assinatura' ) ? WCAI_Assinatura::generate_local_qr( $r['hash'], absint( $p['id'] ) ) : false; ?>
+                                <?php if ( $qr_url && ! is_wp_error( $qr_url ) ) : ?>
+                                    <img src="<?php echo esc_url( $qr_url ); ?>" style="width:80px; height:80px; border:1px solid #ccc; padding:2px;" alt="QR Code de <?php echo esc_attr( $p['nome_completo'] ); ?>">
                                 <?php else : ?>
                                     <span style="color:#d63638;">QR indisponível</span>
                                 <?php endif; ?>
-                                <div style="font-size:12px; color:#1e7e34; font-weight:bold; margin-top:2px;">✅ Ativo</div>
-                            <?php elseif ( $has_ticket ): ?>
-                                <span style="color:#1e7e34; font-weight:bold;">✅ Assinado</span><br><small style="color:#595959;"><?php echo esc_html( ! empty( $ticket_hash ) ? 'QR disponível após a confirmação da reserva.' : '(QR gerando...)' ); ?></small>
-                            <?php else: ?>
-                                <span style="color:#ccc; font-size:30px; line-height:1;" aria-hidden="true">⬜</span>
-                                <div style="font-size:12px; color:#595959;">Pendente</div>
+                                <div style="font-size:12px; color:#1e7e34; font-weight:bold; margin-top:2px;">Ativo</div>
+                            <?php else : ?>
+                                <small class="wcai-qr-note" style="color:#595959; display:block; text-align:left; max-width:260px; margin:0 auto;"><?php echo esc_html( $r['qr_note'] ); ?></small>
                             <?php endif; ?>
                         </td>
+                        <?php if ( $has_actions ) : ?>
                         <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle;">
-                            <?php if ( $show_qr ): ?>
-                                <?php
-                                    $ticket_qr_url = class_exists('WCAI_Assinatura') ? WCAI_Assinatura::generate_local_qr($ticket_hash, absint($p['id'])) : false;
-                                    $msg_whats = "Olá " . $p['nome_completo'] . ", aqui está seu ingresso para o passeio! Acesse o QR Code: " . ( $ticket_qr_url && ! is_wp_error($ticket_qr_url) ? $ticket_qr_url : '' );
-                                    $link_whats = "https://wa.me/?text=" . urlencode($msg_whats);
-                                ?>
-                                <a href="<?php echo esc_url($link_whats); ?>" target="_blank" class="button" style="font-size:12px; padding:5px 10px; background-color:#25D366; color:white; border:none; text-decoration:none; display:inline-block;">📲 Enviar Whats</a>
-                            <?php elseif ( $terms_url ): ?>
-                                <a href="<?php echo esc_url( $terms_url ); ?>" target="_blank" rel="noopener" style="color:#d63638; text-decoration:underline; font-weight:bold;">👉 <?php echo esc_html__( 'Assinar termo', 'wooadventure-integration' ); ?></a>
+                            <?php if ( $r['show_qr'] ) : ?>
+                                <?php $link_whats = 'https://wa.me/?text=' . urlencode( 'Olá ' . $p['nome_completo'] . ', aqui está seu ingresso para o passeio! Acesse o QR Code: ' . ( $qr_url && ! is_wp_error( $qr_url ) ? $qr_url : '' ) ); ?>
+                                <a href="<?php echo esc_url( $link_whats ); ?>" target="_blank" rel="noopener" class="button" style="font-size:12px; padding:5px 10px; background-color:#25D366; color:white; border:none; text-decoration:none; display:inline-block;">Enviar por WhatsApp</a>
                             <?php endif; ?>
                         </td>
+                        <?php endif; ?>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
-            
-            <?php 
-            $has_pending = false;
-            foreach($participants as $p) {
-                // Pad CPF antes de checar pendencia
-                $c = $this->safe_cpf_pad($p['cpf']); 
-                $hash = isset($p['ticket_hash']) ? $p['ticket_hash'] : '';
-                $meta = $order->get_meta('_waiver_signed_'.$c);
-                
-                if ( empty($hash) && empty($meta) && ( !isset($p['termo_assinado']) || $p['termo_assinado'] != 1 ) ) {
-                    $has_pending = true; 
-                    break;
-                }
-            }
-            if( $has_pending ): ?>
-                <div style="margin-top: 15px; background: #fff3cd; color: #856404; padding: 12px; border-radius: 4px; font-size: 14px; border: 1px solid #ffeeba;">
-                    ⚠️ <?php echo esc_html__( 'Existem participantes pendentes.', 'wooadventure-integration' ); ?>
-                    <?php if ( $terms_url ) : ?>
-                        <br>
-                        <a href="<?php echo esc_url( $terms_url ); ?>" target="_blank" rel="noopener" style="color:#856404; text-decoration:underline; font-weight:bold;">👉 <?php echo esc_html__( 'Clique aqui para assinar o termo de responsabilidade', 'wooadventure-integration' ); ?></a>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-
+            <?php if ( function_exists( 'is_wc_endpoint_url' ) && is_wc_endpoint_url( 'order-received' ) ) { $this->render_next_steps( $order ); } ?>
         </section>
         <?php
     }

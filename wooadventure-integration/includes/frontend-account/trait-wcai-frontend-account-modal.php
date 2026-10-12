@@ -16,20 +16,17 @@ trait WCAI_Frontend_Account_Modal {
         $participants = $this->get_participants_safe( $order );
         if ( empty( $participants ) ) { echo esc_html( wc_get_order_status_name( $order->get_status() ) ); return; }
 
-        $total = count($participants);
-        $signed = 0;
-        foreach($participants as $p) {
-            $cpf_clean = $this->safe_cpf_pad($p['cpf']); // PAD FIX
-            $meta_signed = $order->get_meta('_waiver_signed_' . $cpf_clean);
-            $db_signed = isset($p['termo_assinado']) && $p['termo_assinado'] == 1;
-            if ($meta_signed || $db_signed) $signed++;
-        }
+        $summary = $this->terms_summary( $order, $participants );
+        $total = $summary['total'];
+        $signed = $summary['signed'];
 
         echo esc_html( wc_get_order_status_name( $order->get_status() ) );
 
         if ($total > 0 && $signed < $total) {
-            echo '<div style="font-size: 12px; color: #d63638; margin-top: 3px; font-weight:600;">';
-            echo '⚠️ ' . esc_html__( 'Termo pendente', 'wooadventure-integration' );
+            $tip = __( 'Assine o termo de cada participante para liberar o QR code do ingresso.', 'wooadventure-integration' );
+            echo '<div style="font-size: 12px; color: #b32d2e; margin-top: 3px; font-weight:600;" title="' . esc_attr( $tip ) . '">';
+            echo esc_html__( 'Termo pendente', 'wooadventure-integration' ) . ' (' . (int) $summary['pending'] . ')';
+            echo '<span class="screen-reader-text" style="position:absolute; left:-9999px;"> ' . esc_html( $tip ) . '</span>';
             echo '</div>';
         }
     }
@@ -42,14 +39,9 @@ trait WCAI_Frontend_Account_Modal {
         $is_locked = $this->is_order_locked( $order );
         $modal_id = 'wcai-modal-' . $order_id;
         
-        $total = count($participants);
-        $signed = 0;
-        foreach($participants as $p) {
-            $cpf_clean = $this->safe_cpf_pad($p['cpf']); // PAD FIX
-            $meta_signed = $order->get_meta('_waiver_signed_' . $cpf_clean);
-            $db_signed = isset($p['termo_assinado']) && $p['termo_assinado'] == 1;
-            if ($meta_signed || $db_signed) $signed++;
-        }
+        $summary = $this->terms_summary( $order, $participants );
+        $total = $summary['total'];
+        $signed = $summary['signed'];
 
         // Botão Inteligente
         $btn_style = '';
@@ -65,6 +57,7 @@ trait WCAI_Frontend_Account_Modal {
             }
         }
 
+        echo '<div class="wcai-orders-participants" style="margin-bottom:6px; font-size:13px;">' . esc_html( $this->participants_summary_line( $participants ) ) . ' ' . $this->terms_chip_summary_html( $summary ) . '</div>';
         echo '<button class="button wcai-open-modal" data-target="' . $modal_id . '" style="width:100%; white-space:nowrap; ' . $btn_style . '">' . $btn_text . '</button>';
         
         $this->render_modal_html($order_id, $participants, $is_locked, $modal_id);

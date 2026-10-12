@@ -7,6 +7,7 @@ require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-ajax.php';
 require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-admin.php';
 require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-save.php';
 require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-assets.php';
+require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-orderpage.php';
 
 class WCAI_Frontend_Account {
     use WCAI_Frontend_Account_View;
@@ -15,6 +16,7 @@ class WCAI_Frontend_Account {
     use WCAI_Frontend_Account_Admin;
     use WCAI_Frontend_Account_Save;
     use WCAI_Frontend_Account_Assets;
+    use WCAI_Frontend_Account_Order_Page;
 
     public function __construct() {
         // 1. Tabela Minha Conta (Coluna Personalizada)
@@ -27,6 +29,10 @@ class WCAI_Frontend_Account {
         // 3. Visualização do Pedido (Site e E-mail)
         add_action( 'woocommerce_order_details_after_order_table', array( $this, 'render_participants_on_order_view' ), 10, 1 );
         add_action( 'woocommerce_thankyou', array( $this, 'render_participants_on_thankyou' ), 20, 1 );
+        // CPF do titular mascarado nos campos adicionais (bloco e template clássico).
+        add_filter( 'render_block_woocommerce/order-confirmation-additional-fields', array( $this, 'mask_cpf_in_additional_fields_block' ) );
+        add_action( 'woocommerce_order_details_after_order_table', array( $this, 'begin_cpf_mask_buffer' ), 99, 1 );
+        add_action( 'woocommerce_order_details_after_customer_details', array( $this, 'end_cpf_mask_buffer' ), PHP_INT_MAX, 1 );
         add_action( 'woocommerce_email_after_order_table', array( $this, 'render_participants_in_email' ), 10, 4 );
 
         // 4. Scripts e Modais
