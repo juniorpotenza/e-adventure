@@ -7,6 +7,7 @@ class WCAI_Checkout {
         add_filter( 'script_loader_tag', array( $this, 'add_mask_sri' ), 10, 2 );
         add_action( 'woocommerce_after_order_notes', array( $this, 'render_fields' ) );
         add_action( 'woocommerce_checkout_process', array( $this, 'validate_fields' ) );
+        add_action( 'woocommerce_checkout_process', array( $this, 'validate_consent' ) );
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'add_departure_to_order_item' ), 10, 4 );
         add_action( 'woocommerce_checkout_update_order_meta', array( $this, 'save_fields_and_notes' ), 10, 1 );
     }
@@ -31,6 +32,27 @@ class WCAI_Checkout {
         }
 
         return preg_replace( '/ src=/', ' integrity="sha384-6LwNpGeYDjlORU0Q5rfxEC8SQO6/FTh/VecUcvFvNx1gLMdX5dm8y1Y739D3lFSW" crossorigin="anonymous" src=', $tag, 1 );
+    }
+
+    // Carrinho com passeio: o consentimento (dados de terceiros) é obrigatório neste checkout clássico,
+    // igual ao do bloco (assert_consent). O wc-ajax=checkout também atende quem pula a página do bloco.
+    private function cart_has_target_item() {
+        if ( ! function_exists( 'WC' ) || ! WC()->cart ) return false;
+        $target_ids = WCAI_Settings::get_product_ids();
+        foreach ( WC()->cart->get_cart() as $item ) {
+            if ( in_array( absint( $item['product_id'] ), $target_ids, true ) || in_array( absint( isset( $item['variation_id'] ) ? $item['variation_id'] : 0 ), $target_ids, true ) ) return true;
+        }
+        return false;
+    }
+
+    private function consent_posted() {
+        return isset( $_POST['wcai_consent'] ) && '1' === $_POST['wcai_consent']; // phpcs:ignore WordPress.Security.NonceVerification -- nonce do checkout já validado pelo Woo.
+    }
+
+    public function validate_consent() {
+        if ( $this->cart_has_target_item() && ! $this->consent_posted() ) {
+            wc_add_notice( 'Aceite o consentimento para o uso dos dados dos participantes para finalizar o pedido.', 'error' );
+        }
     }
 
     public function render_fields( $checkout ) {
@@ -85,6 +107,13 @@ class WCAI_Checkout {
                     echo '</div>';
                 }
             }
+        }
+
+        if ( $this->cart_has_target_item() ) {
+            woocommerce_form_field( 'wcai_consent', array(
+                'type' => 'checkbox', 'class' => array( 'form-row-wide' ), 'required' => true,
+                'label' => esc_html( WCAI_Privacy::consent_text() ),
+            ), $checkout->get_value( 'wcai_consent' ) );
         }
     }
 
@@ -183,6 +212,21 @@ class WCAI_Checkout {
         $reservation_error = '';
         $items = $order->get_items();
         $target_ids = WCAI_Settings::get_product_ids();
+
+        // Falha fechada: sem consentimento (ex.: validate_consent removido por outro código) o pedido com passeio não segue.
+        $has_target = false;
+        foreach ( $items as $item ) {
+            if ( in_array( $item->get_variation_id(), $target_ids ) || in_array( $item->get_product_id(), $target_ids ) ) { $has_target = true; break; }
+        }
+        if ( $has_target ) {
+            if ( ! $this->consent_posted() ) {
+                $order->update_status( 'failed', 'Consentimento para dados dos participantes ausente.' );
+                return;
+            }
+            // Mesmo formato do checkout em bloco (store_consent).
+            $order->update_meta_data( '_wcai_third_party_consent', array( 'accepted_at' => gmdate( 'c' ), 'text_sha256' => hash( 'sha256', WCAI_Privacy::consent_text() ) ) );
+            $order->save();
+        }
 
         // Dados do Titular (Billing)
         // Tentamos pegar do POST (mais atual) ou do Objeto Order

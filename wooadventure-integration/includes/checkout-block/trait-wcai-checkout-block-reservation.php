@@ -66,6 +66,11 @@ trait WCAI_Checkout_Block_Reservation {
             return;
         }
 
+        // Descarta payload de requisição anterior: sem payload válido nesta, process_checkout recusa (nunca reaproveita consent velho).
+        if ( function_exists( 'WC' ) && WC()->session ) {
+            WC()->session->__unset( 'wcai_checkout_payload_' . absint( $order->get_id() ) );
+        }
+
         $raw = $this->extension_payload_raw( $request->get_param( 'extensions' ) );
         $payload = $raw ? json_decode( $raw, true ) : null;
 
