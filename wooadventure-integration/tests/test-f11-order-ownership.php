@@ -74,6 +74,7 @@ if ( ! function_exists( 'wp_nonce_field' ) ) { function wp_nonce_field() {} }
 if ( ! function_exists( 'is_wp_error' ) ) { function is_wp_error( $v ) { return false; } }
 if ( ! function_exists( 'is_wc_endpoint_url' ) ) { function is_wc_endpoint_url() { return false; } }
 if ( ! function_exists( 'wc_get_order_status_name' ) ) { function wc_get_order_status_name( $s ) { return $s; } }
+if ( ! function_exists( 'get_option' ) ) { function get_option( $key, $default = false ) { return $default; } }
 if ( ! function_exists( 'get_current_user_id' ) ) { function get_current_user_id() { return $GLOBALS['wcai_f11_user']; } }
 if ( ! function_exists( 'current_user_can' ) ) { function current_user_can() { return $GLOBALS['wcai_f11_admin']; } }
 if ( ! function_exists( 'wc_add_notice' ) ) { function wc_add_notice( $msg ) { $GLOBALS['wcai_f11_notices'][] = $msg; } }

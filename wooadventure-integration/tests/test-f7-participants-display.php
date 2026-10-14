@@ -56,6 +56,8 @@ if ( ! class_exists( 'WcaiF7Order' ) ) {
         public function get_billing_last_name() { return 'Teste'; }
         public function get_order_key() { return 'wc_order_key'; }
         public function get_customer_id() { return 7; }
+        public function get_status() { return 'processing'; }
+        public function get_payment_method() { return 'bacs'; }
         public function get_items() { return array_map( function ( $q ) { return new WcaiF7Item( $q ); }, $this->quantities ); }
         public function add_order_note( $note ) {}
     }
@@ -76,11 +78,14 @@ if ( ! function_exists( 'esc_html__' ) ) { function esc_html__( $v ) { return es
 if ( ! function_exists( '__' ) ) { function __( $v ) { return $v; } }
 if ( ! function_exists( 'wp_nonce_field' ) ) { function wp_nonce_field() { echo '<input type="hidden" name="nonce">'; } }
 if ( ! function_exists( 'current_user_can' ) ) { function current_user_can() { return $GLOBALS['wcai_f7_can_sensitive']; } }
+if ( ! function_exists( 'get_option' ) ) { function get_option( $key, $default = false ) { return $default; } }
+if ( ! function_exists( 'get_post_meta' ) ) { function get_post_meta() { return ''; } }
 if ( ! function_exists( 'get_current_user_id' ) ) { function get_current_user_id() { return 7; } }
 if ( ! function_exists( 'wc_get_order' ) ) { function wc_get_order() { return false; } }
 
 require_once dirname( __DIR__ ) . '/includes/class-utils.php';
 require_once dirname( __DIR__ ) . '/includes/class-capabilities.php';
+require_once dirname( __DIR__ ) . '/includes/class-data-resolver.php';
 require_once dirname( __DIR__ ) . '/includes/class-order.php';
 require_once dirname( __DIR__ ) . '/includes/class-frontend-account.php';
 

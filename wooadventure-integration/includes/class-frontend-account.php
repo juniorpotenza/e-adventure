@@ -31,6 +31,13 @@ class WCAI_Frontend_Account {
         add_action( 'woocommerce_thankyou', array( $this, 'render_participants_on_thankyou' ), 20, 1 );
         // CPF do titular mascarado nos campos adicionais (bloco e template clássico).
         add_filter( 'render_block_woocommerce/order-confirmation-additional-fields', array( $this, 'mask_cpf_in_additional_fields_block' ) );
+        // Tema de blocos (obrigado): lista de participantes e próximos passos entram no conteúdo da confirmação, não antes do <html>.
+        add_filter( 'render_block_woocommerce/order-confirmation-totals-wrapper', array( $this, 'append_extras_to_confirmation_block' ) );
+        add_filter( 'render_block_woocommerce/order-confirmation-additional-information', array( $this, 'append_extras_to_confirmation_block' ) );
+        add_action( 'wp_footer', array( $this, 'flush_deferred_extras' ), 5 );
+        add_filter( 'gettext', array( $this, 'fix_order_number_label' ), 10, 3 );
+        add_filter( 'woocommerce_my_account_my_orders_actions', array( $this, 'fix_orders_action_labels' ), 10, 2 );
+        add_action( 'wp_head', array( $this, 'print_order_pages_css' ) );
         add_action( 'woocommerce_order_details_after_order_table', array( $this, 'begin_cpf_mask_buffer' ), 99, 1 );
         add_action( 'woocommerce_order_details_after_customer_details', array( $this, 'end_cpf_mask_buffer' ), PHP_INT_MAX, 1 );
         add_action( 'woocommerce_email_after_order_table', array( $this, 'render_participants_in_email' ), 10, 4 );

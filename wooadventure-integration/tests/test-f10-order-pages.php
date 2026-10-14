@@ -71,6 +71,7 @@ if ( ! class_exists( 'WcaiF10Order' ) ) {
 }
 
 $GLOBALS['wcai_f10_received'] = false;
+$GLOBALS['wcai_f10_options'] = array();
 
 if ( ! function_exists( 'add_filter' ) ) { function add_filter() {} }
 if ( ! function_exists( 'add_action' ) ) { function add_action() {} }
@@ -87,6 +88,7 @@ if ( ! function_exists( 'is_wp_error' ) ) { function is_wp_error( $v ) { return 
 if ( ! function_exists( 'is_wc_endpoint_url' ) ) { function is_wc_endpoint_url() { return $GLOBALS['wcai_f10_received']; } }
 if ( ! function_exists( 'get_post_meta' ) ) { function get_post_meta( $id, $key ) { return array( '_wcai_starts_at' => '2026-10-20 09:00', '_wcai_meeting_point' => 'Portaria do parque' )[ $key ]; } }
 if ( ! function_exists( 'wp_date' ) ) { function wp_date( $format, $ts ) { return gmdate( $format, $ts ); } }
+if ( ! function_exists( 'get_option' ) ) { function get_option( $key, $default = false ) { return isset( $GLOBALS['wcai_f10_options'][ $key ] ) ? $GLOBALS['wcai_f10_options'][ $key ] : $default; } }
 if ( ! function_exists( 'get_current_user_id' ) ) { function get_current_user_id() { return 7; } }
 if ( ! function_exists( 'current_user_can' ) ) { function current_user_can() { return false; } }
 if ( ! function_exists( 'wc_get_order_status_name' ) ) { function wc_get_order_status_name( $s ) { return $s; } }
@@ -234,7 +236,8 @@ class Test_F10_Order_Pages extends TestCase {
 
         $this->assertStringContainsString( '<dd>529.***.***-25</dd>', $out );
         $this->assertStringNotContainsString( '982.247', $out );
-        $this->assertStringContainsString( '15/05/1990', $out );
+        $this->assertStringContainsString( '<dd>**/**/1990</dd>', $out );
+        $this->assertStringNotContainsString( '15/05', $out );
         $this->assertStringContainsString( '529.***.***-25', $this->account()->mask_cpf_in_additional_fields_block( '<dd>52998224725</dd>' ) );
     }
 
@@ -277,12 +280,13 @@ class Test_F10_Order_Pages extends TestCase {
         $this->assertStringNotContainsString( 'Pagamento na entrega', implode( ' ', $lines ) );
     }
 
-    public function test_next_steps_render_only_on_order_received_page() {
-        $order = new WcaiF10Order( array(), 'cod' );
-        $rows = array( $this->row( 1, 'Ana' ) );
-
+    public function test_next_steps_render_on_view_order_page_without_the_email_note() {
         $GLOBALS['wcai_f10_received'] = false;
-        $this->assertStringNotContainsString( 'Próximos passos', $this->render( $order, $rows ) );
+        $html = $this->render( new WcaiF10Order( array(), 'cod' ), array( $this->row( 1, 'Ana' ) ) );
+
+        $this->assertStringContainsString( 'Próximos passos', $html );
+        $this->assertStringContainsString( 'Ponto de encontro: Portaria do parque.', $html );
+        $this->assertStringNotContainsString( 'Você receberá este resumo por e-mail.', $html );
     }
 
     public function test_next_steps_render_on_order_received_page() {

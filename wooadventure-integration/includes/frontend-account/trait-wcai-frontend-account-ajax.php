@@ -10,11 +10,40 @@ trait WCAI_Frontend_Account_Ajax {
         if ($this->is_order_locked($order)) wp_send_json_error('Pedido bloqueado para edição.');
 
         $data = isset($_POST['participantes']) ? wp_unslash($_POST['participantes']) : array();
+        $data = $this->restore_unchanged_fields($order, $data);
         $error = $this->validate_frontend_rows($order, $data);
         if ($error) wp_send_json_error($error);
 
         $this->process_save($order, $data, 'Frontend');
         wp_send_json_success(array('message' => 'Salvo com sucesso!'));
+    }
+
+    // O modal mostra CPF mascarado ("529.***.***-25") e, com identidade travada, só a idade (nasc_unchanged=1).
+    // Aqui esses campos voltam ao valor guardado: nunca vira CPF novo, nem erro de validação, nem CPF duplicado.
+    private function restore_unchanged_fields($order, $data) {
+        if (!is_array($data) || !class_exists('WCAI_Participants_DB')) return $data;
+        foreach ($data as $key => $row) {
+            if (!is_array($row)) continue;
+            $current = (isset($row['id']) && is_numeric($row['id']) && $this->participant_belongs_to_order($row['id'], $order))
+                ? WCAI_Participants_DB::get_by_id($row['id']) : null;
+            if (isset($row['cpf']) && false !== strpos((string) $row['cpf'], '*')) {
+                $row['cpf'] = $current ? $current['cpf'] : $this->cpf_for_masked_virtual_row($order, (string) $row['cpf']);
+            }
+            if (!empty($row['nasc_unchanged'])) {
+                $row['data_nascimento'] = ($current && $this->identity_locked($current)) ? $this->force_date_to_display($current['data_nascimento']) : '';
+            }
+            unset($row['nasc_unchanged']);
+            $data[$key] = $row;
+        }
+        return $data;
+    }
+
+    // Linha ainda sem registro (titular virtual / meta legado): o CPF completo vem do pedido, achado pela máscara.
+    private function cpf_for_masked_virtual_row($order, $masked) {
+        foreach ($this->get_participants_safe($order) as $p) {
+            if (!is_numeric($p['id']) && WCAI_Utils::mask_cpf($this->safe_cpf_pad($p['cpf'])) === $masked) return $p['cpf'];
+        }
+        return '';
     }
 
     private function is_order_locked($order) {

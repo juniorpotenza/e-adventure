@@ -51,7 +51,7 @@ trait WCAI_Frontend_Account_View {
         $rows = array();
         foreach ( $participants as $p ) {
             $rows[] = array(
-                'name'   => trim( preg_replace( '/\s+/', ' ', wp_strip_all_tags( (string) $p['nome_completo'] ) ) ),
+                'name'   => $this->display_name( $p['nome_completo'] ),
                 'age'    => $this->participant_age_label( $p['data_nascimento'] ),
                 'cpf'    => WCAI_Utils::mask_cpf( $this->safe_cpf_pad( $p['cpf'] ) ),
                 'signed' => $this->participant_is_signed( $order, $p ),
@@ -85,6 +85,7 @@ trait WCAI_Frontend_Account_View {
     }
 
     // Página do pedido/obrigado: hooks diferentes podem disparar no mesmo pedido; imprime uma vez por requisição.
+    // Tema de blocos (order-received): o Woo dispara o hook antes do <html>; guarda o HTML e imprime dentro do bloco.
     public function render_participants_on_order_view( $order ) {
         static $rendered = array();
         if ( ! is_object( $order ) || isset( $rendered[ $order->get_id() ] ) || ! $this->can_view_order_participants( $order ) ) return;
@@ -92,92 +93,20 @@ trait WCAI_Frontend_Account_View {
         if ( empty( $participants ) ) return;
         $rendered[ $order->get_id() ] = true;
 
-        $terms_url = $this->get_terms_url( $order );
-        $summary = $this->terms_summary( $order, $participants );
-        $rows = array();
-        foreach ( $participants as $p ) {
-            $hash = isset( $p['ticket_hash'] ) ? $p['ticket_hash'] : '';
-            $signed = $this->participant_is_signed( $order, $p );
-            $confirmed = $this->participant_reservation_confirmed( $p );
-            $rows[] = array(
-                'p'       => $p,
-                'signed'  => $signed,
-                'hash'    => $hash,
-                'show_qr' => $signed && ! empty( $hash ) && $confirmed,
-                'qr_note' => $this->qr_explanation( $signed, $confirmed ),
-                'cpf'     => WCAI_Utils::mask_cpf( $this->safe_cpf_pad( $p['cpf'] ) ),
-            );
+        $in_blocks = $this->uses_confirmation_blocks();
+        $html = $this->order_extras_html( $order, $participants, $in_blocks );
+        if ( $in_blocks ) {
+            self::$deferred_extras = $html;
+            return;
         }
-        // Coluna "Ações" só existe quando alguma linha tem ação (evita coluna vazia).
-        $has_actions = (bool) array_filter( array_column( $rows, 'show_qr' ) );
-        $th = 'text-align:left; padding:10px; border-bottom:2px solid #eee; background-color: #f8f8f8;';
-        ?>
-        <section class="wcai-order-details-participants" style="margin-bottom: 40px; margin-top: 30px; font-family: inherit;">
-            <h2 class="woocommerce-column__title" style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 10px;">👥 Lista de Participantes</h2>
-
-            <?php if ( $terms_url && $this->terms_cta_visible( $order, $participants, $summary['pending'] ) ) : ?>
-                <p><a class="button wc-forward wcai-sign-all" href="<?php echo esc_url( $terms_url ); ?>" style="font-weight:700;"><?php echo esc_html( sprintf( $summary['pending'] > 1 ? 'Assinar termos (%d pendentes)' : 'Assinar termos (%d pendente)', $summary['pending'] ) ); ?></a></p>
-            <?php endif; ?>
-
-            <table class="woocommerce-table shop_table" style="width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #e5e5e5;">
-                <thead>
-                    <tr>
-                        <th scope="col" style="<?php echo esc_attr( $th ); ?>">Nome / Idade</th>
-                        <th scope="col" style="<?php echo esc_attr( $th ); ?>"><?php echo esc_html__( 'Termo', 'wooadventure-integration' ); ?></th>
-                        <th scope="col" style="<?php echo esc_attr( $th ); ?> text-align:center;"><?php echo esc_html__( 'Ingresso (QR Code)', 'wooadventure-integration' ); ?></th>
-                        <?php if ( $has_actions ) : ?><th scope="col" style="<?php echo esc_attr( $th ); ?>">Ações</th><?php endif; ?>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ( $rows as $r ) : $p = $r['p']; ?>
-                    <tr>
-                        <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle;">
-                            <div style="display:flex; flex-direction:column; gap:4px;">
-                                <strong><?php echo esc_html( $p['nome_completo'] ); ?></strong>
-                                <?php echo $this->get_age_badge_html( $p['data_nascimento'] ); ?>
-                                <small style="color:#777;">CPF: <?php echo esc_html( $r['cpf'] ); ?></small>
-                            </div>
-                        </td>
-                        <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle;">
-                            <?php echo $this->term_chip_html( $r['signed'] ); ?>
-                            <?php if ( ! $r['signed'] && $terms_url ) : ?>
-                                <div style="margin-top:6px;"><a class="button" href="<?php echo esc_url( $terms_url ); ?>" rel="noopener"><?php echo esc_html__( 'Assinar termo', 'wooadventure-integration' ); ?></a></div>
-                            <?php endif; ?>
-                        </td>
-                        <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle; text-align:center;">
-                            <?php $qr_url = false; ?>
-                            <?php if ( $r['show_qr'] ) : ?>
-                                <?php $qr_url = class_exists( 'WCAI_Assinatura' ) ? WCAI_Assinatura::generate_local_qr( $r['hash'], absint( $p['id'] ) ) : false; ?>
-                                <?php if ( $qr_url && ! is_wp_error( $qr_url ) ) : ?>
-                                    <img src="<?php echo esc_url( $qr_url ); ?>" style="width:80px; height:80px; border:1px solid #ccc; padding:2px;" alt="QR Code de <?php echo esc_attr( $p['nome_completo'] ); ?>">
-                                <?php else : ?>
-                                    <span style="color:#d63638;">QR indisponível</span>
-                                <?php endif; ?>
-                                <div style="font-size:12px; color:#1e7e34; font-weight:bold; margin-top:2px;">Ativo</div>
-                            <?php else : ?>
-                                <small class="wcai-qr-note" style="color:#595959; display:block; text-align:left; max-width:260px; margin:0 auto;"><?php echo esc_html( $r['qr_note'] ); ?></small>
-                            <?php endif; ?>
-                        </td>
-                        <?php if ( $has_actions ) : ?>
-                        <td style="padding:12px 10px; border-bottom:1px solid #eee; vertical-align: middle;">
-                            <?php if ( $r['show_qr'] ) : ?>
-                                <?php $link_whats = 'https://wa.me/?text=' . urlencode( 'Olá ' . $p['nome_completo'] . ', aqui está seu ingresso para o passeio! Acesse o QR Code: ' . ( $qr_url && ! is_wp_error( $qr_url ) ? $qr_url : '' ) ); ?>
-                                <a href="<?php echo esc_url( $link_whats ); ?>" target="_blank" rel="noopener" class="button" style="font-size:12px; padding:5px 10px; background-color:#25D366; color:white; border:none; text-decoration:none; display:inline-block;">Enviar por WhatsApp</a>
-                            <?php endif; ?>
-                        </td>
-                        <?php endif; ?>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php if ( function_exists( 'is_wc_endpoint_url' ) && is_wc_endpoint_url( 'order-received' ) ) { $this->render_next_steps( $order ); } ?>
-        </section>
-        <?php
+        echo $html;
     }
 
     // A chave do pedido vai no link: ajax_check_pax_deep exige order_key (o JS da assinatura lê ?key=).
     private function get_terms_url( $order ) {
-        $url = class_exists( 'WCAI_Settings' ) ? (string) WCAI_Settings::get_terms_url() : '';
+        $url = class_exists( 'WCAI_Settings' ) ? trim( (string) WCAI_Settings::get_terms_url() ) : '';
+        // Caminho relativo vale a partir da home do site (que pode ter prefixo, ex.: /teste).
+        if ( 0 === strpos( $url, '/' ) && 0 !== strpos( $url, '//' ) ) $url = home_url( $url );
 
         return $url ? add_query_arg( 'key', $order->get_order_key(), $url ) : '';
     }
@@ -248,7 +177,7 @@ trait WCAI_Frontend_Account_View {
         if ( $age >= 18 ) { $color = '#2271b1'; $bg = '#eaf4fc'; $icon = $icon_adult; } 
         else { $color = '#d63638'; $bg = '#fbeaea'; $icon = $icon_child; }
 
-        $style = "display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: {$color}; background: {$bg}; padding: 3px 8px; border-radius: 12px; border: 1px solid {$color}; margin-right: 8px; white-space: nowrap; flex-shrink: 0;";
+        $style = "display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: {$color}; background: {$bg}; padding: 3px 8px; border-radius: 12px; border: 1px solid {$color}; margin-right: 8px; white-space: nowrap; flex-shrink: 0;";
         return sprintf('<span style="%s">%s %s</span>', $style, $icon, esc_html( $this->participant_age_label( $date_string ) ));
     }
 }

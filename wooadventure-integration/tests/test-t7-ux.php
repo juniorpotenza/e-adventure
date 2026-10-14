@@ -78,14 +78,17 @@ class Test_T7_Ux extends TestCase {
         $this->assertStringContainsString( "'wcai_operation_name'", $this->source( 'class-settings.php' ) );
     }
 
-    public function test_msg_color_is_defined_before_use() {
+    public function test_modal_notice_uses_css_classes_not_inline_colour() {
         $src = $this->source( 'class-frontend-account.php' );
-        $define = strpos( $src, "\$msg_color = '#856404'" );
-        $use = strpos( $src, "style='color:{\$msg_color}" );
 
-        $this->assertNotFalse( $define );
-        $this->assertNotFalse( $use );
-        $this->assertLessThan( $use, $define );
+        $this->assertStringContainsString( 'class="wcai-modal-notice wcai-modal-notice--', $src );
+
+        $use = strpos( $src, '$msg_color' );
+        if ( false !== $use ) {
+            $define = strpos( $src, '$msg_color =' );
+            $this->assertNotFalse( $define );
+            $this->assertLessThan( $use, $define );
+        }
     }
 }
 

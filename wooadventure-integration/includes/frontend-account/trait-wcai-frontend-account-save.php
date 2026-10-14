@@ -63,7 +63,8 @@ trait WCAI_Frontend_Account_Save {
 
             $item = array('nome_completo' => sanitize_text_field($row['nome_completo']));
             // Campos sensíveis são opcionais: admin sem VIEW_SENSITIVE não os envia.
-            if (isset($row['cpf'])) {
+            // CPF mascarado ("*") significa "não alterado": o valor guardado fica como está.
+            if (isset($row['cpf']) && false === strpos((string) $row['cpf'], '*')) {
                 $item['cpf'] = $this->safe_cpf_pad($row['cpf']); // Salva sempre com 11 dígitos
             }
             if (isset($row['data_nascimento'])) {
