@@ -58,6 +58,9 @@ jobs:
       - name: Instala a suite de testes do WordPress e o WooCommerce
         run: bin/install-wp-tests.sh wp_test root root 127.0.0.1:3306 latest
       - name: Testes com stubs (sem WordPress)
-        run: for s in f2 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 t2 t4 t6 t7 t8; do vendor/bin/phpunit -c phpunit-unit.xml.dist --testsuite $s || exit 1; done
+        run: for s in f2 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 t2 t4 t6 t7 t8; do vendor/bin/phpunit -c phpunit-unit.xml.dist --testsuite $s || exit 1; done
       - name: Testes com WordPress
-        run: vendor/bin/phpunit -c phpunit.xml.dist
+        run: |
+          vendor/bin/phpunit -c phpunit.xml.dist --log-junit /tmp/junit-wp.xml && code=0 || code=$?
+          php bin/ci-annotate.php /tmp/junit-wp.xml
+          exit $code
