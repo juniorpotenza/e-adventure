@@ -20,7 +20,7 @@ trait WCAI_Product_Booking_Departure {
         } elseif ( $available < $quantity ) {
             $state = $available > 0 ? 'insufficient' : 'full';
             $label = $available > 0
-                ? sprintf( '%d vaga(s) — não comporta a quantidade', $available )
+                ? sprintf( '%d %s — não comporta a quantidade', $available, 1 === $available ? 'vaga' : 'vagas' )
                 : 'Lotado';
         } elseif ( $available <= 3 ) {
             $state = 'few';
@@ -89,24 +89,6 @@ trait WCAI_Product_Booking_Departure {
         );
     }
 
-
-    // Legenda das datas: o número é de vagas livres; "mín." só aparece se alguma saída tem grupo mínimo.
-    public static function availability_legend( $has_minimum ) {
-        $legend = 'Vagas livres em cada data.';
-
-        return $has_minimum ? $legend . ' "mín." é o grupo mínimo para o passeio sair.' : $legend;
-    }
-
-    private function has_group_minimum( array $departures ) {
-        foreach ( $departures as $departure ) {
-            if ( ! empty( $departure['minimum'] ) && (int) $departure['minimum'] > 1 ) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     public function render_departure_selector() {
         global $product;
 
@@ -128,18 +110,25 @@ trait WCAI_Product_Booking_Departure {
             }
         }
 
+        $this->render_trust_block(
+            self::trust_rows(
+                $calendar_departures,
+                class_exists( 'WCAI_Settings' ) ? WCAI_Settings::get_cancellation_policy() : '',
+                class_exists( 'WCAI_Settings' ) ? WCAI_Settings::get_contact_phone() : ''
+            )
+        );
+
         echo '<section class="wcai-product-booking" aria-labelledby="wcai-booking-title">';
         echo '<div class="wcai-booking-top">';
         echo '<div>';
         echo '<span class="wcai-booking-eyebrow">RESERVE SEU PASSEIO</span>';
         echo '<h2 id="wcai-booking-title">Escolha quando você quer ir</h2>';
-        echo '<p>Escolha data e horário. Cada participante ocupa 1 vaga.</p>';
         echo '</div>';
         echo '<div class="wcai-booking-price">' . wp_kses_post( $product->get_price_html() ) . '<small>por participante</small></div>';
         echo '</div>';
 
         if ( empty( $calendar_departures ) ) {
-            echo '<div class="wcai-booking-empty"><strong>Nenhuma saída disponível no momento.</strong><p>Assim que uma nova data for aberta, ela aparecerá aqui.</p></div>';
+            echo '<div class="wcai-booking-empty"><strong>Nenhum passeio disponível no momento.</strong><p>Assim que uma nova data for aberta, ela aparecerá aqui.</p></div>';
             echo '<input type="hidden" name="' . esc_attr( self::FIELD ) . '" value="">';
             echo '</section>';
             $this->enqueue_styles();
@@ -155,12 +144,12 @@ trait WCAI_Product_Booking_Departure {
 
         echo '<div class="wcai-booking-layout">';
 
-        echo '<div class="wcai-date-picker" data-wcai-calendar data-product-id="' . esc_attr( $product->get_id() ) . '" data-child-enabled="' . esc_attr( $child_enabled ? '1' : '0' ) . '" data-child-max="' . esc_attr( $child_max ) . '" data-ajax-url="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '" data-nonce="' . esc_attr( wp_create_nonce( 'wcai_calendar_availability' ) ) . '" data-departures="' . esc_attr( wp_json_encode( $calendar_departures ) ) . '">';
+        echo '<div class="wcai-date-picker" data-wcai-calendar data-product-id="' . esc_attr( $product->get_id() ) . '" data-child-enabled="' . esc_attr( $child_enabled ? '1' : '0' ) . '" data-child-max="' . esc_attr( $child_max ) . '" data-price="' . esc_attr( wc_get_price_to_display( $product ) ) . '" data-currency="' . esc_attr( get_woocommerce_currency() ) . '" data-ajax-url="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '" data-nonce="' . esc_attr( wp_create_nonce( 'wcai_calendar_availability' ) ) . '" data-departures="' . esc_attr( wp_json_encode( $calendar_departures ) ) . '">';
         echo '<div class="wcai-date-picker-heading"><strong>Próximas datas</strong><button type="button" class="wcai-calendar-toggle" data-calendar-toggle aria-expanded="false">Ver todas as datas</button></div>';
         echo '<div class="wcai-calendar-error" data-calendar-error role="alert" hidden></div>';
         echo '<div class="wcai-visually-hidden" data-calendar-status role="status" aria-live="polite" aria-atomic="true"></div>';
         echo '<p class="wcai-quick-legend">' . esc_html( self::availability_legend( $this->has_group_minimum( $calendar_departures ) ) ) . '</p>';
-        echo '<div class="wcai-quick-dates" data-calendar-quick></div>';
+        echo '<div class="wcai-quick-wrap" data-calendar-quick-wrap><div class="wcai-quick-dates" data-calendar-quick role="radiogroup" aria-label="Datas disponíveis"></div></div>';
         echo '<div class="wcai-calendar-full" data-calendar-full hidden>';
         echo '<div class="wcai-calendar-toolbar">';
         echo '<button type="button" class="wcai-calendar-nav" data-calendar-prev aria-label="Mês anterior">&lsaquo;</button>';
@@ -182,7 +171,7 @@ trait WCAI_Product_Booking_Departure {
         echo '</div>';
 
         echo '<div class="wcai-calendar-selection" data-calendar-selection hidden>';
-        echo '<div class="wcai-selection-heading"><strong>2. Escolha o horário</strong><small data-calendar-selected-date></small></div>';
+        echo '<div class="wcai-booking-section-title"><span>2</span><div><strong>Escolha o horário</strong><small data-calendar-selected-date></small></div></div>';
         echo '<div class="wcai-time-options" data-calendar-times></div>';
         echo '</div>';
 
@@ -194,14 +183,16 @@ trait WCAI_Product_Booking_Departure {
         echo '<div class="wcai-booking-section-title"><span>3</span><div><strong>Quem vai participar?</strong><small>1 vaga por pessoa. O titular já conta como adulto.</small></div></div>';
         echo '<div class="wcai-participant-rows">';
         echo '<div class="wcai-participant-row" data-participant-row="adults"><div><strong>Adultos</strong><small>Inclui o titular da reserva</small></div><div class="wcai-stepper"><button type="button" data-participant-action="minus" aria-label="Diminuir adultos">−</button><strong data-participant-value="adults">1</strong><button type="button" data-participant-action="plus" aria-label="Aumentar adultos">+</button></div></div>';
-        echo '<div class="wcai-participant-row" data-participant-row="children"><div><strong>Crianças</strong><small>' . esc_html( ! empty( $profile['children_age_max'] ) ? 'Até ' . absint( $profile['children_age_max'] ) . ' anos' : 'Conforme as regras do passeio' ) . '</small></div><div class="wcai-stepper"><button type="button" data-participant-action="minus" aria-label="Diminuir crianças">−</button><strong data-participant-value="children">0</strong><button type="button" data-participant-action="plus" aria-label="Aumentar crianças">+</button></div></div>';
+        echo '<div class="wcai-participant-row" data-participant-row="children"><div><strong>Crianças</strong><small>' . esc_html( ! empty( $profile['children_age_max'] ) ? 'Até ' . absint( $profile['children_age_max'] ) . ' anos' : 'Conforme as regras do passeio' ) . '</small><small class="wcai-row-reason" data-participant-reason hidden></small></div><div class="wcai-stepper"><button type="button" data-participant-action="minus" aria-label="Diminuir crianças">−</button><strong data-participant-value="children">0</strong><button type="button" data-participant-action="plus" aria-label="Aumentar crianças">+</button></div></div>';
         echo '</div>';
-        echo '<div class="wcai-participant-total"><div><strong data-participant-total>1 participante</strong><small>Capacidade calculada para o horário escolhido.</small></div><div class="wcai-participant-badge" data-participant-availability aria-live="polite">Escolha o horário</div></div>';
+        echo '<div class="wcai-participant-total"><strong data-participant-total aria-live="polite" aria-atomic="true">1 participante</strong><small data-participant-remaining></small><small class="wcai-participant-limit" data-participant-limit hidden></small></div>';
         echo '<input type="hidden" name="wcai_adults" value="1" data-participant-input="adults">';
         echo '<input type="hidden" name="wcai_children" value="0" data-participant-input="children">';
         echo '</section>';
 
         echo '</div>';
+
+        echo '<div class="wcai-booking-footer" data-wcai-footer><p id="wcai-cart-hint" class="wcai-cart-hint" data-wcai-hint>' . esc_html( self::booking_i18n()['hintDate'] ) . '</p></div>';
 
         echo '</section>';
 

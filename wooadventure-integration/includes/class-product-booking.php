@@ -1,6 +1,7 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) exit;
 require_once __DIR__ . '/product-booking/trait-wcai-product-booking-departure.php';
+require_once __DIR__ . '/product-booking/trait-wcai-product-booking-departure-info.php';
 require_once __DIR__ . '/product-booking/trait-wcai-product-booking-admin.php';
 require_once __DIR__ . '/product-booking/trait-wcai-product-booking-facts.php';
 require_once __DIR__ . '/product-booking/trait-wcai-product-booking-assets.php';
@@ -10,7 +11,7 @@ require_once __DIR__ . '/product-booking/trait-wcai-product-booking-js-c.php';
 require_once __DIR__ . '/product-booking/trait-wcai-product-booking-cart.php';
 
 class WCAI_Product_Booking {
-    use WCAI_Product_Booking_Departure, WCAI_Product_Booking_Admin, WCAI_Product_Booking_Facts, WCAI_Product_Booking_Assets, WCAI_Product_Booking_Js_A, WCAI_Product_Booking_Js_B, WCAI_Product_Booking_Js_C, WCAI_Product_Booking_Cart;
+    use WCAI_Product_Booking_Departure, WCAI_Product_Booking_Departure_Info, WCAI_Product_Booking_Admin, WCAI_Product_Booking_Facts, WCAI_Product_Booking_Assets, WCAI_Product_Booking_Js_A, WCAI_Product_Booking_Js_B, WCAI_Product_Booking_Js_C, WCAI_Product_Booking_Cart;
 
     const FIELD = 'wcai_product_departure_id';
     const MAX_AJAX_QUANTITY = 100;

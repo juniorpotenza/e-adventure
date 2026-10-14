@@ -8,6 +8,15 @@ trait WCAI_Product_Booking_Js_A {
 (function () {
     'use strict';
 
+    // Espera após o último clique no stepper antes de consultar a disponibilidade.
+    var REFRESH_DELAY = 250;
+
+    function fmt(template) {
+        var args = Array.prototype.slice.call(arguments, 1);
+        var index = 0;
+        return String(template || '').replace(/%[ds]/g, function () { return args[index++]; });
+    }
+
     function initCalendar(root) {
         if (!root || root.dataset.ready === '1') return;
         root.dataset.ready = '1';
@@ -26,6 +35,7 @@ trait WCAI_Product_Booking_Js_A {
         var prev = root.querySelector('[data-calendar-prev]');
         var next = root.querySelector('[data-calendar-next]');
         var quickDates = root.querySelector('[data-calendar-quick]');
+        var quickWrap = root.querySelector('[data-calendar-quick-wrap]');
         var calendarFull = root.querySelector('[data-calendar-full]');
         var calendarToggle = root.querySelector('[data-calendar-toggle]');
         var times = root.querySelector('[data-calendar-times]');
@@ -33,6 +43,9 @@ trait WCAI_Product_Booking_Js_A {
         var selectedDateLabel = root.querySelector('[data-calendar-selected-date]');
         var selectedDeparture = root.querySelector('[data-calendar-selected-departure]');
         var input = root.querySelector('[data-wcai-departure-input]');
+        var card = root.closest('.wcai-product-booking');
+        var footer = card ? card.querySelector('[data-wcai-footer]') : null;
+        var hintEl = card ? card.querySelector('[data-wcai-hint]') : null;
         var participantRoot = document.querySelector('[data-wcai-participants]');
         var adultInput = participantRoot ? participantRoot.querySelector('[data-participant-input="adults"]') : null;
         var childInput = participantRoot ? participantRoot.querySelector('[data-participant-input="children"]') : null;
@@ -40,11 +53,12 @@ trait WCAI_Product_Booking_Js_A {
         var errorBox = root.querySelector('[data-calendar-error]');
         var statusBox = root.querySelector('[data-calendar-status]');
         var i18n = window.wcaiBookingI18n || {};
-        var cartHint = null;
         var dayButtons = [];
         var ajaxUrl = root.getAttribute('data-ajax-url');
         var nonce = root.getAttribute('data-nonce');
         var productId = root.getAttribute('data-product-id');
+        var price = parseFloat(root.getAttribute('data-price')) || 0;
+        var currency = root.getAttribute('data-currency') || 'BRL';
 
         var months = {};
         departures.forEach(function (departure) {
@@ -57,7 +71,9 @@ trait WCAI_Product_Booking_Js_A {
         var monthIndex = 0;
         var selectedDate = '';
         var selectedDepartureId = '';
-        var loading = false;
+        var requestSeq = 0;
+        var controller = null;
+        var refreshTimer = 0;
 
         function announce(text) {
             if (statusBox) statusBox.textContent = text;
@@ -67,6 +83,21 @@ trait WCAI_Product_Booking_Js_A {
             if (!errorBox) return;
             errorBox.textContent = text || '';
             errorBox.hidden = !text;
+        }
+
+        function money(value, keepTogether) {
+            var text;
+            try {
+                text = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: currency }).format(value);
+            } catch (e) {
+                text = 'R$' + String.fromCharCode(160) + value.toFixed(2).replace('.', ',');
+            }
+            // Espaço comum por padrão; inquebrável só na linha do total, para "R$ 350,00" não quebrar ao meio.
+            return keepTogether ? text : text.split(String.fromCharCode(160)).join(' ');
+        }
+
+        function participantsLabel(count) {
+            return count + (1 === count ? ' participante' : ' participantes');
         }
 
         function adultCount() {
@@ -81,6 +112,16 @@ trait WCAI_Product_Booking_Js_A {
             return adultCount() + childCount();
         }
 
+        function selectedItem() {
+            return selectedDepartureId ? departures.filter(function (item) { return String(item.id) === String(selectedDepartureId); })[0] : null;
+        }
+
+        function setText(element, text) {
+            if (!element) return;
+            element.textContent = text;
+            element.hidden = !text;
+        }
+
         function updateParticipantUI() {
             var adults = adultCount();
             var children = childCount();
@@ -88,62 +129,46 @@ trait WCAI_Product_Booking_Js_A {
             var childMax = participantRoot ? parseInt(participantRoot.getAttribute('data-child-max') || '99', 10) : 99;
             var childEnabled = participantRoot ? participantRoot.getAttribute('data-child-enabled') === '1' : false;
 
-            if ( childInput ) {
+            if (childInput) {
                 childInput.value = childEnabled ? children : 0;
             }
 
-            if ( nativeQuantityInput ) nativeQuantityInput.value = total;
+            if (nativeQuantityInput) nativeQuantityInput.value = total;
 
-            if ( participantRoot ) {
-                var adultValue = participantRoot.querySelector('[data-participant-value="adults"]');
-                var childValue = participantRoot.querySelector('[data-participant-value="children"]');
-                var totalLabel = participantRoot.querySelector('[data-participant-total]');
-                var availability = participantRoot.querySelector('[data-participant-availability]');
-                var childRow = participantRoot.querySelector('[data-participant-row="children"]');
-
-                if ( adultValue ) adultValue.textContent = String(adults);
-                if ( childValue ) childValue.textContent = String(childEnabled ? children : 0);
-                if ( totalLabel ) totalLabel.textContent = total + ( 1 === total ? ' participante' : ' participantes' );
-                if ( childRow ) childRow.hidden = !childEnabled;
-
-                var current = selectedDepartureId ? departures.filter(function(item){ return String(item.id) === String(selectedDepartureId); })[0] : null;
+            if (participantRoot) {
+                var current = selectedItem();
                 var available = current ? Math.max(0, parseInt(current.available, 10) || 0) : null;
                 var capacityReached = null !== available && total >= available;
+                var childRow = participantRoot.querySelector('[data-participant-row="children"]');
                 var childPlus = participantRoot.querySelector('[data-participant-row="children"] [data-participant-action="plus"]');
                 var childMinus = participantRoot.querySelector('[data-participant-row="children"] [data-participant-action="minus"]');
                 var adultPlus = participantRoot.querySelector('[data-participant-row="adults"] [data-participant-action="plus"]');
-
-                if ( childPlus ) {
-                    childPlus.disabled = !childEnabled || children >= childMax || capacityReached;
-                    childPlus.title = capacityReached ? 'Limite de vagas atingido' : ( children >= childMax ? 'Limite de crianças por reserva atingido' : 'Adicionar criança' );
-                }
-                if ( childMinus ) {
-                    childMinus.disabled = !childEnabled || children <= 0;
-                    childMinus.title = childMinus.disabled ? 'Nenhuma criança para remover' : 'Remover criança';
-                }
-
-                if ( adultPlus ) {
-                    adultPlus.disabled = null !== available && ( capacityReached || !current.booking_open );
-                    adultPlus.title = capacityReached ? 'Limite de vagas atingido' : ( current && !current.booking_open ? 'Vendas encerradas' : 'Adicionar adulto' );
-                }
-
                 var adultMinus = participantRoot.querySelector('[data-participant-row="adults"] [data-participant-action="minus"]');
-                if ( adultMinus ) {
-                    adultMinus.disabled = adults <= 1;
-                    adultMinus.title = adultMinus.disabled ? 'A reserva precisa ter pelo menos 1 adulto' : 'Remover adulto';
-                }
+                var adultValue = participantRoot.querySelector('[data-participant-value="adults"]');
+                var childValue = participantRoot.querySelector('[data-participant-value="children"]');
+                var closed = !!current && !current.booking_open;
 
-                if ( availability ) {
-                    if ( current ) {
-                        var remainingAfterReservation = Math.max(0, available - total);
-                        availability.textContent = remainingAfterReservation > 0
-                            ? remainingAfterReservation + ' vagas restantes após sua reserva'
-                            : 'Limite de vagas atingido para esta saída';
-                    } else {
-                        availability.textContent = 'Escolha o horário';
-                    }
-                }
+                if (adultValue) adultValue.textContent = String(adults);
+                if (childValue) childValue.textContent = String(childEnabled ? children : 0);
+                if (childRow) childRow.hidden = !childEnabled;
+                if (childPlus) childPlus.disabled = !childEnabled || children >= childMax || capacityReached;
+                if (childMinus) childMinus.disabled = !childEnabled || children <= 0;
+                if (adultPlus) adultPlus.disabled = null !== available && (capacityReached || closed);
+                if (adultMinus) adultMinus.disabled = adults <= 1;
+
+                setText(participantRoot.querySelector('[data-participant-total]'),
+                    price > 0
+                        ? participantsLabel(total) + ' × ' + money(price, true) + ' = ' + money(Math.round(price * total * 100) / 100, true)
+                        : participantsLabel(total));
+                setText(participantRoot.querySelector('[data-participant-remaining]'),
+                    current ? fmt(i18n.remaining, Math.max(0, available - total)) : '');
+                setText(participantRoot.querySelector('[data-participant-limit]'),
+                    closed ? i18n.closed : (capacityReached ? fmt(i18n.limit, available) : ''));
+                setText(childRow ? childRow.querySelector('[data-participant-reason]') : null,
+                    childEnabled && children >= childMax && !capacityReached ? fmt(i18n.childLimit, childMax) : '');
             }
+
+            updateCartState();
         }
 
         function qualifies(departure) {
@@ -164,12 +189,12 @@ trait WCAI_Product_Booking_Js_A {
             if (bookable.length) {
                 var best = Math.max.apply(null, bookable.map(function (item) { return parseInt(item.available, 10); }));
                 var forming = bookable.filter(function (item) { return item.group_status === 'forming' && parseInt(item.minimum, 10) > 1; })[0];
-                // O número do chip é sempre de vagas livres; grupo mínimo é dica secundária.
-                var seats = best + ' vaga' + (best === 1 ? '' : 's');
+                var withMinimum = bookable.filter(function (item) { return parseInt(item.minimum, 10) > 1; })[0];
+                // O número do chip é sempre de vagas livres; a segunda linha é o grupo mínimo.
                 return {
                     state: best <= 3 ? 'few' : 'available',
-                    label: seats,
-                    hint: forming ? 'mín. ' + forming.minimum + ' · faltam ' + forming.remaining_to_minimum : ''
+                    label: best + ' vaga' + (best === 1 ? '' : 's'),
+                    hint: forming ? 'faltam ' + forming.remaining_to_minimum : (withMinimum ? 'mín. ' + withMinimum.minimum : '')
                 };
             }
 
@@ -237,37 +262,27 @@ trait WCAI_Product_Booking_Js_A {
             return date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
         }
 
-        function renderQuickDates() {
-            if (!quickDates) return;
+        function enabledChips() {
+            return Array.prototype.slice.call(quickDates.querySelectorAll('.wcai-quick-date:not(:disabled)'));
+        }
 
-            quickDates.innerHTML = '';
+        // Roving tabindex: um chip na sequência de Tab (o selecionado ou o primeiro disponível).
+        function applyChipTabStops() {
+            var chips = enabledChips();
+            var stop = chips.filter(function (chip) { return chip.getAttribute('aria-checked') === 'true'; })[0] || chips[0];
 
-            uniqueDepartureDates().forEach(function (date) {
-                var state = dateState(date);
-                var dateItems = dateDepartures(date);
-                var dayNumber = parseInt(date.slice(8, 10), 10);
-                var button = document.createElement('button');
+            chips.forEach(function (chip) { chip.tabIndex = chip === stop ? 0 : -1; });
+        }
 
-                button.type = 'button';
-                button.className = 'wcai-quick-date state-' + state.state;
-                button.disabled = state.state === 'empty' || state.state === 'full' || state.state === 'closed' || state.state === 'insufficient';
-                button.setAttribute('aria-label', dayNumber + ' de ' + shortMonth(date) + ', ' + (state.label || state.state) + (state.hint ? ', ' + state.hint : ''));
+        // Fade nas bordas quando há mais datas fora da área visível.
+        function updateQuickFade() {
+            if (!quickWrap || !quickDates) return;
 
-                button.setAttribute('aria-pressed', selectedDate === date ? 'true' : 'false');
-                if (selectedDate === date) {
-                    button.classList.add('is-selected');
-                }
+            var max = quickDates.scrollWidth - quickDates.clientWidth;
+            quickWrap.classList.toggle('has-prev', quickDates.scrollLeft > 2);
+            quickWrap.classList.toggle('has-next', max > 2 && quickDates.scrollLeft < max - 2);
+        }
 
-                var weekday = document.createElement('span');
-                weekday.textContent = shortWeekday(date);
-                button.appendChild(weekday);
-
-                var day = document.createElement('strong');
-                day.textContent = String(dayNumber);
-                button.appendChild(day);
-
-                var label = document.createElement('small');
-                if (state.state === 'few') {
 JS;
     }
 

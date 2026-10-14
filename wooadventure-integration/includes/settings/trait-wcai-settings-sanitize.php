@@ -86,6 +86,15 @@ trait WCAI_Settings_Sanitize {
         return '' !== $value ? $value : 'Operação';
     }
 
+    public function sanitize_cancellation_policy( $value ) {
+        return mb_substr( sanitize_textarea_field( (string) $value ), 0, 1000 );
+    }
+
+    // Só dígitos e símbolos de telefone; o valor vira link tel: na página do passeio.
+    public function sanitize_contact_phone( $value ) {
+        return trim( mb_substr( preg_replace( '/[^0-9+().\s-]/', '', (string) $value ), 0, 30 ) );
+    }
+
     public function sanitize_blocked_cpfs( $value ) {
         $cpfs = preg_split( '/[\s,;]+/', (string) $value, -1, PREG_SPLIT_NO_EMPTY );
         $valid_cpfs = array();

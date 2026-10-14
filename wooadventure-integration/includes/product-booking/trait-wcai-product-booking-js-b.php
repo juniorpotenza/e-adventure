@@ -5,12 +5,37 @@ trait WCAI_Product_Booking_Js_B {
 
     private function calendar_js_b() {
         return <<<'JS'
-                    label.textContent = state.label || 'Últimas vagas';
-                } else if (state.state === 'available') {
-                    label.textContent = state.label || 'Disponível';
-                } else {
-                    label.textContent = state.label || 'Indisponível';
-                }
+        function renderQuickDates() {
+            if (!quickDates) return;
+
+            var focusedDate = quickDates.contains(document.activeElement) ? document.activeElement.getAttribute('data-date') : '';
+
+            quickDates.innerHTML = '';
+
+            uniqueDepartureDates().forEach(function (date) {
+                var state = dateState(date);
+                var dayNumber = parseInt(date.slice(8, 10), 10);
+                var button = document.createElement('button');
+                var isSelected = selectedDate === date;
+
+                button.type = 'button';
+                button.className = 'wcai-quick-date state-' + state.state + (isSelected ? ' is-selected' : '');
+                button.disabled = state.state === 'empty' || state.state === 'full' || state.state === 'closed' || state.state === 'insufficient';
+                button.setAttribute('role', 'radio');
+                button.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+                button.setAttribute('data-date', date);
+                button.setAttribute('aria-label', shortWeekday(date) + ' ' + dayNumber + ' de ' + shortMonth(date) + ', ' + (state.label || state.state) + (state.hint ? ', ' + state.hint : ''));
+
+                var weekday = document.createElement('span');
+                weekday.textContent = shortWeekday(date);
+                button.appendChild(weekday);
+
+                var day = document.createElement('strong');
+                day.textContent = dayNumber + ' ' + shortMonth(date);
+                button.appendChild(day);
+
+                var label = document.createElement('small');
+                label.textContent = state.label || 'Indisponível';
                 button.appendChild(label);
 
                 if (state.hint) {
@@ -26,20 +51,28 @@ trait WCAI_Product_Booking_Js_B {
                 });
 
                 quickDates.appendChild(button);
-
-                if (!dateItems.length) {
-                    button.disabled = true;
-                }
             });
+
+            applyChipTabStops();
+            updateQuickFade();
+
+            if (focusedDate) {
+                var again = quickDates.querySelector('.wcai-quick-date[data-date="' + focusedDate + '"]:not(:disabled)');
+                if (again) again.focus();
+            }
         }
 
         function ajaxForDate(date, done) {
-            if (loading || !ajaxUrl || !nonce) {
+            if (!ajaxUrl || !nonce) {
                 done(dateDepartures(date));
                 return;
             }
 
-            loading = true;
+            // Contador de requisições: só a última resposta vale; as antigas são abortadas e ignoradas.
+            var seq = ++requestSeq;
+            if (controller) controller.abort();
+            controller = typeof AbortController === 'function' ? new AbortController() : null;
+
             showError('');
             root.classList.add('is-loading');
 
@@ -54,13 +87,16 @@ trait WCAI_Product_Booking_Js_B {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
                 body: body.toString(),
-                credentials: 'same-origin'
+                credentials: 'same-origin',
+                signal: controller ? controller.signal : undefined
             })
                 .then(function (response) {
                     if (!response.ok) throw new Error('http ' + response.status);
                     return response.json();
                 })
                 .then(function (response) {
+                    if (seq !== requestSeq) return;
+
                     if (response && response.success && response.data && Array.isArray(response.data.departures)) {
                         updateDepartureSnapshot(date, response.data.departures);
                         renderQuickDates();
@@ -71,17 +107,53 @@ trait WCAI_Product_Booking_Js_B {
                     }
                 })
                 .catch(function () {
+                    if (seq !== requestSeq) return;
+
                     // Mostra o erro e mantém os últimos dados carregados; o servidor revalida a vaga ao adicionar ao carrinho.
-                    showError(i18n.fetchError || 'Não foi possível atualizar a disponibilidade. Mostrando os últimos dados carregados.');
+                    showError(i18n.fetchError);
                     done(dateDepartures(date));
                 })
                 .finally(function () {
-                    loading = false;
-                    root.classList.remove('is-loading');
+                    if (seq === requestSeq) root.classList.remove('is-loading');
                 });
         }
 
-        function renderTimes(date, freshItems) {
+        function capitalize(text) {
+            return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
+        }
+
+        function renderSelected(departure) {
+            selectedDeparture.innerHTML = '';
+
+            var title = document.createElement('strong');
+            var check = document.createElement('span');
+            check.setAttribute('aria-hidden', 'true');
+            check.textContent = '✓ ';
+            title.appendChild(check);
+            title.appendChild(document.createTextNode('Selecionado'));
+            selectedDeparture.appendChild(title);
+
+            if (departure.minimum > 1) {
+                var forming = departure.group_status === 'forming';
+                var status = document.createElement('p');
+                status.textContent = forming
+                    ? departure.reserved + ' de ' + departure.minimum + ' participantes reservados. Faltam ' + departure.remaining_to_minimum + ' para atingir o mínimo.'
+                    : departure.reserved + ' participantes reservados. O mínimo de ' + departure.minimum + ' já foi atingido.';
+                selectedDeparture.appendChild(status);
+
+                if (forming) {
+                    var rule = document.createElement('p');
+                    rule.textContent = departure.cutoff
+                        ? fmt(i18n.groupRule, departure.minimum, departure.cutoff)
+                        : fmt(i18n.groupRuleAny, departure.minimum);
+                    selectedDeparture.appendChild(rule);
+                }
+            }
+
+            selectedDeparture.hidden = false;
+        }
+
+        function renderTimes(date, freshItems, silent) {
             var options = Array.isArray(freshItems) ? freshItems : dateDepartures(date);
             times.innerHTML = '';
             selectedDateLabel.textContent = date ? dateDepartures(date).map(function (item) { return item.date_label; })[0] || date : '';
@@ -89,8 +161,9 @@ trait WCAI_Product_Booking_Js_B {
 
             if (!options.length) {
                 selection.hidden = false;
-                times.innerHTML = '<div class="wcai-no-times">Não há saída registrada para este dia.</div>';
-                announce('Não há saída registrada para este dia.');
+                times.innerHTML = '<div class="wcai-no-times"></div>';
+                times.firstChild.textContent = i18n.noTimes;
+                announce(i18n.noTimes);
                 return;
             }
 
@@ -150,7 +223,7 @@ trait WCAI_Product_Booking_Js_B {
                 else parts.push('Lotado');
                 if (departure.duration) parts.push(departure.duration + ' min');
                 if (departure.meeting_point) parts.push(departure.meeting_point);
-                if (departure.guide) parts.push('Guia: ' + departure.guide);
+                if (departure.guide) parts.push('Guia: ' + capitalize(departure.guide));
                 if (departure.cutoff && departure.booking_open) parts.push('Reserva até ' + departure.cutoff);
                 meta.textContent = parts.join(' • ');
                 content.appendChild(meta);
@@ -176,66 +249,42 @@ trait WCAI_Product_Booking_Js_B {
                     button.classList.add('is-selected');
                     button.setAttribute('aria-pressed', 'true');
 
-                    selectedDeparture.innerHTML = '';
-                    var selectedHeader = document.createElement('div');
-                    var selectedTitle = document.createElement('strong');
-                    selectedTitle.textContent = departure.date_label + ' às ' + departure.time;
-                    selectedHeader.appendChild(selectedTitle);
-
-                    var selectedStatus = document.createElement('span');
-                    selectedStatus.textContent = departure.group_label || departure.state_label;
-                    selectedHeader.appendChild(selectedStatus);
-                    selectedDeparture.appendChild(selectedHeader);
-
-                    if (departure.minimum > 1) {
-                        var selectedFormation = document.createElement('p');
-                        selectedFormation.textContent = departure.group_status === 'forming'
-                            ? departure.reserved + ' de ' + departure.minimum + ' participantes reservados. Faltam ' + departure.remaining_to_minimum + ' para atingir o mínimo.'
-                            : departure.reserved + ' participantes reservados. O mínimo de ' + departure.minimum + ' já foi atingido.';
-                        selectedDeparture.appendChild(selectedFormation);
-                    }
-
-                    var selectedMeta = document.createElement('small');
-                    var selectedParts = [];
-                    if (departure.duration) selectedParts.push(departure.duration + ' min');
-                    if (departure.capacity) selectedParts.push('Grupo até ' + departure.capacity);
-                    if (departure.meeting_point) selectedParts.push(departure.meeting_point);
-                    if (departure.available > 0) selectedParts.push(departure.available + ' vagas restantes');
-                    selectedMeta.textContent = selectedParts.join(' • ');
-                    selectedDeparture.appendChild(selectedMeta);
-
-                    selectedDeparture.hidden = false;
+                    renderSelected(departure);
                     if ( participantRoot ) participantRoot.hidden = false;
                     input.dispatchEvent(new Event('change', { bubbles: true }));
                     updateParticipantUI();
-                    enableAddToCart();
-                    announce((i18n.selected || 'Selecionado: %s').replace('%s', selectedTitle.textContent));
+                    announce(fmt(i18n.selected, departure.date_label + ' às ' + departure.time));
                 });
 
                 times.appendChild(button);
             });
 
-            announce((i18n.timesCount || '%d horário(s) disponível(is) em %s').replace('%d', options.filter(qualifies).length).replace('%s', selectedDateLabel.textContent));
+            if (!silent) {
+                var count = options.filter(qualifies).length;
+                announce(fmt(count === 1 ? i18n.timesOne : i18n.timesMany, count, selectedDateLabel.textContent));
+            }
         }
 
         function selectDate(date, dateElement) {
+            clearTimeout(refreshTimer);
             selectedDate = date;
             selectedDepartureId = '';
             input.value = '';
             selectedDeparture.hidden = true;
             if ( participantRoot ) participantRoot.hidden = true;
 
-            root.querySelectorAll('button.wcai-calendar-day, .wcai-quick-date').forEach(function (item) {
+            root.querySelectorAll('button.wcai-calendar-day').forEach(function (item) {
                 item.classList.remove('is-selected');
                 item.setAttribute('aria-pressed', 'false');
             });
 
-            if (dateElement) {
+            if (dateElement && dateElement.classList.contains('wcai-calendar-day')) {
                 dateElement.classList.add('is-selected');
                 dateElement.setAttribute('aria-pressed', 'true');
             }
 
             renderQuickDates();
+            updateParticipantUI();
 
             ajaxForDate(date, function (items) {
                 renderTimes(date, items);

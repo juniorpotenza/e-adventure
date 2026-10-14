@@ -111,7 +111,8 @@ class Test_F8_Product_Page extends TestCase {
         $css = $this->css();
 
         $this->assertMatchesRegularExpression( '/form\.cart \.single_add_to_cart_button\{[^}]*width:100%[^}]*white-space:nowrap/', $css );
-        $this->assertStringContainsString( "insertAdjacentElement('beforebegin', cartHint)", $this->trait_source( 'js-c' ) );
+        // O botão e a dica ficam juntos no rodapé do cartão (dica logo acima do botão).
+        $this->assertStringContainsString( "footer.appendChild(buttons[0])", $this->trait_source( 'js-c' ) );
         $this->assertStringContainsString( "'aria-describedby', 'wcai-cart-hint'", $this->trait_source( 'js-c' ) );
     }
 
@@ -128,7 +129,8 @@ class Test_F8_Product_Page extends TestCase {
         $js = $this->trait_source( 'js-a' );
 
         $this->assertStringNotContainsString( "forming.reserved + '/' + forming.minimum", $js );
-        $this->assertStringContainsString( "'mín. ' + forming.minimum + ' · faltam ' + forming.remaining_to_minimum", $js );
+        $this->assertStringContainsString( "'faltam ' + forming.remaining_to_minimum", $js );
+        $this->assertStringContainsString( "'mín. ' + withMinimum.minimum", $js );
         $this->assertStringContainsString( "label: 'Esgotado'", $js );
     }
 

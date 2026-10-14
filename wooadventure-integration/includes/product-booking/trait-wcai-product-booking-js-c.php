@@ -83,27 +83,57 @@ trait WCAI_Product_Booking_Js_C {
             }
         }
 
+        function onQuickKeydown(event) {
+            var chips = enabledChips();
+            var from = chips.indexOf(document.activeElement);
+            var target;
+
+            if (from < 0) return;
+
+            if (event.key === 'ArrowLeft') target = Math.max(0, from - 1);
+            else if (event.key === 'ArrowRight') target = Math.min(chips.length - 1, from + 1);
+            else if (event.key === 'Home') target = 0;
+            else if (event.key === 'End') target = chips.length - 1;
+            else return;
+
+            event.preventDefault();
+            chips.forEach(function (chip) { chip.tabIndex = -1; });
+            chips[target].tabIndex = 0;
+            chips[target].focus();
+        }
+
         function guardAddToCart(event) {
             if (selectedDepartureId) return;
 
             event.preventDefault();
             event.stopImmediatePropagation();
-            announce(cartHint ? cartHint.textContent : '');
+            announce(hintEl ? hintEl.textContent : '');
 
             var firstDate = root.querySelector('.wcai-quick-date:not(:disabled)');
             if (firstDate) firstDate.focus();
         }
 
-        function enableAddToCart() {
+        function hintText() {
+            if (selectedDepartureId) {
+                var total = quantity();
+                return fmt(i18n.hintReady, participantsLabel(total) + (price > 0 ? ', ' + money(Math.round(price * total * 100) / 100) : ''));
+            }
+
+            return selectedDate ? i18n.hintTime : i18n.hintDate;
+        }
+
+        // Estado do botão de compra: dica contextual dentro do cartão, logo acima do botão.
+        function updateCartState() {
             var missing = !selectedDepartureId;
             var buttons = document.querySelectorAll('button.single_add_to_cart_button, input.single_add_to_cart_button');
 
-            if (buttons.length && !cartHint) {
-                cartHint = document.createElement('p');
-                cartHint.id = 'wcai-cart-hint';
-                cartHint.className = 'wcai-cart-hint';
-                cartHint.textContent = i18n.cartHint || 'Escolha data e horário';
-                buttons[0].insertAdjacentElement('beforebegin', cartHint);
+            if (footer && buttons.length && buttons[0].parentNode !== footer) {
+                footer.appendChild(buttons[0]);
+            }
+
+            if (hintEl) {
+                hintEl.textContent = hintText();
+                hintEl.classList.toggle('is-ready', !missing);
             }
 
             buttons.forEach(function (button) {
@@ -111,20 +141,25 @@ trait WCAI_Product_Booking_Js_C {
                 button.disabled = false;
                 button.setAttribute('aria-disabled', missing ? 'true' : 'false');
                 button.classList.toggle('disabled', missing);
-
-                if (missing) {
-                    button.setAttribute('aria-describedby', 'wcai-cart-hint');
-                } else {
-                    button.removeAttribute('aria-describedby');
-                }
+                button.setAttribute('aria-describedby', 'wcai-cart-hint');
 
                 if (!button.hasAttribute('data-wcai-guard')) {
                     button.setAttribute('data-wcai-guard', '1');
                     button.addEventListener('click', guardAddToCart, true);
                 }
             });
+        }
 
-            if (cartHint) cartHint.hidden = !missing;
+        function scheduleRefresh() {
+            clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(function () {
+                if (!selectedDate) return;
+
+                var date = selectedDate;
+                ajaxForDate(date, function (items) {
+                    renderTimes(date, items, true);
+                });
+            }, REFRESH_DELAY);
         }
 
         function refreshForQuantity() {
@@ -145,14 +180,9 @@ trait WCAI_Product_Booking_Js_C {
             }
 
             renderCalendar();
-
-            if (selectedDate) {
-                ajaxForDate(selectedDate, function (items) {
-                    renderTimes(selectedDate, items);
-                });
-            }
-
-            enableAddToCart();
+            if (selectedDate) renderTimes(selectedDate, undefined, true);
+            updateParticipantUI();
+            scheduleRefresh();
         }
 
         if ( participantRoot ) {
@@ -167,7 +197,7 @@ trait WCAI_Product_Booking_Js_C {
                     if ( 'minus' === button.getAttribute('data-participant-action') ) {
                         current = 'adults' === type ? Math.max(1, current - 1) : Math.max(0, current - 1);
                     } else {
-                        var selected = selectedDepartureId ? departures.filter(function(item){ return String(item.id) === String(selectedDepartureId); })[0] : null;
+                        var selected = selectedItem();
                         var available = selected ? Math.max(0, parseInt(selected.available, 10) || 0) : null;
 
                         if ( 'children' === type && current >= max ) return;
@@ -177,7 +207,6 @@ trait WCAI_Product_Booking_Js_C {
                     }
 
                     if ( inputEl ) inputEl.value = current;
-                    updateParticipantUI();
                     refreshForQuantity();
                 });
             });
@@ -194,6 +223,12 @@ trait WCAI_Product_Booking_Js_C {
         setCalendarExpanded(false);
 
         grid.addEventListener('keydown', onGridKeydown);
+
+        if (quickDates) {
+            quickDates.addEventListener('keydown', onQuickKeydown);
+            quickDates.addEventListener('scroll', updateQuickFade, { passive: true });
+            window.addEventListener('resize', updateQuickFade);
+        }
 
         prev.addEventListener('click', function () {
             if (monthIndex > 0) {
@@ -212,9 +247,13 @@ trait WCAI_Product_Booking_Js_C {
         if ( nativeQuantityInput ) {
             nativeQuantityInput.setAttribute('readonly', 'readonly');
             nativeQuantityInput.setAttribute('aria-hidden', 'true');
+            nativeQuantityInput.setAttribute('tabindex', '-1');
         }
 
-        enableAddToCart();
+        // "Antes de reservar" abre sozinho em telas largas e fica recolhido no celular.
+        var trust = document.querySelector('[data-wcai-trust]');
+        if (trust && window.matchMedia && window.matchMedia('(min-width: 768px)').matches) trust.open = true;
+
         updateParticipantUI();
         renderQuickDates();
         renderCalendar();

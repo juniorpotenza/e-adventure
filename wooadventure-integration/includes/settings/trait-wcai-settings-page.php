@@ -104,6 +104,25 @@ trait WCAI_Settings_Page {
                 </table>
                 <hr>
 
+                <h2 class="title"><?php echo esc_html__( 'Página do passeio', 'wooadventure-integration' ); ?></h2>
+                <table class="form-table">
+                    <tr valign="top">
+                        <th scope="row"><label for="wcai_cancellation_policy"><?php echo esc_html__( 'Política de cancelamento', 'wooadventure-integration' ); ?></label></th>
+                        <td>
+                            <textarea id="wcai_cancellation_policy" name="wcai_cancellation_policy" rows="4" cols="50" maxlength="1000" class="large-text"><?php echo esc_textarea( self::get_cancellation_policy() ); ?></textarea>
+                            <p class="description"><?php echo esc_html__( 'Opcional. Se preenchido, aparece em "Antes de reservar" na página do passeio. Vazio: nada é exibido.', 'wooadventure-integration' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr valign="top">
+                        <th scope="row"><label for="wcai_contact_phone"><?php echo esc_html__( 'Telefone de contato', 'wooadventure-integration' ); ?></label></th>
+                        <td>
+                            <input type="text" id="wcai_contact_phone" name="wcai_contact_phone" value="<?php echo esc_attr( self::get_contact_phone() ); ?>" class="regular-text" placeholder="+55 11 99999-9999" />
+                            <p class="description"><?php echo esc_html__( 'Opcional. Aparece em "Antes de reservar" como link para ligar.', 'wooadventure-integration' ); ?></p>
+                        </td>
+                    </tr>
+                </table>
+                <hr>
+
                 <h2 class="title">Configurações da Agenda</h2>
                 <table class="form-table">
                     <tr valign="top">
