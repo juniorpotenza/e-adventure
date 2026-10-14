@@ -11,6 +11,7 @@
     var attempted = false;
     var flaggedNative = [];
     var consent = false;
+    var draftRestored = false;
     var NBSP = String.fromCharCode(160);
     var BR_UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
     var MIN_AGE = 7; // espelha WCAI_Utils::is_min_age (includes/class-utils.php)
@@ -280,8 +281,138 @@
 
     function birthMessage(value, who, now) {
         if (!String(value || '').trim()) return 'Informe a data de nascimento ' + who + '.';
-        if (!parseDate(value)) return 'Data de nascimento ' + who + ' inválida. Use dd/mm/aaaa.';
+
+        var date = parseDate(value);
+
+        if (!date) return 'Data de nascimento ' + who + ' inválida. Use dd/mm/aaaa.';
+        if (date.getTime() > (now || new Date()).getTime()) return 'A data de nascimento não pode ser futura.';
         return isMinAge(value, MIN_AGE, now) ? '' : 'Data de nascimento ' + who + ': idade mínima de ' + MIN_AGE + ' anos.';
+    }
+
+    var DUPLICATE_CPF_MESSAGE = 'Este CPF já foi usado por outro participante.';
+
+    // "Você é o primeiro participante: 2 adultos = você + 1 acompanhante." (contagem real da reserva).
+    function peopleLabel(adults, children) {
+        return adults + ' adulto' + (adults === 1 ? '' : 's') +
+            (children ? ' + ' + children + ' criança' + (children === 1 ? '' : 's') : '');
+    }
+
+    function holderHint(adults, children) {
+        var companions = Math.max(0, adults + children - 1);
+
+        if (!companions) return 'Você é o único participante desta reserva.';
+
+        return 'Você é o primeiro participante: ' + peopleLabel(adults, children) + ' = você + ' +
+            companions + ' acompanhante' + (companions === 1 ? '' : 's') + '.';
+    }
+
+    // Tokens que o Woo resolve no cartão de endereço; qualquer outro ({number}, {neighborhood}) viraria texto cru.
+    var ADDRESS_TOKENS = ['name', 'name_upper', 'first_name', 'last_name', 'company', 'address_1', 'address_2', 'city', 'state', 'state_code', 'postcode', 'country'];
+
+    // Remove tokens desconhecidos do formato de endereço do país e as vírgulas que sobram; linha que só tinha token some.
+    function cleanAddressFormat(format) {
+        var lines = [];
+
+        String(format || '').split('\n').forEach(function (line) {
+            var cleaned = line.replace(/\{([a-z0-9_]+)\}/gi, function (token, name) {
+                return ADDRESS_TOKENS.indexOf(name) === -1 ? '' : token;
+            });
+
+            if (cleaned === line) {
+                lines.push(line);
+            } else if (cleaned.replace(/[\s,]+/g, '') !== '') {
+                lines.push(cleaned.replace(/^[\s,]+|[\s,]+$/g, ''));
+            }
+        });
+
+        return lines.join('\n');
+    }
+
+    // Ids dos campos com CPF repetido (titular + participantes do mesmo item); só os dígitos são comparados.
+    function duplicateCpfIds(items, holderCpf) {
+        var ids = {};
+
+        items.forEach(function (item, itemIndex) {
+            var seen = digits(holderCpf).length === 11 ? [digits(holderCpf)] : [];
+
+            item.additional_participants.forEach(function (participant, index) {
+                var cpf = digits(participant.cpf);
+
+                if (!isValidCpf(cpf)) return;
+
+                if (seen.indexOf(cpf) !== -1) {
+                    ids['wcai-cpf-' + itemIndex + '-' + index] = true;
+                } else {
+                    seen.push(cpf);
+                }
+            });
+        });
+
+        return ids;
+    }
+
+    var DRAFT_PREFIX = 'wcai-draft:';
+    var DRAFT_TEXT_MAX = 120;
+
+    function hashString(text) {
+        var hash = 5381;
+
+        for (var i = 0; i < text.length; i++) {
+            hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
+        }
+
+        return (hash >>> 0).toString(36);
+    }
+
+    // Chave por carrinho: itens, quantidades e saída. Outro carrinho = outro rascunho.
+    function draftKey(items) {
+        return DRAFT_PREFIX + hashString(items.map(function (item) {
+            return [item.key, item.quantity, item.departure_id, item.adults, item.children].join(':');
+        }).join('|'));
+    }
+
+    function buildDraft(items, step) {
+        var byItem = {};
+
+        items.forEach(function (item) {
+            byItem[item.key] = item.additional_participants.map(function (person) {
+                return { type: person.type || '', name: person.name || '', cpf: person.cpf || '', birthdate: person.birthdate || '' };
+            });
+        });
+
+        return JSON.stringify({ step: step, items: byItem });
+    }
+
+    // Aplica o rascunho salvo sobre os itens (mesmo sanitizador do rascunho do Woo). Devolve a etapa salva ou null.
+    function applyDraft(items, raw) {
+        var draft;
+
+        try {
+            draft = raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+
+        if (!draft || typeof draft !== 'object' || !draft.items || typeof draft.items !== 'object') return null;
+
+        items.forEach(function (item) {
+            var saved = Array.isArray(draft.items[item.key]) ? draft.items[item.key] : [];
+
+            item.additional_participants.forEach(function (person, index) {
+                var entry = saved[index];
+
+                if (!entry || typeof entry !== 'object') return;
+
+                if (entry.type === 'adult' || entry.type === 'child') person.type = entry.type;
+                person.name = String(entry.name || '').slice(0, DRAFT_TEXT_MAX);
+                person.cpf = sanitizeDraft('cpf', entry.cpf);
+                person.birthdate = sanitizeDraft('date', entry.birthdate);
+            });
+        });
+
+        var step = parseInt(draft.step, 10);
+
+        return step >= 1 && step <= 4 ? step : null;
     }
 
     function inputField(label, value, placeholder, mask, onChange, attrs) {
@@ -310,6 +441,7 @@
             var valueNow = mask ? mask(input.value) : input.value;
             input.value = valueNow;
             onChange(valueNow);
+            saveDraft();
             scheduleSync();
             updateLocalValidation();
         });
@@ -354,6 +486,7 @@
 
         select.addEventListener('change', function () {
             onChange(select.value);
+            saveDraft();
             scheduleSync();
             updateLocalValidation();
         });
@@ -530,7 +663,7 @@
         var style = document.createElement('style');
         style.id = 'wcai-wizard-style';
         style.textContent =
-            '#wcai-checkout-wizard{margin:0 0 14px;padding:0;border:0;background:transparent}' +
+            '#wcai-checkout-wizard{box-sizing:border-box;width:65%;margin:0 0 14px;padding:0 4.5283% 0 0;border:0;background:transparent}' +
             '#wcai-checkout-wizard .wcai-wizard-progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0 0 12px;padding:0;list-style:none}' +
             '#wcai-checkout-wizard .wcai-wizard-progress li{display:flex;margin:0;padding:0}' +
             '#wcai-checkout-wizard .wcai-wizard-progress button{display:flex;flex:1;align-items:center;justify-content:center;min-height:44px;padding:5px 6px;border:1px solid #e2e2e2;border-radius:8px;background:#fff;color:#767676;font:inherit;font-size:12px;line-height:1.2;text-align:center;box-sizing:border-box;cursor:default}' +
@@ -550,6 +683,8 @@
             '#wcai-checkout-wizard h4{margin:0 0 9px;font-size:14px}' +
             '#wcai-checkout-wizard h5{margin:0 0 9px;font-size:13px}' +
             '#wcai-checkout-wizard p{font-size:12px;line-height:1.5;color:#666}' +
+            '#wcai-checkout-wizard p.wcai-lgpd{font-size:14px;color:#555}' +
+            '#wcai-checkout-wizard p.wcai-lgpd a{color:inherit;text-decoration:underline}' +
             '#wcai-checkout-wizard .wcai-wizard-item{padding:12px;margin:0 0 10px;border:1px solid #e5e5e5;border-radius:10px;background:#fff}' +
             '#wcai-checkout-wizard .wcai-reservation-summary{display:grid;grid-template-columns:1fr;gap:7px;margin:10px 0}' +
             '#wcai-checkout-wizard .wcai-reservation-summary>div{display:flex;justify-content:space-between;gap:14px;padding:9px 10px;border:1px solid #ededed;border-radius:8px;background:#fafafa}' +
@@ -558,7 +693,7 @@
             '#wcai-checkout-wizard .wcai-wizard-person{padding:11px;margin:9px 0;border:1px solid #eee;border-radius:9px;background:#fafafa}' +
             '#wcai-checkout-wizard .wcai-wizard-field{margin:0 0 9px}' +
             '#wcai-checkout-wizard .wcai-wizard-field label{display:block;font-weight:700;margin-bottom:4px;font-size:12px}' +
-            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard .wcai-wizard-field select{width:100%;min-height:44px;padding:8px 9px;box-sizing:border-box;border:1px solid #d9d9d9;border-radius:7px;background:#fff}' +
+            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard .wcai-wizard-field select{width:100%;height:44px;padding:8px 9px;box-sizing:border-box;border:1px solid #d9d9d9;border-radius:7px;background:#fff;font:inherit;font-size:16px;line-height:1.3;color:#222}' +
             '#wcai-checkout-wizard .wcai-wizard-actions{display:flex;justify-content:space-between;gap:9px;margin-top:14px;padding-top:11px;border-top:1px solid #eee}' +
             '#wcai-checkout-wizard .wcai-wizard-actions button{min-height:44px;padding:8px 14px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
             '#wcai-checkout-wizard .wcai-wizard-actions button:not(.wcai-wizard-secondary){background:#222;color:#fff}' +
@@ -567,29 +702,32 @@
             '#wcai-checkout-wizard .wcai-warning{padding:10px 11px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
             stageGateCss() +
             'body.wcai-checkout-before-payment .wc-block-components-checkout-place-order-button,body.wcai-checkout-before-payment #place_order,body.wcai-checkout-before-payment button[name="woocommerce_checkout_place_order"]{display:none!important}' +
-            'body.wcai-checkout-step-4 .wc-block-checkout__actions .wc-block-components-checkout-place-order-button{display:block;width:100%;min-height:44px;font-weight:800;border-radius:8px}' +
-            'body.wcai-checkout-step-4.wcai-consent-missing .wc-block-components-checkout-place-order-button{opacity:.45;cursor:not-allowed}' +
+            'body.wcai-checkout-step-4 .wc-block-components-checkout-place-order-button{display:none!important}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-text-input:not(.is-active) input::placeholder{color:transparent!important}' +
             'body[class*="wcai-checkout-step-"] input[aria-invalid="true"],body[class*="wcai-checkout-step-"] select[aria-invalid="true"]{border-color:#b3261e!important;box-shadow:0 0 0 1px #b3261e!important}' +
             'body[class*="wcai-checkout-step-"] .wc-block-components-text-input:has(input[aria-invalid="true"]) label{color:#b3261e!important}' +
-            '#wcai-checkout-wizard .wcai-wizard-field select{appearance:none;-webkit-appearance:none;font:inherit;color:inherit;padding-right:34px;background:#fff url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' fill=\'none\' stroke=\'%23222\' stroke-width=\'2\'/%3E%3C/svg%3E") no-repeat right 12px center}' +
+            '#wcai-checkout-wizard .wcai-wizard-field select{appearance:none;-webkit-appearance:none;padding-right:34px;background:#fff url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' fill=\'none\' stroke=\'%23222\' stroke-width=\'2\'/%3E%3C/svg%3E") no-repeat right 12px center}' +
             '#wcai-checkout-wizard .wcai-link{display:inline;padding:0;border:0;background:none;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}' +
             '#wcai-checkout-wizard .wcai-review-people{margin:10px 0;padding:0;list-style:none}' +
             '#wcai-checkout-wizard .wcai-review-people li{display:flex;flex-wrap:wrap;gap:2px 10px;margin:0 0 6px;padding:8px 10px;border:1px solid #ededed;border-radius:8px;background:#fafafa;font-size:12px}' +
             '#wcai-checkout-wizard .wcai-review-people strong{min-width:96px}' +
             '#wcai-checkout-wizard .wcai-consent{margin:12px 0 0;padding:12px;border:1px solid #d9d9d9;border-radius:10px;background:#fff}' +
-            '#wcai-checkout-wizard .wcai-consent p{margin:0 0 10px}' +
-            '#wcai-checkout-wizard .wcai-consent-row{display:flex;align-items:flex-start;gap:10px;min-height:44px;font-size:13px;line-height:1.4;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-consent p{margin:0 0 10px;font-size:14px;line-height:1.5;color:#333}' +
+            '#wcai-checkout-wizard .wcai-consent p.wcai-consent-hint{margin:8px 0 0}' +
+            '#wcai-checkout-wizard .wcai-consent-row{display:flex;align-items:center;gap:10px;padding:2px 0;font-size:14px;line-height:1.4;color:#222;cursor:pointer}' +
             '#wcai-checkout-wizard .wcai-consent-row input{flex:none;width:24px;height:24px;margin:0}' +
-            '#wcai-checkout-wizard-footer{margin:14px 0 0}' +
+            '#wcai-checkout-wizard-footer{position:sticky;bottom:0;z-index:30;margin:14px 0 0;padding:0 0 8px;background:#fff;box-shadow:0 -6px 12px rgba(0,0,0,.06)}' +
+            'html:has(body[class*="wcai-checkout-step-"]){scroll-padding-bottom:calc(var(--wcai-footer-h,0px) + 16px)}' +
             '#wcai-checkout-wizard-footer .wcai-wizard-actions{display:flex;justify-content:space-between;align-items:center;gap:9px;margin:0;padding-top:11px;border-top:1px solid #eee}' +
             '#wcai-checkout-wizard-footer .wcai-wizard-actions button{min-height:44px;padding:8px 14px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
             '#wcai-checkout-wizard-footer .wcai-wizard-actions button:not(.wcai-wizard-secondary){background:#222;color:#fff}' +
             '#wcai-checkout-wizard-footer .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
             '#wcai-checkout-wizard-footer .wcai-wizard-actions button:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}' +
-            '#wcai-checkout-wizard-footer .wcai-order-total{font-weight:800;font-size:15px}' +
-            '#wcai-checkout-wizard-footer .wcai-consent-hint{margin:8px 0 0;color:#b3261e;font-size:12px;font-weight:700}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions .wcai-wizard-submit{flex:1;max-width:none;background:#222;color:#fff;font:inherit;font-size:15px;font-weight:800}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions .wcai-wizard-submit[aria-disabled="true"]{background:#6b6b6b;border-color:#6b6b6b}' +
+            '#wcai-checkout-wizard-footer .wcai-consent-hint,#wcai-checkout-wizard .wcai-consent-hint{margin:8px 0 0;color:#b3261e;font-size:14px;font-weight:700}' +
+            '@media(max-width:699px){#wcai-checkout-wizard{width:100%;padding:0}}' +
             '@media(max-width:600px){' +
-            '#wcai-checkout-wizard-footer{position:sticky;bottom:0;z-index:30;margin:14px -4px 0;padding:0 4px 8px;background:#fff;box-shadow:0 -6px 12px rgba(0,0,0,.06)}' +
             '#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}' +
             '#wcai-checkout-wizard .wcai-wizard-progress button{padding:6px 8px;overflow-wrap:anywhere}' +
             'body[class*="wcai-checkout-step-"] .wc-block-components-radio-control__option{min-height:44px;padding-top:12px;padding-bottom:12px}' +
@@ -600,8 +738,9 @@
     }
 
     // Função pura: devolve { idDoCampo: { message, hidden } } para os participantes adicionais.
-    function collectAdditionalErrors(items, now) {
+    function collectAdditionalErrors(items, now, holderCpf) {
         var errors = {};
+        var duplicates = duplicateCpfIds(items, holderCpf);
 
         items.forEach(function (item, itemIndex) {
             var additionalAdults = 0;
@@ -628,6 +767,8 @@
 
                 if (cpfError) {
                     addError(errors, 'wcai-cpf-' + itemIndex + '-' + index, cpfError);
+                } else if (duplicates['wcai-cpf-' + itemIndex + '-' + index]) {
+                    addError(errors, 'wcai-cpf-' + itemIndex + '-' + index, DUPLICATE_CPF_MESSAGE);
                 }
 
                 if (birthError) {
@@ -650,6 +791,11 @@
         return errors;
     }
 
+    // Participantes comparados com o CPF do titular (campo nativo da etapa 2).
+    function participantErrors() {
+        return collectAdditionalErrors(state.items, undefined, holderInfo().cpf);
+    }
+
     // Erros de participantes + aceite pendente: tudo no store de validação do Woo (bloqueia o pedido).
     function publishErrors(errors) {
         var all = {};
@@ -664,16 +810,23 @@
     function setConsent(value) {
         consent = value === true;
         setCheckoutStageClass();
-        publishErrors(collectAdditionalErrors(state.items));
+        publishErrors(participantErrors());
 
-        var hint = document.querySelector('[data-wcai-consent-hint]');
-        if (hint) hint.hidden = consent;
+        Array.prototype.slice.call(document.querySelectorAll('[data-wcai-consent-hint]')).forEach(function (hint) {
+            hint.hidden = consent;
+        });
+
+        Array.prototype.slice.call(document.querySelectorAll('[data-wcai-submit]')).forEach(function (node) {
+            node.setAttribute('aria-disabled', consent ? 'false' : 'true');
+        });
+
+        syncFooterSpace();
 
         scheduleSync();
     }
 
     function validateAdditional() {
-        var errors = collectAdditionalErrors(state.items);
+        var errors = participantErrors();
 
         publishErrors(errors);
 
@@ -710,9 +863,26 @@
     // Resumo no topo da etapa. entries: [{ el, message }]. Cada campo vira um link que foca o campo.
     // Escolha: não inserimos <p role=alert> ao lado dos inputs do Woo (nós alheios dentro da árvore React).
     // Foca o 1º campo inválido (ou o resumo) quando focus !== false.
+    var describedNative = [];
+
+    // Campos nativos do Woo apontam para a mensagem do resumo; ao corrigir, volta o aria-describedby original.
+    function clearDescribedBy() {
+        describedNative.forEach(function (saved) {
+            if (saved.prev === null) {
+                saved.el.removeAttribute('aria-describedby');
+            } else {
+                saved.el.setAttribute('aria-describedby', saved.prev);
+            }
+        });
+
+        describedNative = [];
+    }
+
     function reportErrors(panel, entries, focus) {
         var summary = panel.querySelector('.wcai-error-summary');
         if (!summary) return;
+
+        clearDescribedBy();
 
         summary.textContent = '';
         summary.hidden = !entries.length;
@@ -725,8 +895,14 @@
 
         var list = document.createElement('ul');
 
-        entries.forEach(function (entry) {
+        entries.forEach(function (entry, index) {
             var li = document.createElement('li');
+            li.id = 'wcai-summary-error-' + index;
+
+            if (entry.el && !document.getElementById(entry.el.id + '-error')) {
+                describedNative.push({ el: entry.el, prev: entry.el.getAttribute('aria-describedby') });
+                entry.el.setAttribute('aria-describedby', li.id);
+            }
 
             if (entry.el) {
                 var link = document.createElement('button');
@@ -921,14 +1097,60 @@
         });
     }
 
+    function nativePlaceOrderButton() {
+        return document.querySelector('.wc-block-components-checkout-place-order-button');
+    }
+
+    // Botão principal da etapa 4: "Finalizar pedido · R$ X". Espelha o estado (processando) do botão nativo.
     function updateTotal() {
         var data = cart();
         var text = data ? formatTotal(data.totals) : '';
+        var nativeButton = nativePlaceOrderButton();
 
-        Array.prototype.slice.call(document.querySelectorAll('[data-wcai-total]')).forEach(function (node) {
-            var label = text ? 'Pedido de ' + text : '';
+        Array.prototype.slice.call(document.querySelectorAll('[data-wcai-submit]')).forEach(function (node) {
+            var label = 'Finalizar pedido' + (text ? ' · ' + text : '');
+
             if (node.textContent !== label) node.textContent = label;
+            node.disabled = !!(nativeButton && nativeButton.disabled);
         });
+    }
+
+    // O Woo só envia o pedido pelo botão nativo (escondido por CSS na etapa 4): o clique é repassado a ele.
+    function placeOrder() {
+        if (!consent) {
+            focusConsent();
+            return;
+        }
+
+        if (!validateAdditional()) {
+            setStep(3, true);
+            attempted = true;
+            validateAdditional();
+
+            var invalid = document.querySelector('#' + ROOT + ' [aria-invalid="true"]');
+            if (invalid) invalid.focus();
+            return;
+        }
+
+        var nativeButton = nativePlaceOrderButton();
+
+        if (nativeButton && !nativeButton.disabled) nativeButton.click();
+    }
+
+    function focusConsent() {
+        var box = document.getElementById('wcai-consent');
+
+        if (box) {
+            box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            box.focus();
+        }
+    }
+
+    // Reserva espaço para a barra fixa: foco e scrollIntoView nunca ficam atrás dela.
+    function syncFooterSpace() {
+        var footer = document.getElementById('wcai-checkout-wizard-footer');
+
+        if (footer) document.documentElement.style.setProperty('--wcai-footer-h', footer.offsetHeight + 'px');
     }
 
     function refreshCountryHint() {
@@ -951,6 +1173,86 @@
             cpf: identity.cpf,
             birthdate: identity.birthdate
         };
+    }
+
+    // sessionStorage pode faltar (aba privada, bloqueio): o rascunho é só conveniência, então a falha é ignorada.
+    function draftStorage() {
+        try {
+            return window.sessionStorage || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    var orderDone = false;
+
+    function saveDraft() {
+        var store = draftStorage();
+
+        if (!store || orderDone || !state.items.length) return;
+
+        try {
+            store.setItem(draftKey(state.items), buildDraft(state.items, currentStep));
+        } catch (e) {
+            // cota cheia ou bloqueado: sem rascunho, o checkout segue normal.
+        }
+    }
+
+    function clearDraft() {
+        var store = draftStorage();
+
+        orderDone = true;
+
+        if (!store) return;
+
+        try {
+            store.removeItem(draftKey(state.items));
+        } catch (e) {
+            // sem acesso ao storage: nada a limpar.
+        }
+    }
+
+    function restoreDraft() {
+        var store = draftStorage();
+        var raw = null;
+
+        if (!store) return null;
+
+        try {
+            raw = store.getItem(draftKey(state.items));
+        } catch (e) {
+            return null;
+        }
+
+        return applyDraft(state.items, raw);
+    }
+
+    // O formato de endereço do Brasil (plugin de campos extras) traz {number} e {neighborhood}, que o bloco não preenche.
+    // Corrige os dados do Woo (não o DOM do React) e força o cartão a redesenhar.
+    var addressNeedsRefresh = false;
+
+    function fixAddressFormats() {
+        var countries = window.wcSettings && window.wcSettings.countryData;
+
+        if (!countries) return;
+
+        Object.keys(countries).forEach(function (code) {
+            var current = countries[code] && countries[code].format;
+            var clean = typeof current === 'string' ? cleanAddressFormat(current) : current;
+
+            if (clean !== current) {
+                countries[code].format = clean;
+                addressNeedsRefresh = true;
+            }
+        });
+
+        var customer = addressNeedsRefresh ? customerData() : null;
+        var dispatcher = customer && window.wp && wp.data ? wp.data.dispatch('wc/store/cart') : null;
+
+        if (dispatcher && typeof dispatcher.setBillingAddress === 'function') {
+            addressNeedsRefresh = false;
+            dispatcher.setBillingAddress({ address_2: customer.billingAddress.address_2 || '' });
+        }
     }
 
     function setStep(step, moveFocus) {
@@ -994,6 +1296,8 @@
         });
 
         applyNativeStepVisibility();
+        syncFooterSpace();
+        saveDraft();
 
         if (moveFocus) {
             var heading = root.querySelector('[data-wcai-step="' + currentStep + '"] h3');
@@ -1014,6 +1318,30 @@
         }
 
         root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Por que pedimos CPF e nascimento (etapas 2 e 3). Link só se o admin configurou a página de termos.
+    function lgpdNote() {
+        var note = document.createElement('p');
+        note.className = 'wcai-lgpd';
+        note.appendChild(document.createTextNode(
+            'Pedimos CPF e data de nascimento para o seguro e a lista de embarque do passeio. Seus dados são tratados conforme a LGPD.'
+        ));
+
+        var termsUrl = config().termsUrl || '';
+
+        if (/^https?:\/\//i.test(termsUrl)) {
+            var link = document.createElement('a');
+            link.href = termsUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'Termos de participação';
+            note.appendChild(document.createTextNode(' '));
+            note.appendChild(link);
+            note.appendChild(document.createTextNode('.'));
+        }
+
+        return note;
     }
 
     function buildStepOne(panel) {
@@ -1045,14 +1373,16 @@
             var peopleBox = document.createElement('div');
             peopleBox.innerHTML = '<span>Participantes</span>';
             var peopleValue = document.createElement('strong');
-            peopleValue.textContent =
-                item.adults + ' adulto' +
-                (item.adults === 1 ? '' : 's') +
-                (item.children ? ' + ' + item.children + ' criança' + (item.children === 1 ? '' : 's') : '');
+            peopleValue.textContent = peopleLabel(item.adults, item.children);
             peopleBox.appendChild(peopleValue);
             summary.appendChild(peopleBox);
 
             box.appendChild(summary);
+
+            var hint = document.createElement('p');
+            hint.className = 'wcai-holder-hint';
+            hint.textContent = holderHint(item.adults, item.children);
+            box.appendChild(hint);
 
             if (!item.departure_id) {
                 var warning = document.createElement('div');
@@ -1082,6 +1412,7 @@
         var title = document.createElement('h3');
         title.textContent = '2. Seus dados';
         panel.appendChild(title);
+        panel.appendChild(lgpdNote());
         panel.appendChild(errorSummary());
 
         var text = document.createElement('p');
@@ -1113,6 +1444,7 @@
         var title = document.createElement('h3');
         title.textContent = '3. Participantes';
         panel.appendChild(title);
+        panel.appendChild(lgpdNote());
         panel.appendChild(errorSummary());
 
         var text = document.createElement('p');
@@ -1185,7 +1517,7 @@
                 attempted = true;
 
                 if (!validateAdditional()) {
-                    var errors = collectAdditionalErrors(state.items);
+                    var errors = participantErrors();
 
                     reportErrors(panel, Object.keys(errors).map(function (id) {
                         return { el: document.getElementById(id), message: errors[id].message };
@@ -1229,10 +1561,7 @@
             var participants = document.createElement('div');
             participants.innerHTML = '<span>Participantes</span>';
             var participantsValue = document.createElement('strong');
-            participantsValue.textContent =
-                item.adults + ' adulto' +
-                (item.adults === 1 ? '' : 's') +
-                (item.children ? ' + ' + item.children + ' criança' + (item.children === 1 ? '' : 's') : '');
+            participantsValue.textContent = peopleLabel(item.adults, item.children);
             participants.appendChild(participantsValue);
             summary.appendChild(participants);
 
@@ -1249,17 +1578,18 @@
         var back = actions(null, null, function () {
             setStep(3, true);
         });
-        var total = document.createElement('span');
-        total.className = 'wcai-order-total';
-        total.setAttribute('data-wcai-total', '');
-        back.appendChild(total);
+        var submit = button('Finalizar pedido', placeOrder, false);
+        submit.className = 'wcai-wizard-submit';
+        submit.setAttribute('data-wcai-submit', '');
+        submit.setAttribute('aria-disabled', consent ? 'false' : 'true');
+        back.appendChild(submit);
 
+        // Perto do botão principal: sem alerta (o role=alert fica sob a caixa de aceite).
         var hint = document.createElement('p');
         hint.className = 'wcai-consent-hint';
-        hint.setAttribute('role', 'status');
         hint.setAttribute('data-wcai-consent-hint', '');
         hint.hidden = consent;
-        hint.textContent = 'Marque o aceite para finalizar o pedido.';
+        hint.textContent = 'Marque o aceite para finalizar.';
 
         mountActions(panel, 4, [back, hint]);
         updateTotal();
@@ -1329,6 +1659,16 @@
         row.appendChild(label);
         box.appendChild(row);
 
+        var hint = document.createElement('p');
+        hint.id = 'wcai-consent-hint';
+        hint.className = 'wcai-consent-hint';
+        hint.setAttribute('role', 'alert');
+        hint.setAttribute('data-wcai-consent-hint', '');
+        hint.hidden = consent;
+        hint.textContent = 'Marque o aceite para finalizar o pedido.';
+        input.setAttribute('aria-describedby', hint.id);
+        box.appendChild(hint);
+
         return box;
     }
 
@@ -1345,6 +1685,14 @@
         });
 
         state.items = targets.map(itemState);
+
+        if (!draftRestored && state.items.length) {
+            var savedStep = restoreDraft();
+
+            draftRestored = true;
+
+            if (savedStep) currentStep = savedStep > 1 && !validateDeparture() ? 1 : savedStep;
+        }
 
         if (!targets.length) {
             root.style.display = 'none';
@@ -1391,6 +1739,8 @@
         if (!document.getElementById(ROOT) || !window.wp || !wp.data) return;
 
         function update() {
+            fixAddressFormats();
+
             var data = cart();
             var next = sig(data);
 
@@ -1414,6 +1764,30 @@
 
         update();
         wp.data.subscribe(update, 'wc/store/cart');
+
+        // Pedido concluído: apaga o rascunho dos participantes (dados de terceiros) do navegador.
+        wp.data.subscribe(function () {
+            var checkout = wp.data.select('wc/store/checkout');
+
+            if (checkout && typeof checkout.isComplete === 'function' && checkout.isComplete()) clearDraft();
+        }, 'wc/store/checkout');
+
+        window.addEventListener('resize', syncFooterSpace);
+
+        // Enter num campo de texto avança a etapa (o botão da etapa valida); nunca em textarea, select ou botão.
+        document.addEventListener('keydown', function (event) {
+            var target = event.target;
+
+            if (event.key !== 'Enter' || event.isComposing || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+            if (!target || target.tagName !== 'INPUT' || /^(checkbox|radio|button|submit)$/i.test(target.type)) return;
+            if (currentStep === 4 || !document.body.classList.contains('wcai-checkout-step-' + currentStep)) return;
+            if (!target.closest('#' + ROOT + ', .wc-block-checkout__form')) return;
+
+            event.preventDefault();
+
+            var primary = document.querySelector('[data-wcai-actions="' + currentStep + '"] button:not(.wcai-wizard-secondary)');
+            if (primary) primary.click();
+        }, true);
 
         document.addEventListener('click', function (event) {
             var target = event.target;
@@ -1473,13 +1847,7 @@
 
             event.preventDefault();
             event.stopPropagation();
-
-            var box = document.getElementById('wcai-consent');
-
-            if (box) {
-                box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                box.focus();
-            }
+            focusConsent();
         }, true);
     }
 
@@ -1503,7 +1871,14 @@
             buildPayload: buildPayload,
             formatTotal: formatTotal,
             suspectCountry: suspectCountry,
-            stageGateCss: stageGateCss
+            stageGateCss: stageGateCss,
+            duplicateCpfIds: duplicateCpfIds,
+            holderHint: holderHint,
+            peopleLabel: peopleLabel,
+            cleanAddressFormat: cleanAddressFormat,
+            draftKey: draftKey,
+            buildDraft: buildDraft,
+            applyDraft: applyDraft
         };
         return;
     }

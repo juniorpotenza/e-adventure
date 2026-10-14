@@ -56,10 +56,17 @@ trait WCAI_Checkout_Block_Setup {
 
         $file = plugin_dir_path( dirname( __DIR__ ) ) . 'assets/js/wcai-checkout-block.js';
 
+        // O script usa as stores wc/store/* (wc-blocks-data-store): declarar a dependência o faz rodar depois delas.
+        $deps = array( 'wp-data' );
+
+        if ( wp_script_is( 'wc-blocks-data-store', 'registered' ) ) {
+            $deps[] = 'wc-blocks-data-store';
+        }
+
         wp_register_script(
             self::SCRIPT_HANDLE,
             plugin_dir_url( dirname( __DIR__ ) ) . 'assets/js/wcai-checkout-block.js',
-            array( 'wp-data' ),
+            $deps,
             file_exists( $file ) ? (string) filemtime( $file ) : WCAI_VERSION,
             true
         );
