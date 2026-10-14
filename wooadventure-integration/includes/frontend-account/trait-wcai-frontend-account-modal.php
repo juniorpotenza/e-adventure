@@ -124,7 +124,7 @@ trait WCAI_Frontend_Account_Modal {
                             $base = 'participantes[' . $field_key . ']';
                             $uid = $modal_id . '-' . $idx;
                             $badge = $this->get_age_badge_html($p['data_nascimento']);
-                            $id_input = $has_id ? '<input type="hidden" name="participantes['.$p['id'].'][id]" value="'.$p['id'].'">' : '';
+                            $id_input = $has_id ? '<input type="hidden" name="participantes['.$p['id'].'][id]" value="'.$p['id'].'">' : '<input type="hidden" name="' . esc_attr( $base ) . '[vref]" value="' . esc_attr( $p['id'] ) . '">';
                             $icon = $is_signed
                                 ? '<span title="Assinado" style="margin-right:5px; font-size:16px;">✅</span>'
                                 : '<span title="Pendente" style="margin-right:5px; font-size:16px; opacity:0.5;">⚠️</span>';

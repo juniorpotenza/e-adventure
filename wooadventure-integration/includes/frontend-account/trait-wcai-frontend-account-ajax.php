@@ -11,39 +11,56 @@ trait WCAI_Frontend_Account_Ajax {
 
         $data = isset($_POST['participantes']) ? wp_unslash($_POST['participantes']) : array();
         $data = $this->restore_unchanged_fields($order, $data);
-        $error = $this->validate_frontend_rows($order, $data);
+        $error = is_string($data) ? $data : $this->validate_frontend_rows($order, $data);
         if ($error) wp_send_json_error($error);
 
         $this->process_save($order, $data, 'Frontend');
         wp_send_json_success(array('message' => 'Salvo com sucesso!'));
     }
 
+    // Mesma mensagem para qualquer linha malformada ou mascarada sem valor guardado: nada de oráculo sobre CPF/nascimento guardados.
+    private function invalid_row_error() {
+        return 'Dados do participante inválidos.';
+    }
+
     // O modal mostra CPF mascarado ("529.***.***-25") e, com identidade travada, só a idade (nasc_unchanged=1).
-    // Aqui esses campos voltam ao valor guardado: nunca vira CPF novo, nem erro de validação, nem CPF duplicado.
+    // Valor mascarado nunca chega à validação, à checagem de duplicidade nem à comparação com o guardado: vira o valor
+    // guardado da linha (id + dono do pedido) ou o texto genérico de erro. Retorna o array saneado ou a string de erro.
     private function restore_unchanged_fields($order, $data) {
         if (!is_array($data) || !class_exists('WCAI_Participants_DB')) return $data;
         foreach ($data as $key => $row) {
             if (!is_array($row)) continue;
-            $current = (isset($row['id']) && is_numeric($row['id']) && $this->participant_belongs_to_order($row['id'], $order))
-                ? WCAI_Participants_DB::get_by_id($row['id']) : null;
-            if (isset($row['cpf']) && false !== strpos((string) $row['cpf'], '*')) {
-                $row['cpf'] = $current ? $current['cpf'] : $this->cpf_for_masked_virtual_row($order, (string) $row['cpf']);
+            $masked_cpf = isset($row['cpf']) && false !== strpos((string) $row['cpf'], '*');
+            $masked_nasc = !empty($row['nasc_unchanged']) || (isset($row['data_nascimento']) && false !== strpos((string) $row['data_nascimento'], '*'));
+            $vref = isset($row['vref']) && is_string($row['vref']) ? $row['vref'] : '';
+            unset($row['nasc_unchanged'], $row['vref']);
+
+            if ($masked_cpf || $masked_nasc) {
+                $has_id = isset($row['id']) && is_numeric($row['id']);
+                $current = ($has_id && $this->participant_belongs_to_order($row['id'], $order)) ? WCAI_Participants_DB::get_by_id($row['id']) : null;
+                // Linha sem registro (titular virtual / meta legado): achada pelo id interno, nunca pela máscara.
+                $stored = $current ?: ($has_id ? null : $this->virtual_participant_by_ref($order, $vref));
+                if (!$stored) return $this->invalid_row_error();
+                if ($masked_cpf) {
+                    if (!WCAI_Utils::is_valid_cpf($this->safe_cpf_pad($stored['cpf']))) return $this->invalid_row_error();
+                    $row['cpf'] = $stored['cpf'];
+                }
+                if ($masked_nasc) {
+                    if (!$current || !$this->identity_locked($current)) return $this->invalid_row_error();
+                    $row['data_nascimento'] = $this->force_date_to_display($current['data_nascimento']);
+                }
             }
-            if (!empty($row['nasc_unchanged'])) {
-                $row['data_nascimento'] = ($current && $this->identity_locked($current)) ? $this->force_date_to_display($current['data_nascimento']) : '';
-            }
-            unset($row['nasc_unchanged']);
             $data[$key] = $row;
         }
         return $data;
     }
 
-    // Linha ainda sem registro (titular virtual / meta legado): o CPF completo vem do pedido, achado pela máscara.
-    private function cpf_for_masked_virtual_row($order, $masked) {
+    private function virtual_participant_by_ref($order, $ref) {
+        if ('' === $ref) return null;
         foreach ($this->get_participants_safe($order) as $p) {
-            if (!is_numeric($p['id']) && WCAI_Utils::mask_cpf($this->safe_cpf_pad($p['cpf'])) === $masked) return $p['cpf'];
+            if (!is_numeric($p['id']) && (string) $p['id'] === $ref) return $p;
         }
-        return '';
+        return null;
     }
 
     private function is_order_locked($order) {
@@ -62,7 +79,11 @@ trait WCAI_Frontend_Account_Ajax {
         $cpfs_used = array();
         $new_rows = 0;
         foreach ($data as $row) {
-            if (!is_array($row)) return 'Dados inválidos.';
+            if (!is_array($row)) return $this->invalid_row_error();
+            // Defesa em profundidade: valor mascarado jamais é validado nem comparado.
+            foreach (array('cpf', 'data_nascimento') as $field) {
+                if (isset($row[$field]) && false !== strpos((string) $row[$field], '*')) return $this->invalid_row_error();
+            }
 
             $current = null;
             if (isset($row['id']) && is_numeric($row['id'])) {

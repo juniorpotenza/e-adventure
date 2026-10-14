@@ -265,13 +265,13 @@ class Test_F15_Order_Pages_Round3 extends TestCase {
         $order = new WcaiF15Order();
         $data = $this->call( 'restore_unchanged_fields', array( $order, array( array( 'nome_completo' => 'Novo', 'cpf' => '999.***.***-99', 'data_nascimento' => '15/05/1990' ) ) ) );
 
-        $this->assertStringContainsString( 'CPF inválido', $this->call( 'validate_frontend_rows', array( $order, $data ) ) );
+        $this->assertSame( 'Dados do participante inválidos.', $data );
     }
 
     public function test_masked_virtual_holder_row_resolves_to_the_billing_cpf() {
         $this->set_rows( array() );
         $order = new WcaiF15Order();
-        $data = $this->call( 'restore_unchanged_fields', array( $order, array( array( 'nome_completo' => 'Titular Teste', 'cpf' => '529.***.***-25', 'data_nascimento' => '15/05/1990' ) ) ) );
+        $data = $this->call( 'restore_unchanged_fields', array( $order, array( array( 'vref' => 'virtual_titular', 'nome_completo' => 'Titular Teste', 'cpf' => '529.***.***-25', 'data_nascimento' => '15/05/1990' ) ) ) );
 
         $this->assertSame( self::HOLDER_CPF, $data[0]['cpf'] );
     }
@@ -281,9 +281,7 @@ class Test_F15_Order_Pages_Round3 extends TestCase {
         $order = new WcaiF15Order();
         $flag = $this->posted( '529.***.***-25', array( 'data_nascimento' => '', 'nasc_unchanged' => '1' ) );
 
-        $unlocked = $this->call( 'restore_unchanged_fields', array( $order, $flag ) );
-        $this->assertSame( '', $unlocked[1]['data_nascimento'] );
-        $this->assertStringContainsString( 'Data de nascimento inválida', $this->call( 'validate_frontend_rows', array( $order, $unlocked ) ) );
+        $this->assertSame( 'Dados do participante inválidos.', $this->call( 'restore_unchanged_fields', array( $order, $flag ) ) );
 
         WCAI_Legal_Acceptances::$accepted = array( 1 );
         $locked = $this->call( 'restore_unchanged_fields', array( $order, $flag ) );
