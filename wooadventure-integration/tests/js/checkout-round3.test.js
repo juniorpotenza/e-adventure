@@ -63,32 +63,90 @@ test('holderHint usa a contagem real da reserva', () => {
     assert.equal(v.holderHint(1, 0), 'Você é o único participante desta reserva.');
 });
 
-test('rascunho: buildDraft e applyDraft restauram participantes e etapa', () => {
-    const saved = item([person(OTHER, { name: 'Ana', type: 'child' })]);
-    const raw = v.buildDraft([saved], 3);
-    const fresh = item([{ type: 'adult' }]);
+const T0 = 1700000000000;
+const MIN = 60 * 1000;
 
-    assert.equal(v.applyDraft([fresh], raw), 3);
-    assert.deepEqual(fresh.additional_participants[0], { type: 'child', name: 'Ana', cpf: OTHER, birthdate: '01/01/1990' });
+function fakeStore(entries) {
+    const map = new Map(Object.entries(entries || {}));
+    return {
+        get length() { return map.size; },
+        key: (i) => Array.from(map.keys())[i] || null,
+        getItem: (k) => (map.has(k) ? map.get(k) : null),
+        removeItem: (k) => { map.delete(k); },
+        keys: () => Array.from(map.keys())
+    };
+}
+
+test('rascunho: guarda só nome, categoria e etapa (nunca CPF nem nascimento)', () => {
+    const raw = v.buildDraft([item([person(OTHER, { name: 'Ana', type: 'child' })])], 3, T0);
+
+    assert.deepEqual(JSON.parse(raw), { v: 2, ts: T0, step: 3, items: { k1: [{ type: 'child', name: 'Ana' }] } });
+    assert.ok(!raw.includes('111') && !raw.includes('1990') && !/cpf|birth/i.test(raw));
 });
 
-test('rascunho: applyDraft sanitiza lixo, recusa JSON inválido e etapa fora de 1-4', () => {
-    const fresh = item([{ type: 'adult' }]);
-    const dirty = JSON.stringify({ step: 9, items: { k1: [{ type: 'hacker', name: 'x'.repeat(500), cpf: '52998224725999', birthdate: '99/99/9999' }] } });
+test('rascunho: applyDraft restaura nome, categoria e etapa; CPF e nascimento ficam vazios e liga o aviso', () => {
+    const raw = v.buildDraft([item([person(OTHER, { name: 'Ana', type: 'child' })])], 3, T0);
+    const fresh = item([{ type: 'adult', name: '', cpf: '', birthdate: '' }]);
 
-    assert.equal(v.applyDraft([fresh], dirty), null);
+    assert.deepEqual(v.applyDraft([fresh], raw, T0 + MIN), { step: 3, notice: true });
+    assert.deepEqual(fresh.additional_participants[0], { type: 'child', name: 'Ana', cpf: '', birthdate: '' });
+});
+
+test('rascunho: sem aviso quando CPF e nascimento já estão preenchidos ou não há participantes', () => {
+    const raw = v.buildDraft([item([person(OTHER)])], 2, T0);
+    const filled = item([person(OTHER)]);
+
+    assert.equal(v.applyDraft([filled], raw, T0).notice, false);
+    assert.equal(v.applyDraft([item([])], v.buildDraft([item([])], 2, T0), T0).notice, false);
+});
+
+test('rascunho: applyDraft ignora CPF e nascimento embutidos em rascunho adulterado', () => {
+    const fresh = item([{ type: 'adult', name: '', cpf: '', birthdate: '' }]);
+    const raw = JSON.stringify({ v: 2, ts: T0, step: 2, items: { k1: [{ type: 'adult', name: 'Bia', cpf: OTHER, birthdate: '01/01/1990' }] } });
+
+    v.applyDraft([fresh], raw, T0);
+    assert.equal(fresh.additional_participants[0].cpf, '');
+    assert.equal(fresh.additional_participants[0].birthdate, '');
+});
+
+test('rascunho: applyDraft sanitiza categoria e nome, aceita etapa inválida como null e recusa lixo', () => {
+    const fresh = item([{ type: 'adult' }]);
+    const dirty = JSON.stringify({ v: 2, ts: T0, step: 9, items: { k1: [{ type: 'hacker', name: 'x'.repeat(500) }] } });
+
+    assert.equal(v.applyDraft([fresh], dirty, T0).step, null);
     assert.equal(fresh.additional_participants[0].type, 'adult');
     assert.equal(fresh.additional_participants[0].name.length, 120);
-    assert.equal(fresh.additional_participants[0].cpf, '529.982.247-25');
-    assert.equal(fresh.additional_participants[0].birthdate, '');
-    assert.equal(v.applyDraft([fresh], '{nao-json'), null);
-    assert.equal(v.applyDraft([fresh], null), null);
+    assert.equal(v.applyDraft([fresh], '{nao-json', T0), null);
+    assert.equal(v.applyDraft([fresh], null, T0), null);
 });
 
-test('rascunho: draftKey muda com o carrinho', () => {
+test('rascunho: expira após 30 minutos e recusa versão antiga ou data futura', () => {
+    const raw = v.buildDraft([item([person(OTHER)])], 2, T0);
+
+    assert.notEqual(v.applyDraft([item([{}])], raw, T0 + 30 * MIN), null);
+    assert.equal(v.applyDraft([item([{}])], raw, T0 + 30 * MIN + 1), null);
+    assert.equal(v.applyDraft([item([{}])], raw, T0 - 1), null);
+    assert.equal(v.applyDraft([item([{}])], JSON.stringify({ step: 2, items: { k1: [{ name: 'Ana' }] } }), T0), null);
+});
+
+test('rascunho: sweepDrafts apaga chave v1 (com CPF) e v2 vencida; mantém v2 válida e chaves alheias', () => {
+    const fresh = v.buildDraft([item([])], 1, T0);
+    const store = fakeStore({
+        'wcai-draft:abc': JSON.stringify({ step: 2, items: { k1: [{ cpf: OTHER, birthdate: '01/01/1990' }] } }),
+        'wcai_draft_v2:old': v.buildDraft([item([])], 1, T0 - 31 * MIN),
+        'wcai_draft_v2:broken': '{x',
+        'wcai_draft_v2:ok': fresh,
+        'outra-chave': '1'
+    });
+
+    v.sweepDrafts(store, T0);
+    assert.deepEqual(store.keys().sort(), ['outra-chave', 'wcai_draft_v2:ok']);
+});
+
+test('rascunho: draftKey muda com o carrinho e usa o prefixo v2', () => {
     const a = item([person(OTHER)]);
     const b = Object.assign({}, a, { quantity: 3 });
     assert.notEqual(v.draftKey([a]), v.draftKey([b]));
     assert.equal(v.draftKey([a]), v.draftKey([a]));
-    assert.match(v.draftKey([a]), /^wcai-draft:/);
+    assert.match(v.draftKey([a]), /^wcai_draft_v2:/);
 });

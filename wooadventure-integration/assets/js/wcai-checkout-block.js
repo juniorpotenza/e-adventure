@@ -12,6 +12,9 @@
     var flaggedNative = [];
     var consent = false;
     var draftRestored = false;
+    var draftNotice = false;
+    var draftNoticeShown = false;
+    var activeDraftKey = '';
     var NBSP = String.fromCharCode(160);
     var BR_UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
     var MIN_AGE = 7; // espelha WCAI_Utils::is_min_age (includes/class-utils.php)
@@ -351,7 +354,11 @@
         return ids;
     }
 
-    var DRAFT_PREFIX = 'wcai-draft:';
+    // v2 guarda só dado não sensível (nome, categoria, etapa) e expira. CPF e nascimento ficam só na memória (LGPD).
+    var DRAFT_PREFIX = 'wcai_draft_v2:';
+    var LEGACY_DRAFT_PREFIX = 'wcai-draft:'; // build anterior: gravava CPF e nascimento; é apagado ao carregar.
+    var DRAFT_VERSION = 2;
+    var DRAFT_TTL_MS = 30 * 60 * 1000;
     var DRAFT_TEXT_MAX = 120;
 
     function hashString(text) {
@@ -371,20 +378,20 @@
         }).join('|'));
     }
 
-    function buildDraft(items, step) {
+    function buildDraft(items, step, now) {
         var byItem = {};
 
         items.forEach(function (item) {
             byItem[item.key] = item.additional_participants.map(function (person) {
-                return { type: person.type || '', name: person.name || '', cpf: person.cpf || '', birthdate: person.birthdate || '' };
+                return { type: person.type || '', name: person.name || '' };
             });
         });
 
-        return JSON.stringify({ step: step, items: byItem });
+        return JSON.stringify({ v: DRAFT_VERSION, ts: now === undefined ? Date.now() : now, step: step, items: byItem });
     }
 
-    // Aplica o rascunho salvo sobre os itens (mesmo sanitizador do rascunho do Woo). Devolve a etapa salva ou null.
-    function applyDraft(items, raw) {
+    // Devolve o rascunho só se for da versão atual e estiver dentro do prazo; senão null.
+    function parseDraft(raw, now) {
         var draft;
 
         try {
@@ -393,7 +400,37 @@
             return null;
         }
 
-        if (!draft || typeof draft !== 'object' || !draft.items || typeof draft.items !== 'object') return null;
+        if (!draft || typeof draft !== 'object' || draft.v !== DRAFT_VERSION || typeof draft.ts !== 'number') return null;
+        if (!draft.items || typeof draft.items !== 'object') return null;
+
+        var age = (now === undefined ? Date.now() : now) - draft.ts;
+
+        return age >= 0 && age <= DRAFT_TTL_MS ? draft : null;
+    }
+
+    // Apaga rascunhos do build anterior (com CPF e nascimento) e os v2 vencidos ou ilegíveis.
+    function sweepDrafts(store, now) {
+        var stale = [];
+
+        for (var i = 0; i < store.length; i++) {
+            var key = store.key(i);
+
+            if (!key) continue;
+            if (key.indexOf(LEGACY_DRAFT_PREFIX) === 0 || (key.indexOf(DRAFT_PREFIX) === 0 && !parseDraft(store.getItem(key), now))) stale.push(key);
+        }
+
+        stale.forEach(function (key) {
+            store.removeItem(key);
+        });
+    }
+
+    // Aplica nome e categoria salvos sobre os itens. CPF e nascimento nunca vêm do rascunho.
+    // Devolve { step, notice } ou null; notice = há participante restaurado sem CPF/nascimento.
+    function applyDraft(items, raw, now) {
+        var draft = parseDraft(raw, now);
+        var notice = false;
+
+        if (!draft) return null;
 
         items.forEach(function (item) {
             var saved = Array.isArray(draft.items[item.key]) ? draft.items[item.key] : [];
@@ -405,14 +442,13 @@
 
                 if (entry.type === 'adult' || entry.type === 'child') person.type = entry.type;
                 person.name = String(entry.name || '').slice(0, DRAFT_TEXT_MAX);
-                person.cpf = sanitizeDraft('cpf', entry.cpf);
-                person.birthdate = sanitizeDraft('date', entry.birthdate);
+                if (!person.cpf || !person.birthdate) notice = true;
             });
         });
 
         var step = parseInt(draft.step, 10);
 
-        return step >= 1 && step <= 4 ? step : null;
+        return { step: step >= 1 && step <= 4 ? step : null, notice: notice };
     }
 
     function inputField(label, value, placeholder, mask, onChange, attrs) {
@@ -684,6 +720,7 @@
             '#wcai-checkout-wizard h5{margin:0 0 9px;font-size:13px}' +
             '#wcai-checkout-wizard p{font-size:12px;line-height:1.5;color:#666}' +
             '#wcai-checkout-wizard p.wcai-lgpd{font-size:14px;color:#555}' +
+            '#wcai-checkout-wizard p.wcai-draft-notice{font-size:14px;color:#555}' +
             '#wcai-checkout-wizard p.wcai-lgpd a{color:inherit;text-decoration:underline}' +
             '#wcai-checkout-wizard .wcai-wizard-item{padding:12px;margin:0 0 10px;border:1px solid #e5e5e5;border-radius:10px;background:#fff}' +
             '#wcai-checkout-wizard .wcai-reservation-summary{display:grid;grid-template-columns:1fr;gap:7px;margin:10px 0}' +
@@ -1186,6 +1223,18 @@
 
     var orderDone = false;
 
+    function removeDraft(key) {
+        var store = draftStorage();
+
+        if (!store || !key) return;
+
+        try {
+            store.removeItem(key);
+        } catch (e) {
+            // sem acesso ao storage: nada a limpar.
+        }
+    }
+
     function saveDraft() {
         var store = draftStorage();
 
@@ -1199,17 +1248,17 @@
     }
 
     function clearDraft() {
-        var store = draftStorage();
-
         orderDone = true;
+        removeDraft(activeDraftKey);
+        if (state.items.length) removeDraft(draftKey(state.items));
+    }
 
-        if (!store) return;
+    // Carrinho mudou: o rascunho do carrinho anterior não vale mais.
+    function syncDraftKey() {
+        var key = state.items.length ? draftKey(state.items) : '';
 
-        try {
-            store.removeItem(draftKey(state.items));
-        } catch (e) {
-            // sem acesso ao storage: nada a limpar.
-        }
+        if (activeDraftKey && key !== activeDraftKey) removeDraft(activeDraftKey);
+        activeDraftKey = key;
     }
 
     function restoreDraft() {
@@ -1219,6 +1268,7 @@
         if (!store) return null;
 
         try {
+            sweepDrafts(store, Date.now());
             raw = store.getItem(draftKey(state.items));
         } catch (e) {
             return null;
@@ -1261,6 +1311,14 @@
         if (next !== currentStep) attempted = false;
 
         currentStep = next;
+
+        // Aviso do rascunho aparece uma vez: some depois que a etapa de participantes é deixada.
+        if (next === 3 && draftNotice) {
+            draftNoticeShown = true;
+        } else if (draftNoticeShown) {
+            draftNotice = false;
+            draftNoticeShown = false;
+        }
 
         var root = document.getElementById(ROOT);
         if (!root) return;
@@ -1450,6 +1508,14 @@
         var text = document.createElement('p');
         text.textContent = 'O titular é o primeiro adulto. Preencha somente os dados dos demais participantes.';
         panel.appendChild(text);
+
+        if (draftNotice) {
+            var notice = document.createElement('p');
+            notice.className = 'wcai-draft-notice';
+            notice.setAttribute('role', 'status');
+            notice.textContent = 'Por segurança, CPF e data de nascimento não são guardados ao recarregar a página.';
+            panel.appendChild(notice);
+        }
 
         var hasAdditional = false;
 
@@ -1685,13 +1751,20 @@
         });
 
         state.items = targets.map(itemState);
+        syncDraftKey();
 
         if (!draftRestored && state.items.length) {
-            var savedStep = restoreDraft();
+            var restored = restoreDraft();
 
             draftRestored = true;
 
-            if (savedStep) currentStep = savedStep > 1 && !validateDeparture() ? 1 : savedStep;
+            if (restored) {
+                draftNotice = restored.notice;
+                // Sem CPF/nascimento (não guardados), a etapa de revisão não vale: volta aos participantes.
+                var savedStep = restored.notice && restored.step > 3 ? 3 : restored.step;
+
+                if (savedStep) currentStep = savedStep > 1 && !validateDeparture() ? 1 : savedStep;
+            }
         }
 
         if (!targets.length) {
@@ -1766,11 +1839,20 @@
         wp.data.subscribe(update, 'wc/store/cart');
 
         // Pedido concluído: apaga o rascunho dos participantes (dados de terceiros) do navegador.
-        wp.data.subscribe(function () {
+        function checkoutComplete() {
             var checkout = wp.data.select('wc/store/checkout');
 
-            if (checkout && typeof checkout.isComplete === 'function' && checkout.isComplete()) clearDraft();
+            return !!(checkout && typeof checkout.isComplete === 'function' && checkout.isComplete());
+        }
+
+        wp.data.subscribe(function () {
+            if (checkoutComplete()) clearDraft();
         }, 'wc/store/checkout');
+
+        // Saída da página com pedido feito (ex.: redirecionamento ao gateway): garante a limpeza.
+        window.addEventListener('pagehide', function () {
+            if (orderDone || checkoutComplete()) clearDraft();
+        });
 
         window.addEventListener('resize', syncFooterSpace);
 
@@ -1878,7 +1960,8 @@
             cleanAddressFormat: cleanAddressFormat,
             draftKey: draftKey,
             buildDraft: buildDraft,
-            applyDraft: applyDraft
+            applyDraft: applyDraft,
+            sweepDrafts: sweepDrafts
         };
         return;
     }
