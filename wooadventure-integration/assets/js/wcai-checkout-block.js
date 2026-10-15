@@ -254,6 +254,26 @@
         return errors;
     }
 
+    // Aviso do aceite: nada antes da 1ª tentativa de finalizar; depois, só enquanto o aceite falta.
+    function consentHintVisible(accepted, tried) {
+        return tried === true && accepted !== true;
+    }
+
+    // Leva o campo para o meio da área útil (scroll-padding reserva a barra fixa) e foca sem 2º salto.
+    function focusField(el) {
+        if (!el) return;
+
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus({ preventScroll: true });
+    }
+
+    // Quanto rolar (px) para o título aparecer abaixo do cabeçalho fixo; 0 se já está visível.
+    function headingScrollDelta(top, bottom, viewportHeight, headerHeight) {
+        if (top >= headerHeight && bottom <= viewportHeight) return 0;
+
+        return Math.round(top - headerHeight - 8);
+    }
+
     // Total do carrinho (store API: valor em unidade menor + separadores da moeda).
     function formatTotal(totals) {
         if (!totals || totals.total_price === undefined) return '';
@@ -275,6 +295,11 @@
     // Endereço antigo: estado é UF brasileira, mas o país não é o Brasil.
     function suspectCountry(country, state) {
         return !!country && country !== 'BR' && BR_UFS.indexOf(String(state || '').toUpperCase()) !== -1;
+    }
+
+    // Aviso do país só na etapa 2 (onde o endereço é editado).
+    function countryHintVisible(step, country, state) {
+        return step === 2 && suspectCountry(country, state);
     }
 
     function cpfMessage(value, who) {
@@ -675,6 +700,7 @@
         document.body.classList.toggle('wcai-checkout-before-payment', currentStep !== 4);
         document.body.classList.toggle('wcai-checkout-payment-step', currentStep === 4);
         document.body.classList.toggle('wcai-consent-missing', !consent);
+        document.body.classList.toggle('wcai-consent-box', currentStep === 4 && !!document.getElementById('wcai-consent'));
     }
 
     function clearCheckoutStageClasses() {
@@ -687,6 +713,7 @@
         document.body.classList.remove('wcai-checkout-before-payment');
         document.body.classList.remove('wcai-checkout-payment-step');
         document.body.classList.remove('wcai-consent-missing');
+        document.body.classList.remove('wcai-consent-box');
     }
 
     function applyNativeStepVisibility() {
@@ -748,10 +775,10 @@
             '#wcai-checkout-wizard .wcai-review-people{margin:10px 0;padding:0;list-style:none}' +
             '#wcai-checkout-wizard .wcai-review-people li{display:flex;flex-wrap:wrap;gap:2px 10px;margin:0 0 6px;padding:8px 10px;border:1px solid #ededed;border-radius:8px;background:#fafafa;font-size:12px}' +
             '#wcai-checkout-wizard .wcai-review-people strong{min-width:96px}' +
-            '#wcai-checkout-wizard .wcai-consent{margin:12px 0 0;padding:12px;border:1px solid #d9d9d9;border-radius:10px;background:#fff}' +
-            '#wcai-checkout-wizard .wcai-consent p{margin:0 0 10px;font-size:14px;line-height:1.5;color:#333}' +
-            '#wcai-checkout-wizard .wcai-consent p.wcai-consent-hint{margin:8px 0 0}' +
-            '#wcai-checkout-wizard .wcai-consent-row{display:flex;align-items:center;gap:10px;padding:2px 0;font-size:14px;line-height:1.4;color:#222;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-consent{margin:12px 0 0;padding:12px;border:1px solid #d9d9d9;border-radius:10px;background:#fff;font-size:15px;line-height:1.5;color:#333}' +
+            '#wcai-checkout-wizard .wcai-consent p{margin:0 0 10px;font-size:15px;line-height:1.5;color:#333}' +
+            '#wcai-checkout-wizard .wcai-consent p.wcai-consent-hint{margin:8px 0 0;font-size:14px;font-weight:700;color:#b3261e}' +
+            '#wcai-checkout-wizard .wcai-consent-row{display:flex;align-items:center;gap:10px;padding:2px 0;font-size:15px;line-height:1.4;color:#222;cursor:pointer}' +
             '#wcai-checkout-wizard .wcai-consent-row input{flex:none;width:24px;height:24px;margin:0}' +
             '#wcai-checkout-wizard-footer{position:sticky;bottom:0;z-index:30;margin:14px 0 0;padding:0 0 8px;background:#fff;box-shadow:0 -6px 12px rgba(0,0,0,.06)}' +
             'html:has(body[class*="wcai-checkout-step-"]){scroll-padding-bottom:calc(var(--wcai-footer-h,0px) + 16px)}' +
@@ -761,8 +788,9 @@
             '#wcai-checkout-wizard-footer .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
             '#wcai-checkout-wizard-footer .wcai-wizard-actions button:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}' +
             '#wcai-checkout-wizard-footer .wcai-wizard-actions .wcai-wizard-submit{flex:1;max-width:none;background:#222;color:#fff;font:inherit;font-size:15px;font-weight:800}' +
-            '#wcai-checkout-wizard-footer .wcai-wizard-actions .wcai-wizard-submit[aria-disabled="true"]{background:#6b6b6b;border-color:#6b6b6b}' +
-            '#wcai-checkout-wizard-footer .wcai-consent-hint,#wcai-checkout-wizard .wcai-consent-hint{margin:8px 0 0;color:#b3261e;font-size:14px;font-weight:700}' +
+            'body.wcai-checkout-step-4.wcai-consent-box .wc-block-checkout__terms:not(:has(input[type="checkbox"])){display:none!important}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-text-input input,body[class*="wcai-checkout-step-"] .wc-block-components-address-form__address_2-toggle{min-height:44px;font-size:16px;box-sizing:border-box}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-address-form__address_2-toggle{display:inline-flex;align-items:center;padding:8px 12px}' +
             '@media(max-width:699px){#wcai-checkout-wizard{width:100%;padding:0}}' +
             '@media(max-width:600px){' +
             '#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}' +
@@ -850,12 +878,11 @@
         publishErrors(participantErrors());
 
         Array.prototype.slice.call(document.querySelectorAll('[data-wcai-consent-hint]')).forEach(function (hint) {
-            hint.hidden = consent;
+            hint.hidden = !consentHintVisible(consent, attempted);
         });
 
-        Array.prototype.slice.call(document.querySelectorAll('[data-wcai-submit]')).forEach(function (node) {
-            node.setAttribute('aria-disabled', consent ? 'false' : 'true');
-        });
+        var live = document.querySelector('[data-wcai-live]');
+        if (consent && live) live.textContent = 'Aceite registrado.';
 
         syncFooterSpace();
 
@@ -947,8 +974,7 @@
                 link.className = 'wcai-link';
                 link.textContent = entry.message;
                 link.addEventListener('click', function () {
-                    entry.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    entry.el.focus();
+                    focusField(entry.el);
                 });
                 li.appendChild(link);
             } else {
@@ -967,8 +993,7 @@
         })[0];
 
         var target = first ? first.el : summary;
-        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        target.focus();
+        focusField(target);
     }
 
     function errorSummary() {
@@ -1155,6 +1180,8 @@
     // O Woo só envia o pedido pelo botão nativo (escondido por CSS na etapa 4): o clique é repassado a ele.
     function placeOrder() {
         if (!consent) {
+            attempted = true;
+            setConsent(false);
             focusConsent();
             return;
         }
@@ -1177,10 +1204,7 @@
     function focusConsent() {
         var box = document.getElementById('wcai-consent');
 
-        if (box) {
-            box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            box.focus();
-        }
+        focusField(box);
     }
 
     // Reserva espaço para a barra fixa: foco e scrollIntoView nunca ficam atrás dela.
@@ -1197,7 +1221,7 @@
         var customer = customerData();
         var address = customer && customer.billingAddress ? customer.billingAddress : {};
 
-        node.hidden = !suspectCountry(address.country, address.state);
+        node.hidden = !countryHintVisible(currentStep, address.country, address.state);
     }
 
     function holderInfo() {
@@ -1354,6 +1378,7 @@
         });
 
         applyNativeStepVisibility();
+        refreshCountryHint();
         syncFooterSpace();
         saveDraft();
 
@@ -1375,7 +1400,32 @@
             validateAdditional();
         }
 
-        root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollHeadingIntoView(root.querySelector('[data-wcai-step="' + currentStep + '"] h3'));
+    }
+
+    // Altura do cabeçalho fixo/sticky no topo (admin bar, header do tema).
+    function stickyHeaderHeight() {
+        var height = 0;
+
+        Array.prototype.slice.call(document.querySelectorAll('header, #wpadminbar')).forEach(function (node) {
+            var position = window.getComputedStyle(node).position;
+            var rect = node.getBoundingClientRect();
+
+            if ((position === 'fixed' || position === 'sticky') && rect.top <= 1) height = Math.max(height, rect.bottom);
+        });
+
+        return height;
+    }
+
+    // Só rola se o título da etapa está fora da área visível (abaixo do cabeçalho, acima da barra fixa).
+    function scrollHeadingIntoView(heading) {
+        if (!heading) return;
+
+        var footer = document.getElementById('wcai-checkout-wizard-footer');
+        var rect = heading.getBoundingClientRect();
+        var delta = headingScrollDelta(rect.top, rect.bottom, window.innerHeight - (footer ? footer.offsetHeight : 0), stickyHeaderHeight());
+
+        if (delta !== 0) window.scrollBy({ top: delta, behavior: 'smooth' });
     }
 
     // Por que pedimos CPF e nascimento (etapas 2 e 3). Link só se o admin configurou a página de termos.
@@ -1647,17 +1697,9 @@
         var submit = button('Finalizar pedido', placeOrder, false);
         submit.className = 'wcai-wizard-submit';
         submit.setAttribute('data-wcai-submit', '');
-        submit.setAttribute('aria-disabled', consent ? 'false' : 'true');
         back.appendChild(submit);
 
-        // Perto do botão principal: sem alerta (o role=alert fica sob a caixa de aceite).
-        var hint = document.createElement('p');
-        hint.className = 'wcai-consent-hint';
-        hint.setAttribute('data-wcai-consent-hint', '');
-        hint.hidden = consent;
-        hint.textContent = 'Marque o aceite para finalizar.';
-
-        mountActions(panel, 4, [back, hint]);
+        mountActions(panel, 4, [back]);
         updateTotal();
     }
 
@@ -1730,7 +1772,7 @@
         hint.className = 'wcai-consent-hint';
         hint.setAttribute('role', 'alert');
         hint.setAttribute('data-wcai-consent-hint', '');
-        hint.hidden = consent;
+        hint.hidden = !consentHintVisible(consent, attempted);
         hint.textContent = 'Marque o aceite para finalizar o pedido.';
         input.setAttribute('aria-describedby', hint.id);
         box.appendChild(hint);
@@ -1950,9 +1992,13 @@
             maskCpfForReview: maskCpfForReview,
             participantSummary: participantSummary,
             consentErrors: consentErrors,
+            consentHintVisible: consentHintVisible,
+            focusField: focusField,
+            headingScrollDelta: headingScrollDelta,
             buildPayload: buildPayload,
             formatTotal: formatTotal,
             suspectCountry: suspectCountry,
+            countryHintVisible: countryHintVisible,
             stageGateCss: stageGateCss,
             duplicateCpfIds: duplicateCpfIds,
             holderHint: holderHint,
