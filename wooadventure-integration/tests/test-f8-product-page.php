@@ -86,8 +86,8 @@ class Test_F8_Product_Page extends TestCase {
         $with = WCAI_Product_Booking::availability_legend( true );
 
         $this->assertStringContainsString( 'Vagas livres', $without );
-        $this->assertStringNotContainsString( 'mín.', $without );
-        $this->assertStringContainsString( 'mín.', $with );
+        $this->assertStringNotContainsString( 'precisa de', $without );
+        $this->assertStringContainsString( 'precisa de', $with );
     }
 
     public function test_inline_css_has_no_fixed_width_above_a_phone_container() {
@@ -130,7 +130,7 @@ class Test_F8_Product_Page extends TestCase {
 
         $this->assertStringNotContainsString( "forming.reserved + '/' + forming.minimum", $js );
         $this->assertStringContainsString( "'faltam ' + forming.remaining_to_minimum", $js );
-        $this->assertStringContainsString( "'mín. ' + withMinimum.minimum", $js );
+        $this->assertStringContainsString( "'precisa de ' + withMinimum.minimum", $js );
         $this->assertStringContainsString( "label: 'Esgotado'", $js );
     }
 

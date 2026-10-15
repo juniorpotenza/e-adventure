@@ -122,6 +122,7 @@ trait WCAI_Product_Booking_Js_B {
             return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
         }
 
+        // Uma linha só: o aviso do grupo mínimo fica em updateGroupNote (nunca repetido aqui).
         function renderSelected(departure) {
             selectedDeparture.innerHTML = '';
 
@@ -130,27 +131,22 @@ trait WCAI_Product_Booking_Js_B {
             check.setAttribute('aria-hidden', 'true');
             check.textContent = '✓ ';
             title.appendChild(check);
-            title.appendChild(document.createTextNode('Selecionado'));
+            title.appendChild(document.createTextNode(fmt(i18n.selectedTime, departure.time)));
             selectedDeparture.appendChild(title);
-
-            if (departure.minimum > 1) {
-                var forming = departure.group_status === 'forming';
-                var status = document.createElement('p');
-                status.textContent = forming
-                    ? departure.reserved + ' de ' + departure.minimum + ' participantes reservados. Faltam ' + departure.remaining_to_minimum + ' para atingir o mínimo.'
-                    : departure.reserved + ' participantes reservados. O mínimo de ' + departure.minimum + ' já foi atingido.';
-                selectedDeparture.appendChild(status);
-
-                if (forming) {
-                    var rule = document.createElement('p');
-                    rule.textContent = departure.cutoff
-                        ? fmt(i18n.groupRule, departure.minimum, departure.cutoff)
-                        : fmt(i18n.groupRuleAny, departure.minimum);
-                    selectedDeparture.appendChild(rule);
-                }
-            }
-
             selectedDeparture.hidden = false;
+        }
+
+        // Único aviso de grupo mínimo: o da saída escolhida ou, antes disso, o da primeira em formação do dia.
+        function updateGroupNote() {
+            if (!groupNote) return;
+
+            var chosen = selectedItem();
+            var forming = chosen && chosen.group_status === 'forming' && chosen.minimum > 1 ? chosen
+                : (chosen ? null : dateDepartures(selectedDate).filter(function (item) { return item.group_status === 'forming' && item.minimum > 1; })[0]);
+
+            setText(groupNote, forming
+                ? (forming.cutoff ? fmt(i18n.groupRule, forming.minimum, forming.cutoff) : fmt(i18n.groupRuleAny, forming.minimum))
+                : '');
         }
 
         function renderTimes(date, freshItems, silent) {
@@ -185,25 +181,13 @@ trait WCAI_Product_Booking_Js_B {
                 var content = document.createElement('div');
                 content.className = 'wcai-time-option-content';
 
+                // Linha 1: situação do grupo; linha 2 (cinza): dados de apoio; linha 3: prazo da reserva.
                 var status = document.createElement('span');
                 status.className = 'wcai-time-status';
-                status.textContent = departure.group_label || departure.state_label;
+                status.textContent = departure.group_status === 'forming' && departure.minimum > 1
+                    ? fmt(i18n.forming, departure.remaining_to_minimum)
+                    : (departure.group_label || departure.state_label);
                 content.appendChild(status);
-
-                var formation = document.createElement('div');
-                formation.className = 'wcai-time-formation';
-
-                var formationText = document.createElement('b');
-                if (departure.minimum > 1) {
-                    formationText.textContent = departure.group_status === 'forming'
-                        ? (departure.reserved + ' de ' + departure.minimum + ' participantes · faltam ' + departure.remaining_to_minimum)
-                        : (departure.reserved + ' reservados · mínimo de ' + departure.minimum + ' atingido');
-                } else if (departure.reserved > 0) {
-                    formationText.textContent = departure.reserved + ' participante' + (departure.reserved === 1 ? '' : 's') + ' reservado' + (departure.reserved === 1 ? '' : 's');
-                } else {
-                    formationText.textContent = 'Ainda sem reservas';
-                }
-                formation.appendChild(formationText);
 
                 if (departure.minimum > 1) {
                     var progress = document.createElement('span');
@@ -211,22 +195,26 @@ trait WCAI_Product_Booking_Js_B {
                     var progressBar = document.createElement('i');
                     progressBar.style.width = Math.min(100, Math.max(0, parseInt(departure.formation_percent, 10) || 0)) + '%';
                     progress.appendChild(progressBar);
-                    formation.appendChild(progress);
+                    content.appendChild(progress);
                 }
-
-                content.appendChild(formation);
 
                 var meta = document.createElement('small');
                 var parts = [];
+                if (departure.minimum > 1) parts.push(departure.reserved + ' de ' + departure.minimum + ' reservados');
                 if (departure.available > 0) parts.push(departure.available + (departure.available === 1 ? ' vaga restante' : ' vagas restantes'));
                 if (departure.capacity) parts.push('Grupo até ' + departure.capacity);
                 else parts.push('Lotado');
                 if (departure.duration) parts.push(departure.duration + ' min');
                 if (departure.meeting_point) parts.push(departure.meeting_point);
                 if (departure.guide) parts.push('Guia: ' + capitalize(departure.guide));
-                if (departure.cutoff && departure.booking_open) parts.push('Reserva até ' + departure.cutoff);
-                meta.textContent = parts.join(' • ');
+                meta.textContent = parts.join(' · ');
                 content.appendChild(meta);
+
+                if (departure.cutoff && departure.booking_open) {
+                    var cutoff = document.createElement('small');
+                    cutoff.textContent = 'Reserva até ' + departure.cutoff;
+                    content.appendChild(cutoff);
+                }
 
                 button.appendChild(content);
 
@@ -250,6 +238,7 @@ trait WCAI_Product_Booking_Js_B {
                     button.setAttribute('aria-pressed', 'true');
 
                     renderSelected(departure);
+                    updateGroupNote();
                     if ( participantRoot ) participantRoot.hidden = false;
                     input.dispatchEvent(new Event('change', { bubbles: true }));
                     updateParticipantUI();
@@ -258,6 +247,8 @@ trait WCAI_Product_Booking_Js_B {
 
                 times.appendChild(button);
             });
+
+            updateGroupNote();
 
             if (!silent) {
                 var count = options.filter(qualifies).length;
@@ -271,6 +262,7 @@ trait WCAI_Product_Booking_Js_B {
             selectedDepartureId = '';
             input.value = '';
             selectedDeparture.hidden = true;
+            updateGroupNote();
             if ( participantRoot ) participantRoot.hidden = true;
 
             root.querySelectorAll('button.wcai-calendar-day').forEach(function (item) {

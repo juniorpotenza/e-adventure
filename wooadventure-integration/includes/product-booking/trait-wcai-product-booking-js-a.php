@@ -36,6 +36,8 @@ trait WCAI_Product_Booking_Js_A {
         var next = root.querySelector('[data-calendar-next]');
         var quickDates = root.querySelector('[data-calendar-quick]');
         var quickWrap = root.querySelector('[data-calendar-quick-wrap]');
+        var quickArrows = root.querySelectorAll('[data-calendar-scroll]');
+        var groupNote = root.querySelector('[data-calendar-group-note]');
         var calendarFull = root.querySelector('[data-calendar-full]');
         var calendarToggle = root.querySelector('[data-calendar-toggle]');
         var times = root.querySelector('[data-calendar-times]');
@@ -122,6 +124,12 @@ trait WCAI_Product_Booking_Js_A {
             element.hidden = !text;
         }
 
+        function describeDisabled(button, reason) {
+            if (!button) return;
+            if (button.disabled && reason && !reason.hidden && reason.id) button.setAttribute('aria-describedby', reason.id);
+            else button.removeAttribute('aria-describedby');
+        }
+
         function updateParticipantUI() {
             var adults = adultCount();
             var children = childCount();
@@ -164,8 +172,14 @@ trait WCAI_Product_Booking_Js_A {
                     current ? fmt(i18n.remaining, Math.max(0, available - total)) : '');
                 setText(participantRoot.querySelector('[data-participant-limit]'),
                     closed ? i18n.closed : (capacityReached ? fmt(i18n.limit, available) : ''));
-                setText(childRow ? childRow.querySelector('[data-participant-reason]') : null,
+                var childReason = childRow ? childRow.querySelector('[data-participant-reason]') : null;
+                setText(childReason,
                     childEnabled && children >= childMax && !capacityReached ? fmt(i18n.childLimit, childMax) : '');
+
+                // Botão desabilitado aponta para o motivo visível (limite de vagas ou máximo de crianças).
+                var limitEl = participantRoot.querySelector('[data-participant-limit]');
+                describeDisabled(adultPlus, limitEl);
+                describeDisabled(childPlus, limitEl && !limitEl.hidden ? limitEl : childReason);
             }
 
             updateCartState();
@@ -194,7 +208,7 @@ trait WCAI_Product_Booking_Js_A {
                 return {
                     state: best <= 3 ? 'few' : 'available',
                     label: best + ' vaga' + (best === 1 ? '' : 's'),
-                    hint: forming ? 'faltam ' + forming.remaining_to_minimum : (withMinimum ? 'mín. ' + withMinimum.minimum : '')
+                    hint: forming ? 'faltam ' + forming.remaining_to_minimum + ' para confirmar' : (withMinimum ? 'precisa de ' + withMinimum.minimum : '')
                 };
             }
 
@@ -274,13 +288,23 @@ trait WCAI_Product_Booking_Js_A {
             chips.forEach(function (chip) { chip.tabIndex = chip === stop ? 0 : -1; });
         }
 
-        // Fade nas bordas quando há mais datas fora da área visível.
+        // Setas reais (botões) só aparecem quando há mais datas fora da área visível.
         function updateQuickFade() {
             if (!quickWrap || !quickDates) return;
 
             var max = quickDates.scrollWidth - quickDates.clientWidth;
-            quickWrap.classList.toggle('has-prev', quickDates.scrollLeft > 2);
-            quickWrap.classList.toggle('has-next', max > 2 && quickDates.scrollLeft < max - 2);
+            var hasPrev = quickDates.scrollLeft > 2;
+            var hasNext = max > 2 && quickDates.scrollLeft < max - 2;
+
+            quickArrows.forEach(function (arrow) {
+                var hide = arrow.getAttribute('data-calendar-scroll') === '-1' ? !hasPrev : !hasNext;
+                // Seta que sumiu com o foco nela: devolve o foco ao chip ativo, sem perdê-lo.
+                if (hide && !arrow.hidden && document.activeElement === arrow) {
+                    var stop = quickDates.querySelector('.wcai-quick-date[tabindex="0"]');
+                    if (stop) stop.focus({ preventScroll: true });
+                }
+                arrow.hidden = hide;
+            });
         }
 
 JS;

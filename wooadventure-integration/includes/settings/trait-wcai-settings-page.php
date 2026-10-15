@@ -120,6 +120,13 @@ trait WCAI_Settings_Page {
                             <p class="description"><?php echo esc_html__( 'Opcional. Aparece em "Antes de reservar" como link para ligar.', 'wooadventure-integration' ); ?></p>
                         </td>
                     </tr>
+                    <tr valign="top">
+                        <th scope="row"><label for="wcai_accent_color"><?php echo esc_html__( 'Cor de destaque', 'wooadventure-integration' ); ?></label></th>
+                        <td>
+                            <input type="text" id="wcai_accent_color" name="wcai_accent_color" value="<?php echo esc_attr( self::get_accent_color() ); ?>" class="regular-text" maxlength="7" pattern="#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?" placeholder="#111111" />
+                            <p class="description"><?php echo esc_html__( 'Opcional. Cor hexadecimal (ex.: #0b6e4f) das datas, horários e botões selecionados. Vazio: mantém #111.', 'wooadventure-integration' ); ?></p>
+                        </td>
+                    </tr>
                 </table>
                 <hr>
 

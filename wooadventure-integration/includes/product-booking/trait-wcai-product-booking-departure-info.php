@@ -2,16 +2,17 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 trait WCAI_Product_Booking_Departure_Info {
-    // Legenda das datas: o número é de vagas livres; "mín." só aparece se alguma saída tem grupo mínimo.
+    // Legenda das datas: o número é de vagas livres; "precisa de N" só aparece se alguma saída tem grupo mínimo.
     public static function availability_legend( $has_minimum ) {
         $legend = 'Vagas livres em cada data.';
 
-        return $has_minimum ? $legend . ' "mín." é o grupo mínimo para o passeio sair.' : $legend;
+        return $has_minimum ? $legend . ' "precisa de N" é o grupo mínimo para o passeio sair.' : $legend;
     }
 
     // Textos que o JS usa; um lugar só para o vocabulário (passeio, horário, vagas).
     public static function booking_i18n() {
         return array(
+            'forming'      => __( 'Grupo em formação · faltam %d para confirmar', 'wooadventure-integration' ),
             'hintDate'     => __( 'Escolha uma data', 'wooadventure-integration' ),
             'hintTime'     => __( 'Escolha um horário', 'wooadventure-integration' ),
             'hintReady'    => __( 'Pronto: %s', 'wooadventure-integration' ),
@@ -19,6 +20,7 @@ trait WCAI_Product_Booking_Departure_Info {
             'timesOne'     => __( '%d horário disponível em %s', 'wooadventure-integration' ),
             'timesMany'    => __( '%d horários disponíveis em %s', 'wooadventure-integration' ),
             'noTimes'      => __( 'Não há passeio neste dia.', 'wooadventure-integration' ),
+            'selectedTime' => __( '%s selecionado', 'wooadventure-integration' ),
             'selected'     => __( 'Selecionado: %s', 'wooadventure-integration' ),
             'remaining'    => __( 'Vagas restantes depois da sua reserva: %d', 'wooadventure-integration' ),
             'limit'        => __( 'Máximo %d (vagas restantes)', 'wooadventure-integration' ),

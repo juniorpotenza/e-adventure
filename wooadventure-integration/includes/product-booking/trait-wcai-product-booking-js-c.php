@@ -83,6 +83,7 @@ trait WCAI_Product_Booking_Js_C {
             }
         }
 
+        // Padrão radio com foco móvel: as setas só movem o foco; Enter/Espaço escolhem a data.
         function onQuickKeydown(event) {
             var chips = enabledChips();
             var from = chips.indexOf(document.activeElement);
@@ -135,6 +136,12 @@ trait WCAI_Product_Booking_Js_C {
                 hintEl.textContent = hintText();
                 hintEl.classList.toggle('is-ready', !missing);
             }
+
+            // A barra fixa do celular mostra o total ao vivo (ouvida em cta_js).
+            var total = quantity();
+            document.dispatchEvent(new CustomEvent('wcai:booking-state', {
+                detail: { ready: !missing, text: participantsLabel(total) + (price > 0 ? ' · ' + money(Math.round(price * total * 100) / 100) : '') }
+            }));
 
             buttons.forEach(function (button) {
                 // aria-disabled (e não disabled) mantém o botão focável e ligado à dica; o clique é barrado em guardAddToCart.
@@ -227,6 +234,13 @@ trait WCAI_Product_Booking_Js_C {
         if (quickDates) {
             quickDates.addEventListener('keydown', onQuickKeydown);
             quickDates.addEventListener('scroll', updateQuickFade, { passive: true });
+            quickArrows.forEach(function (arrow) {
+                arrow.addEventListener('click', function () {
+                    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    var step = parseInt(arrow.getAttribute('data-calendar-scroll'), 10) * Math.round(quickDates.clientWidth * 0.8);
+                    quickDates.scrollBy({ left: step, behavior: reduce ? 'auto' : 'smooth' });
+                });
+            });
             window.addEventListener('resize', updateQuickFade);
         }
 

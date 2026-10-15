@@ -43,6 +43,7 @@ class WCAI_Settings {
         register_setting( 'wcai_settings_group', 'wcai_terms_url', array( 'sanitize_callback' => 'esc_url_raw' ) );
         register_setting( 'wcai_settings_group', 'wcai_cancellation_policy', array( 'sanitize_callback' => array( $this, 'sanitize_cancellation_policy' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_contact_phone', array( 'sanitize_callback' => array( $this, 'sanitize_contact_phone' ) ) );
+        register_setting( 'wcai_settings_group', 'wcai_accent_color', array( 'sanitize_callback' => array( $this, 'sanitize_accent_color' ) ) );
         register_setting( 'wcai_settings_group', 'wcai_delete_data_on_uninstall', array( 'sanitize_callback' => array( $this, 'sanitize_delete_data' ) ) );
     }
 
@@ -70,6 +71,8 @@ class WCAI_Settings {
     public static function get_terms_url() { return get_option( 'wcai_terms_url', '' ); }
     public static function get_cancellation_policy() { return (string) get_option( 'wcai_cancellation_policy', '' ); }
     public static function get_contact_phone() { return (string) get_option( 'wcai_contact_phone', '' ); }
+    // Hex válido (#abc ou #aabbcc) ou '' (= mantém o padrão #111); nunca devolve valor sem validar.
+    public static function get_accent_color() { return self::clean_hex( get_option( 'wcai_accent_color', '' ) ); }
     public static function get_carta_oferta() { return get_option( 'wcai_carta_oferta', '' ); }
     public static function get_date_meta_key() { return get_option( 'wcai_event_date_meta_key', get_option( 'wcai_date_meta_key', 'tour_date' ) ); }
     public static function get_event_date_source() { return get_option( 'wcai_event_date_source', 'departure' ); }

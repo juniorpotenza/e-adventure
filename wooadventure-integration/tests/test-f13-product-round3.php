@@ -177,7 +177,7 @@ class Test_F13_Product_Round3 extends TestCase {
 
         $this->assertStringContainsString( 'form.cart:has(.wcai-product-booking){grid-template-columns:minmax(0,1fr)!important', $css );
         $this->assertStringContainsString( '.wp-block-columns:has(.wcai-product-booking){flex-wrap:wrap!important}', $css );
-        $this->assertStringContainsString( 'grid-auto-columns:minmax(84px,1fr)', $css );
+        $this->assertStringContainsString( 'grid-auto-columns:minmax(108px,1fr)', $css );
         $this->assertStringContainsString( 'scroll-snap-type:x mandatory', $css );
         $this->assertSame( 0, preg_match( '/(?<![\w-])(?:min-)?width:\s*\d{3,}px/', $css ) );
         $this->assertSame( 0, preg_match( '/grid-template-columns:[^;}]*\b\d{3,}px/', $css ) );
@@ -187,15 +187,15 @@ class Test_F13_Product_Round3 extends TestCase {
         $css = $this->css();
 
         $this->assertStringContainsString( '.wcai-product-booking button,.wcai-product-booking input,.wcai-product-booking select{font-family:inherit}', $css );
-        $this->assertStringContainsString( 'outline:3px solid #1a56db;outline-offset:2px', $css );
-        $this->assertMatchesRegularExpression( '/\.wcai-stepper button:disabled\{opacity:\.4;cursor:not-allowed\}/', $css );
+        $this->assertStringContainsString( 'outline:3px solid var(--wcai-focus,#1a56db);outline-offset:2px', $css );
+        $this->assertMatchesRegularExpression( '/\.wcai-stepper button:disabled\{opacity:\.45;border-color:#bbb;cursor:not-allowed\}/', $css );
     }
 
-    public function test_css_has_no_text_below_twelve_pixels() {
+    public function test_css_has_no_text_below_thirteen_pixels() {
         preg_match_all( '/font-size:\s*(\d+(?:\.\d+)?)px/', $this->css(), $m );
 
         $this->assertNotEmpty( $m[1] );
-        $this->assertGreaterThanOrEqual( 12.0, (float) min( $m[1] ) );
+        $this->assertGreaterThanOrEqual( 13.0, (float) min( $m[1] ) );
     }
 
     public function test_js_has_radio_chips_roving_focus_debounce_and_stale_guard() {

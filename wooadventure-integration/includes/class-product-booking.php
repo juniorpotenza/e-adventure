@@ -9,9 +9,11 @@ require_once __DIR__ . '/product-booking/trait-wcai-product-booking-js-a.php';
 require_once __DIR__ . '/product-booking/trait-wcai-product-booking-js-b.php';
 require_once __DIR__ . '/product-booking/trait-wcai-product-booking-js-c.php';
 require_once __DIR__ . '/product-booking/trait-wcai-product-booking-cart.php';
+require_once __DIR__ . '/product-booking/trait-wcai-product-booking-round4.php';
+require_once __DIR__ . '/product-booking/trait-wcai-product-booking-round4-assets.php';
 
 class WCAI_Product_Booking {
-    use WCAI_Product_Booking_Departure, WCAI_Product_Booking_Departure_Info, WCAI_Product_Booking_Admin, WCAI_Product_Booking_Facts, WCAI_Product_Booking_Assets, WCAI_Product_Booking_Js_A, WCAI_Product_Booking_Js_B, WCAI_Product_Booking_Js_C, WCAI_Product_Booking_Cart;
+    use WCAI_Product_Booking_Departure, WCAI_Product_Booking_Departure_Info, WCAI_Product_Booking_Admin, WCAI_Product_Booking_Facts, WCAI_Product_Booking_Assets, WCAI_Product_Booking_Js_A, WCAI_Product_Booking_Js_B, WCAI_Product_Booking_Js_C, WCAI_Product_Booking_Cart, WCAI_Product_Booking_Round4, WCAI_Product_Booking_Round4_Assets;
 
     const FIELD = 'wcai_product_departure_id';
     const MAX_AJAX_QUANTITY = 100;
@@ -45,6 +47,10 @@ class WCAI_Product_Booking {
         add_filter( 'woocommerce_add_to_cart_quantity', array( $this, 'filter_add_to_cart_quantity' ), 10, 3 );
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'add_order_item_data' ), 10, 4 );
         add_action( 'woocommerce_single_product_summary', array( $this, 'render_product_facts' ), 16 );
+        add_filter( 'body_class', array( $this, 'filter_body_class' ) );
+        add_filter( 'woocommerce_get_price_html', array( $this, 'filter_price_html' ), 10, 2 );
+        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_round4_assets' ) );
+        add_action( 'wp_footer', array( $this, 'render_sticky_cta' ) );
         add_filter( 'woocommerce_product_data_tabs', array( $this, 'add_product_data_tab' ) );
         add_action( 'woocommerce_product_data_panels', array( $this, 'render_product_data_panel' ) );
         add_action( 'woocommerce_admin_process_product_object', array( $this, 'save_product_data' ) );
