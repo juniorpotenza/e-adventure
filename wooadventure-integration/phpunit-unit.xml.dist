@@ -16,6 +16,10 @@
         <testsuite name="f15"><file>tests/test-f15-order-pages-round3.php</file></testsuite>
         <testsuite name="f16"><file>tests/test-f16-order-pages-masking.php</file></testsuite>
         <testsuite name="f17"><file>tests/test-f17-masked-input-oracle.php</file></testsuite>
+        <testsuite name="f18"><file>tests/test-f18-product-round4.php</file></testsuite>
+        <testsuite name="f19"><file>tests/test-f19-checkout-round4.php</file></testsuite>
+        <testsuite name="f20"><file>tests/test-f20-account-round4.php</file></testsuite>
+        <testsuite name="f21"><file>tests/test-f21-account-round4-privacy.php</file></testsuite>
         <testsuite name="f4"><file>tests/test-f4-guide-scope.php</file></testsuite>
         <testsuite name="t2"><file>tests/test-t2-assinatura.php</file></testsuite>
         <testsuite name="t4"><file>tests/test-t4-scanner.php</file></testsuite>
