@@ -18,6 +18,7 @@ trait WCAI_Frontend_Account_Assets {
             .wcai-scroll-area { overflow-y: auto; padding: 20px; flex: 1; }
             .wcai-modal-notice { margin-bottom: 15px; padding: 15px; border-radius: 5px; font-size: 14px; line-height: 1.5; border: 1px solid; }
             .wcai-modal-notice--ok { background: #d4edda; color: #155724; border-color: #c3e6cb; }
+            .wcai-modal-notice--info { background: #f0f0f1; color: #1d2327; border-color: #dcdcde; }
             .wcai-modal-notice--warn { background: #fff3cd; color: #664d03; border-color: #ffeeba; }
             a.wcai-modal-sign { color: inherit; font-weight: 700; text-decoration: underline; display: inline-block; margin-top: 6px; }
             .wcai-pcard { border: 1px solid #dcdcde; border-radius: 8px; padding: 12px 14px; margin: 0 0 14px; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
@@ -47,16 +48,19 @@ trait WCAI_Frontend_Account_Assets {
             const setupMasks = () => {
                 if (!$.fn || !$.fn.mask) { return; }
                 $('.wcai-mask-cpf').not('[data-masked]').mask('000.000.000-00');
-                $('.wcai-mask-date').mask('00/00/0000');
+                // Nascimento chega só com o ano ("**/**/1985", data-masked): a máscara de data só entra quando a pessoa digita.
+                $('.wcai-mask-date').not('[data-masked]').mask('00/00/0000');
             };
             setupMasks();
-            // CPF chega mascarado (529.***.***-25): ao digitar, descarta a máscara e vira campo normal. Sem digitar, o servidor mantém o CPF guardado.
+            // CPF e nascimento chegam mascarados (529.***.***-25, **/**/1985): ao digitar, descarta a máscara e vira campo normal
+            // (o nascimento também descarta a flag nasc_unchanged). Sem digitar, o servidor mantém o valor guardado.
             $(document).on('focusin', 'input[data-masked]', function(){ this.select(); });
             $(document).on('input', 'input[data-masked]', function(){
-                var digits = this.value.replace(/\D/g, '');
+                var digits = this.value.replace(/\D/g, ''), isDate = $(this).hasClass('wcai-mask-date');
                 $(this).removeAttr('data-masked');
+                if (isDate) { $(this).closest('.wcai-pfield').find('input[name$="[nasc_unchanged]"]').remove(); }
                 this.value = digits;
-                if ($.fn && $.fn.mask) { $(this).mask('000.000.000-00'); }
+                if ($.fn && $.fn.mask) { $(this).mask(isDate ? '00/00/0000' : '000.000.000-00'); }
             });
             var i18n = { processing: <?php echo wp_json_encode( __( 'Processando...', 'wooadventure-integration' ) ); ?>, failed: <?php echo wp_json_encode( __( 'Não foi possível salvar. Tente novamente.', 'wooadventure-integration' ) ); ?> };
             var lastFocus = null;

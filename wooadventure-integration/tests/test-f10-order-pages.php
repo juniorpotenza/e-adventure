@@ -140,7 +140,7 @@ class Test_F10_Order_Pages extends TestCase {
     }
 
     public function test_qr_explanation_names_the_exact_missing_condition() {
-        $base = 'O QR code do ingresso é liberado depois que o pagamento é confirmado e o termo é assinado.';
+        $base = 'O ingresso (QR) é liberado depois que o pagamento é confirmado e o termo de responsabilidade é assinado.';
 
         $this->assertSame( $base . ' Falta: pagamento pendente e termo pendente.', $this->call( 'qr_explanation', array( false, false ) ) );
         $this->assertSame( $base . ' Falta: pagamento pendente.', $this->call( 'qr_explanation', array( true, false ) ) );
@@ -179,7 +179,9 @@ class Test_F10_Order_Pages extends TestCase {
 
         $this->assertStringNotContainsString( 'Ações', $html );
         $this->assertStringNotContainsString( 'wa.me', $html );
-        $this->assertStringContainsString( 'O QR code do ingresso é liberado', $html );
+        // A regra do ingresso (QR) aparece uma vez acima da lista; a linha leva só a nota curta.
+        $this->assertSame( 1, substr_count( $html, 'class="wcai-qr-intro">O ingresso (QR) é liberado' ) );
+        $this->assertStringContainsString( '>QR após assinar</small>', $html );
         $this->assertStringNotContainsString( 'Pendente</div>', $html );
     }
 
@@ -214,18 +216,17 @@ class Test_F10_Order_Pages extends TestCase {
     public function test_orders_list_terms_chip_has_tooltip_and_counts() {
         $html = $this->call( 'terms_chip_summary_html', array( array( 'total' => 2, 'signed' => 0, 'pending' => 2 ) ) );
 
-        $this->assertStringContainsString( 'Termos 0/2', $html );
-        $this->assertStringContainsString( 'title="Termos assinados: 0 de 2.', $html );
+        $this->assertStringContainsString( 'Termo pendente (2)', $html );
+        $this->assertStringContainsString( 'title="Termos de responsabilidade assinados: 0 de 2.', $html );
     }
 
-    public function test_status_column_explains_pending_term() {
+    public function test_status_column_shows_only_the_status_name() {
         WCAI_Participants_DB::$rows = array( $this->row( 1, 'Ana' ), $this->row( 2, 'Bia' ) );
         ob_start();
         $this->account()->append_status_column( new WcaiF10Order() );
         $html = ob_get_clean();
 
-        $this->assertStringContainsString( 'Termo pendente (2)', $html );
-        $this->assertStringContainsString( 'liberar o QR code', $html );
+        $this->assertStringNotContainsString( 'Termo pendente', $html );
     }
 
     // --- CPF mascarado nas páginas do cliente ---

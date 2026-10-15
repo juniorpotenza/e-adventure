@@ -257,7 +257,7 @@ class Test_F16_Order_Pages_Masking extends TestCase {
 
         $first = $account->append_extras_to_confirmation_block( '<div>totais</div>' );
         $this->assertStringStartsWith( '<div>totais</div>', $first );
-        $this->assertStringContainsString( 'class="wcai-order-extra" style="max-width:var(--wp--style--global--content-size,720px);margin:2rem auto;padding:0 1.5rem"', $first );
+        $this->assertStringContainsString( 'class="wcai-order-extra alignwide"', $first );
         $this->assertStringContainsString( 'Lista de Participantes', $first );
         $this->assertStringContainsString( 'Próximos passos', $first );
         $this->assertSame( '<p>info</p>', $account->append_extras_to_confirmation_block( '<p>info</p>' ) );
@@ -286,9 +286,10 @@ class Test_F16_Order_Pages_Masking extends TestCase {
         $GLOBALS['wcai_f15_order'] = new WcaiF16Order();
         $html = $this->cell( new WcaiF16Order() );
 
-        $this->assertStringContainsString( 'Editar participantes (0/2)', $html );
+        $this->assertStringContainsString( '>Editar participantes</button>', $html );
+        $this->assertStringContainsString( 'Termo pendente (2)', $html );
         $this->assertStringNotContainsString( 'Assinar (0/2)', $html );
-        $this->assertStringContainsString( 'class="wcai-sign-all wcai-sign-all--list" href="https://site.test/termo/?key=wc_order_abc">Assinar termos</a>', $html );
+        $this->assertStringContainsString( 'class="wcai-sign-all wcai-sign-all--list" href="https://site.test/termo/?key=wc_order_abc" target="_blank" rel="noopener">Assinar termos<span class="wcai-sr"> (abre em nova aba)</span></a>', $html );
         $this->assertStringNotContainsString( 'Ver Dados', $html );
     }
 
@@ -307,7 +308,7 @@ class Test_F16_Order_Pages_Masking extends TestCase {
 
         $this->assertStringContainsString( 'Faltam 2 termos.', $html );
         $this->assertStringNotContainsString( 'Faltam assinaturas', $html );
-        $this->assertStringContainsString( 'Assinar termo de Ana</a>', $html );
+        $this->assertStringContainsString( 'Assinar termo de Ana<span class="wcai-sr"> (abre em nova aba)</span></a>', $html );
         $this->assertStringNotContainsString( 'Clique aqui', $html );
     }
 
@@ -315,7 +316,7 @@ class Test_F16_Order_Pages_Masking extends TestCase {
         $this->set_rows( array( $this->row( 1, 'ana souza', self::HOLDER_CPF ) ) );
         $html = $this->call( 'order_extras_html', array( new WcaiF16Order(), WCAI_Participants_DB::$rows, false ) );
 
-        $this->assertStringContainsString( 'aria-label="Assinar termo de Ana Souza">Assinar termo</a>', $html );
+        $this->assertStringContainsString( 'target="_blank" rel="noopener" aria-label="Assinar termo de Ana Souza (abre em nova aba)">Assinar termo<span class="wcai-sr"> (abre em nova aba)</span></a>', $html );
         $this->assertStringContainsString( '<strong>Ana Souza</strong>', $html );
     }
 

@@ -12,23 +12,9 @@ trait WCAI_Frontend_Account_Modal {
         return $new;
     }
 
+    // Coluna Status: só o nome do status; o estado do termo fica no chip da coluna Participantes (uma regra só).
     public function append_status_column($order) {
-        $participants = $this->can_view_order_participants( $order ) ? $this->get_participants_safe( $order ) : array();
-        if ( empty( $participants ) ) { echo esc_html( wc_get_order_status_name( $order->get_status() ) ); return; }
-
-        $summary = $this->terms_summary( $order, $participants );
-        $total = $summary['total'];
-        $signed = $summary['signed'];
-
         echo esc_html( wc_get_order_status_name( $order->get_status() ) );
-
-        if ($total > 0 && $signed < $total) {
-            $tip = __( 'Assine o termo de cada participante para liberar o QR code do ingresso.', 'wooadventure-integration' );
-            echo '<div style="font-size: 12px; color: #b32d2e; margin-top: 3px; font-weight:600;" title="' . esc_attr( $tip ) . '">';
-            echo esc_html__( 'Termo pendente', 'wooadventure-integration' ) . ' (' . (int) $summary['pending'] . ')';
-            echo '<span class="screen-reader-text" style="position:absolute; left:-9999px;"> ' . esc_html( $tip ) . '</span>';
-            echo '</div>';
-        }
     }
 
     public function column_content($order) {
@@ -38,45 +24,32 @@ trait WCAI_Frontend_Account_Modal {
         $order_id = $order->get_id();
         $is_locked = $this->is_order_locked( $order );
         $modal_id = 'wcai-modal-' . $order_id;
+        $state = $this->order_terms_state( $order, $participants );
 
-        $summary = $this->terms_summary( $order, $participants );
-        $total = $summary['total'];
-        $signed = $summary['signed'];
-
-        // Botão Inteligente: abre o modal de dados; a assinatura do termo é o link separado "Assinar termos".
-        $btn_style = '';
-        $btn_text = $is_locked ? 'Participantes' : 'Editar participantes';
-
-        if ($total > 0 && !$is_locked) {
-            if ($signed == $total) {
-                $btn_text = '✅ Participantes';
-                $btn_style = 'background-color: #1e7e34; color: #fff; border-color: #1e7e34;';
-            } else {
-                $btn_text = "⚠️ Editar participantes ($signed/$total)";
-                $btn_style = 'background-color: #ffba00; color: #1d2327; border-color: #ffba00;';
-            }
-        }
-
-        echo '<div class="wcai-orders-participants" style="margin-bottom:6px; font-size:13px;">' . esc_html( $this->participants_summary_line( $participants ) ) . ' ' . $this->terms_chip_summary_html( $summary ) . '</div>';
-        echo '<button class="button wcai-open-modal" data-target="' . $modal_id . '" style="width:100%; ' . $btn_style . '">' . $btn_text . '</button>';
+        // Um botão principal ("Assinar termos") e secundários em contorno; o modal edita os dados, o termo abre em nova aba.
+        echo '<div class="wcai-orders-participants">' . esc_html( $this->participants_summary_line( $participants ) ) . ' ' . $this->terms_chip_summary_html( $state, $order ) . '</div>';
         $terms_url = $this->get_terms_url( $order );
-        if ( $terms_url && $this->terms_cta_visible( $order, $participants, $summary['pending'] ) ) {
-            echo '<a class="wcai-sign-all wcai-sign-all--list" href="' . esc_url( $terms_url ) . '">' . esc_html__( 'Assinar termos', 'wooadventure-integration' ) . '</a>';
+        if ( $terms_url && $this->terms_cta_visible( $order, $participants, $state['pending'] ) ) {
+            echo $this->terms_link_html( $terms_url, __( 'Assinar termos', 'wooadventure-integration' ), 'wcai-sign-all wcai-sign-all--list' );
         }
+        echo '<button type="button" class="button wcai-open-modal" data-target="' . esc_attr( $modal_id ) . '">' . esc_html( $is_locked ? __( 'Participantes', 'wooadventure-integration' ) : __( 'Editar participantes', 'wooadventure-integration' ) ) . '</button>';
 
         $this->render_modal_html($order_id, $participants, $is_locked, $modal_id);
     }
 
-    // Aviso do topo do modal: termos que faltam (com link) ou "tudo certo".
+    // Aviso do topo do modal: pedido encerrado, termos que faltam (com link) ou "tudo certo".
     private function modal_notice_html( $order, $participants, $summary ) {
+        if ( $this->is_order_locked( $order ) ) {
+            return array( 'info', '<strong>' . esc_html__( 'Pedido encerrado.', 'wooadventure-integration' ) . '</strong> ' . esc_html__( 'Os dados ficam só para consulta.', 'wooadventure-integration' ) );
+        }
         if ( $summary['total'] > 0 && $summary['pending'] < 1 ) {
-            return array( 'ok', '✅ <strong>Tudo certo!</strong> Todos os ' . (int) $summary['total'] . ' participantes assinaram.' );
+            return array( 'ok', '✅ <strong>Tudo certo!</strong> Todos os ' . (int) $summary['total'] . ' participantes assinaram o termo de responsabilidade.' );
         }
         if ( $summary['total'] < 1 ) {
             return array( 'warn', '⚠️ <strong>Dados incompletos.</strong> Informe nome, CPF e data de nascimento dos participantes.' );
         }
         $missing = (int) $summary['pending'];
-        $text = '⚠️ <strong>Atenção:</strong> ' . ( 1 === $missing ? 'Falta 1 termo.' : 'Faltam ' . $missing . ' termos.' ) . ' Cada participante assina o seu termo.';
+        $text = '⚠️ <strong>Atenção:</strong> ' . ( 1 === $missing ? 'Falta 1 termo.' : 'Faltam ' . $missing . ' termos.' ) . ' Cada participante assina o seu termo de responsabilidade.';
         $terms_url = $this->get_terms_url( $order );
         if ( $terms_url && $this->terms_cta_visible( $order, $participants, $summary['pending'] ) ) {
             $first = '';
@@ -87,8 +60,7 @@ trait WCAI_Frontend_Account_Modal {
                     break;
                 }
             }
-            $label = sprintf( __( 'Assinar termo de %s', 'wooadventure-integration' ), $first );
-            $text .= '<br><a class="wcai-modal-sign" href="' . esc_url( $terms_url ) . '" target="_blank" rel="noopener">👉 ' . esc_html( $label ) . '</a>';
+            $text .= '<br>' . $this->terms_link_html( $terms_url, sprintf( __( 'Assinar termo de %s', 'wooadventure-integration' ), $first ), 'wcai-modal-sign' );
         }
         return array( 'warn', $text );
     }
@@ -138,6 +110,8 @@ trait WCAI_Frontend_Account_Modal {
                             // Nascimento completo só aparece para quem pode editar; senão só a idade (+ flag "não alterado").
                             $show_date = ! $is_locked && ! $name_locked;
                             $val_nasc = $this->force_date_to_display($p['data_nascimento']);
+                            // Nascimento nunca vai completo no HTML: só o ano, com data-masked e a flag nasc_unchanged (o servidor mantém a data guardada).
+                            $nasc_masked = $show_date && '' !== $val_nasc;
                             $age_text = $this->participant_age_label( $p['data_nascimento'] );
                         ?>
                             <fieldset class="wcai-pcard">
@@ -145,7 +119,7 @@ trait WCAI_Frontend_Account_Modal {
                                 <?php echo $id_input; ?>
                                 <div class="wcai-pfield wcai-pfield--name">
                                     <label for="<?php echo esc_attr( $uid ); ?>-nome">Nome completo <?php echo $badge; ?></label>
-                                    <input type="text" id="<?php echo esc_attr( $uid ); ?>-nome" name="<?php echo esc_attr( $base ); ?>[nome_completo]" value="<?php echo esc_attr($p['nome_completo']); ?>" <?php echo $readonly; ?><?php echo $name_locked ? ' readonly' : ''; ?> required>
+                                    <input type="text" id="<?php echo esc_attr( $uid ); ?>-nome" name="<?php echo esc_attr( $base ); ?>[nome_completo]" value="<?php echo esc_attr( $this->display_name( $p['nome_completo'] ) ); ?>" <?php echo $readonly; ?><?php echo $name_locked ? ' readonly' : ''; ?> required>
                                     <?php if ( $name_locked ) : ?>
                                         <small>🔒 <?php echo esc_html__( 'Nome bloqueado após o aceite do termo ou check-in. Para alterar, fale com o suporte.', 'wooadventure-integration' ); ?></small>
                                     <?php endif; ?>
@@ -157,7 +131,8 @@ trait WCAI_Frontend_Account_Modal {
                                 <div class="wcai-pfield">
                                     <label for="<?php echo esc_attr( $uid ); ?>-nasc">Data de nascimento</label>
                                     <?php if ( $show_date ) : ?>
-                                        <input type="text" id="<?php echo esc_attr( $uid ); ?>-nasc" class="wcai-mask-date" name="<?php echo esc_attr( $base ); ?>[data_nascimento]" value="<?php echo esc_attr($val_nasc); ?>" <?php echo $readonly; ?> required placeholder="dd/mm/aaaa" inputmode="numeric">
+                                        <input type="text" id="<?php echo esc_attr( $uid ); ?>-nasc" class="wcai-mask-date" name="<?php echo esc_attr( $base ); ?>[data_nascimento]" value="<?php echo esc_attr( $nasc_masked ? $this->mask_birthdate_in_html( $val_nasc ) : $val_nasc ); ?>"<?php echo $nasc_masked ? ' data-masked="1" maxlength="10"' : ''; ?> autocomplete="off" <?php echo $readonly; ?> required placeholder="dd/mm/aaaa" inputmode="numeric">
+                                        <?php if ( $nasc_masked ) : ?><input type="hidden" name="<?php echo esc_attr( $base ); ?>[nasc_unchanged]" value="1"><?php endif; ?>
                                     <?php else : ?>
                                         <input type="text" id="<?php echo esc_attr( $uid ); ?>-nasc" value="<?php echo esc_attr( $age_text ? $age_text : '—' ); ?>" readonly>
                                         <?php if ( ! $is_locked ) : ?><input type="hidden" name="<?php echo esc_attr( $base ); ?>[nasc_unchanged]" value="1"><?php endif; ?>

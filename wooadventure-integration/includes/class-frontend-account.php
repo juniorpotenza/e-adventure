@@ -8,6 +8,10 @@ require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-admin.php'
 require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-save.php';
 require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-assets.php';
 require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-orderpage.php';
+require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-state.php';
+require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-extras.php';
+require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-dashboard.php';
+require_once __DIR__ . '/frontend-account/trait-wcai-frontend-account-css.php';
 
 class WCAI_Frontend_Account {
     use WCAI_Frontend_Account_View;
@@ -17,6 +21,10 @@ class WCAI_Frontend_Account {
     use WCAI_Frontend_Account_Save;
     use WCAI_Frontend_Account_Assets;
     use WCAI_Frontend_Account_Order_Page;
+    use WCAI_Frontend_Account_State;
+    use WCAI_Frontend_Account_Extras;
+    use WCAI_Frontend_Account_Dashboard;
+    use WCAI_Frontend_Account_Css;
 
     public function __construct() {
         // 1. Tabela Minha Conta (Coluna Personalizada)
@@ -38,6 +46,10 @@ class WCAI_Frontend_Account {
         add_filter( 'gettext', array( $this, 'fix_order_number_label' ), 10, 3 );
         add_filter( 'woocommerce_my_account_my_orders_actions', array( $this, 'fix_orders_action_labels' ), 10, 2 );
         add_action( 'wp_head', array( $this, 'print_order_pages_css' ) );
+        add_action( 'wp_head', array( $this, 'print_account_css' ), 11 );
+        // Painel: cartão "Próximo passo"; menu sem "Downloads" quando não há nada para baixar.
+        add_action( 'woocommerce_account_dashboard', array( $this, 'render_dashboard_next_step' ) );
+        add_filter( 'woocommerce_account_menu_items', array( $this, 'filter_account_menu_items' ) );
         add_action( 'woocommerce_order_details_after_order_table', array( $this, 'begin_cpf_mask_buffer' ), 99, 1 );
         add_action( 'woocommerce_order_details_after_customer_details', array( $this, 'end_cpf_mask_buffer' ), PHP_INT_MAX, 1 );
         add_action( 'woocommerce_email_after_order_table', array( $this, 'render_participants_in_email' ), 10, 4 );

@@ -169,11 +169,10 @@ class Test_F17_Masked_Input_Oracle extends TestCase {
         $masked_bad_ref     = $this->post( array( array( 'vref' => 'legacy_9', 'nome_completo' => 'Ana', 'cpf' => '529.***.***-25', 'data_nascimento' => '15/05/1990' ) ) );
         $masked_missing_id  = $this->post( array( array( 'id' => '999', 'nome_completo' => 'Ana', 'cpf' => '529.***.***-25', 'data_nascimento' => '15/05/1990' ) ) );
         $masked_birth       = $this->post( array( array( 'id' => '999', 'nome_completo' => 'Ana', 'cpf' => '52998224725', 'data_nascimento' => '**/**/1990' ) ) );
-        $unlocked_flag      = $this->post( array( array( 'id' => '1', 'nome_completo' => 'Ana Souza', 'cpf' => '529.***.***-25', 'nasc_unchanged' => '1' ) ) );
         $malformed          = $this->post( array( 'texto solto' ) );
 
         $expected = array( false, self::GENERIC );
-        foreach ( array( $masked_other_order, $masked_no_id, $masked_bad_ref, $masked_missing_id, $masked_birth, $unlocked_flag, $malformed ) as $i => $response ) {
+        foreach ( array( $masked_other_order, $masked_no_id, $masked_bad_ref, $masked_missing_id, $masked_birth, $malformed ) as $i => $response ) {
             $this->assertSame( $expected, $response, "resposta $i" );
         }
         // Id conhecido: a máscara errada é ignorada (vale o CPF guardado), igual à máscara certa; nunca "CPF inválido".

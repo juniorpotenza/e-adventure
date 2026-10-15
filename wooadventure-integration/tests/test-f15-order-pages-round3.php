@@ -174,7 +174,8 @@ class Test_F15_Order_Pages_Round3 extends TestCase {
 
         $this->assertStringContainsString( 'value="529.***.***-25"', $html );
         $this->assertStringContainsString( 'value="111.***.***-35"', $html );
-        $this->assertSame( 2, substr_count( $html, 'data-masked="1"' ) );
+        // 2 CPFs + 2 nascimentos (só o ano), todos com data-masked.
+        $this->assertSame( 4, substr_count( $html, 'data-masked="1"' ) );
         $this->assertStringNotContainsString( '982.247', $html );
         $this->assertStringNotContainsString( self::HOLDER_CPF, $html );
         preg_match_all( '/name="participantes\[\d+\]\[cpf\]" value="([^"]*)"/', $html, $m );
@@ -203,14 +204,16 @@ class Test_F15_Order_Pages_Round3 extends TestCase {
         $this->assertStringNotContainsString( '<table', $html );
     }
 
-    public function test_modal_hides_full_birth_date_when_identity_is_locked() {
+    public function test_modal_never_holds_a_full_birth_date_locked_or_not() {
         $this->set_rows( array( $this->row( 1, 'Ana Souza', self::HOLDER_CPF ), $this->row( 2, 'Bia Lima', self::OTHER_CPF ) ) );
         WCAI_Legal_Acceptances::$accepted = array( 1 );
         $html = $this->modal( new WcaiF15Order() );
 
-        $this->assertSame( 1, substr_count( $html, 'value="15/05/1990"' ) );
+        $this->assertStringNotContainsString( '15/05/1990', $html );
         $this->assertStringContainsString( 'name="participantes[1][nasc_unchanged]" value="1"', $html );
-        $this->assertStringNotContainsString( 'participantes[2][nasc_unchanged]', $html );
+        // Identidade livre: nascimento editável, mas mascarado (só o ano) até a pessoa digitar.
+        $this->assertStringContainsString( 'name="participantes[2][data_nascimento]" value="**/**/1990" data-masked="1"', $html );
+        $this->assertStringContainsString( 'name="participantes[2][nasc_unchanged]" value="1"', $html );
     }
 
     public function test_modal_on_closed_order_has_no_birth_date_no_save_button_and_no_flag() {
@@ -276,12 +279,13 @@ class Test_F15_Order_Pages_Round3 extends TestCase {
         $this->assertSame( self::HOLDER_CPF, $data[0]['cpf'] );
     }
 
-    public function test_birth_date_flag_restores_stored_date_only_for_locked_identity() {
+    public function test_birth_date_flag_restores_stored_date_for_locked_and_unlocked_rows() {
         $this->set_rows( array( $this->row( 1, 'Ana Souza', self::HOLDER_CPF ) ) );
         $order = new WcaiF15Order();
         $flag = $this->posted( '529.***.***-25', array( 'data_nascimento' => '', 'nasc_unchanged' => '1' ) );
 
-        $this->assertSame( 'Dados do participante inválidos.', $this->call( 'restore_unchanged_fields', array( $order, $flag ) ) );
+        $unlocked = $this->call( 'restore_unchanged_fields', array( $order, $flag ) );
+        $this->assertSame( '15/05/1990', $unlocked[1]['data_nascimento'] );
 
         WCAI_Legal_Acceptances::$accepted = array( 1 );
         $locked = $this->call( 'restore_unchanged_fields', array( $order, $flag ) );
