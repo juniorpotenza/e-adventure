@@ -4,8 +4,10 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 class WCAI_Checkout {
     public function __construct() {
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+        add_filter( 'script_loader_tag', array( $this, 'add_mask_sri' ), 10, 2 );
         add_action( 'woocommerce_after_order_notes', array( $this, 'render_fields' ) );
         add_action( 'woocommerce_checkout_process', array( $this, 'validate_fields' ) );
+        add_action( 'woocommerce_checkout_process', array( $this, 'validate_consent' ) );
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'add_departure_to_order_item' ), 10, 4 );
         add_action( 'woocommerce_checkout_update_order_meta', array( $this, 'save_fields_and_notes' ), 10, 1 );
     }
@@ -15,10 +17,41 @@ class WCAI_Checkout {
             wp_enqueue_script( 'jquery-mask', 'https://cdnjs.cloudflare.com/ajax/libs/jquery.mask/1.14.16/jquery.mask.min.js', array( 'jquery' ), '1.14.16', true );
             wp_add_inline_script( 'jquery-mask', "
                 jQuery(document).ready(function($) {
+                    if (!$.fn.mask) { return; }
                     $('input[name^=\"cpf_\"]').mask('000.000.000-00');
                     $('input[name^=\"data_nascimento_\"]').mask('00/00/0000');
                 });
             " );
+        }
+    }
+
+    // SRI sha384 de jquery.mask.min.js 1.14.16 (cdnjs). Recalcule se a versão mudar.
+    public function add_mask_sri( $tag, $handle ) {
+        if ( 'jquery-mask' !== $handle ) {
+            return $tag;
+        }
+
+        return preg_replace( '/ src=/', ' integrity="sha384-6LwNpGeYDjlORU0Q5rfxEC8SQO6/FTh/VecUcvFvNx1gLMdX5dm8y1Y739D3lFSW" crossorigin="anonymous" src=', $tag, 1 );
+    }
+
+    // Carrinho com passeio: o consentimento (dados de terceiros) é obrigatório neste checkout clássico,
+    // igual ao do bloco (assert_consent). O wc-ajax=checkout também atende quem pula a página do bloco.
+    private function cart_has_target_item() {
+        if ( ! function_exists( 'WC' ) || ! WC()->cart ) return false;
+        $target_ids = WCAI_Settings::get_product_ids();
+        foreach ( WC()->cart->get_cart() as $item ) {
+            if ( in_array( absint( $item['product_id'] ), $target_ids, true ) || in_array( absint( isset( $item['variation_id'] ) ? $item['variation_id'] : 0 ), $target_ids, true ) ) return true;
+        }
+        return false;
+    }
+
+    private function consent_posted() {
+        return isset( $_POST['wcai_consent'] ) && '1' === $_POST['wcai_consent']; // phpcs:ignore WordPress.Security.NonceVerification -- nonce do checkout já validado pelo Woo.
+    }
+
+    public function validate_consent() {
+        if ( $this->cart_has_target_item() && ! $this->consent_posted() ) {
+            wc_add_notice( 'Aceite o consentimento para o uso dos dados dos participantes para finalizar o pedido.', 'error' );
         }
     }
 
@@ -56,24 +89,31 @@ class WCAI_Checkout {
                     // Começa do 2, pois o 1 é o titular (billing)
                     for ( $i = 2; $i <= $qty; $i++ ) {
                         echo '<div class="wcai-visitor-box" style="margin-bottom:20px; padding:15px; border:1px solid #ddd;">';
-                        echo '<h4>Visitante ' . $i . '</h4>';
+                        echo '<h4>' . esc_html( sprintf( __( 'Visitante %d', 'wooadventure-integration' ), $i ) ) . '</h4>';
                         
                         woocommerce_form_field( 'nome_completo_' . $i, array(
-                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'Nome Completo', 'required' => true
+                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'Nome Completo', 'required' => true, 'autocomplete' => 'off'
                         ), $checkout->get_value( 'nome_completo_' . $i ) );
 
                         woocommerce_form_field( 'cpf_' . $i, array(
-                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'CPF', 'required' => true
+                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'CPF', 'required' => true, 'autocomplete' => 'off', 'custom_attributes' => array( 'inputmode' => 'numeric' )
                         ), $checkout->get_value( 'cpf_' . $i ) );
 
                         woocommerce_form_field( 'data_nascimento_' . $i, array(
-                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'Data de Nascimento', 'required' => true, 'placeholder' => 'dd/mm/aaaa'
+                            'type' => 'text', 'class' => array('form-row-wide'), 'label' => 'Data de Nascimento', 'required' => true, 'placeholder' => 'dd/mm/aaaa', 'autocomplete' => 'off', 'custom_attributes' => array( 'inputmode' => 'numeric' )
                         ), $checkout->get_value( 'data_nascimento_' . $i ) );
                         echo '</div>';
                     }
                     echo '</div>';
                 }
             }
+        }
+
+        if ( $this->cart_has_target_item() ) {
+            woocommerce_form_field( 'wcai_consent', array(
+                'type' => 'checkbox', 'class' => array( 'form-row-wide' ), 'required' => true,
+                'label' => esc_html( WCAI_Privacy::consent_text() ),
+            ), $checkout->get_value( 'wcai_consent' ) );
         }
     }
 
@@ -173,6 +213,21 @@ class WCAI_Checkout {
         $items = $order->get_items();
         $target_ids = WCAI_Settings::get_product_ids();
 
+        // Falha fechada: sem consentimento (ex.: validate_consent removido por outro código) o pedido com passeio não segue.
+        $has_target = false;
+        foreach ( $items as $item ) {
+            if ( in_array( $item->get_variation_id(), $target_ids ) || in_array( $item->get_product_id(), $target_ids ) ) { $has_target = true; break; }
+        }
+        if ( $has_target ) {
+            if ( ! $this->consent_posted() ) {
+                $order->update_status( 'failed', 'Consentimento para dados dos participantes ausente.' );
+                return;
+            }
+            // Mesmo formato do checkout em bloco (store_consent).
+            $order->update_meta_data( '_wcai_third_party_consent', array( 'accepted_at' => gmdate( 'c' ), 'text_sha256' => hash( 'sha256', WCAI_Privacy::consent_text() ) ) );
+            $order->save();
+        }
+
         // Dados do Titular (Billing)
         // Tentamos pegar do POST (mais atual) ou do Objeto Order
         $billing_first_name = isset($_POST['billing_first_name']) ? sanitize_text_field($_POST['billing_first_name']) : $order->get_billing_first_name();
@@ -188,7 +243,7 @@ class WCAI_Checkout {
                 $reservation_id = 0;
 
                 if ( $departure_id && class_exists( 'WCAI_Reservations' ) ) {
-                    $reservation = WCAI_Reservations::create( $departure_id, $qty, 'pending', $order_id, $item_id );
+                    $reservation = WCAI_Reservations::create( $departure_id, $qty, 'hold', $order_id, $item_id );
 
                     if ( is_wp_error( $reservation ) ) {
                         $order->add_order_note( 'Reserva de saída não criada: ' . $reservation->get_error_message() );

@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+      - name: php -l em todos os arquivos PHP
+        run: find wooadventure-integration -name '*.php' -not -path '*/vendor/*' -print0 | xargs -0 -n1 php -l > /dev/null
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --test wooadventure-integration/tests/js
+
+  phpunit:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wp_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    defaults:
+      run:
+        working-directory: wooadventure-integration
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli
+          tools: composer
+      - run: sudo apt-get update && sudo apt-get install -y subversion
+        working-directory: .
+      - run: composer install --no-interaction --prefer-dist
+      - name: Instala a suite de testes do WordPress e o WooCommerce
+        run: bin/install-wp-tests.sh wp_test root root 127.0.0.1:3306 latest
+      - name: Testes com stubs (sem WordPress)
+        run: for s in f2 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 f18 f19 f20 f21 t2 t4 t6 t7 t8; do vendor/bin/phpunit -c phpunit-unit.xml.dist --testsuite $s || exit 1; done
+      - name: Testes com WordPress
+        run: |
+          vendor/bin/phpunit -c phpunit.xml.dist --log-junit /tmp/junit-wp.xml 2>&1 | tee /tmp/wp-out.txt; code=${PIPESTATUS[0]}
+          php bin/ci-annotate.php /tmp/junit-wp.xml /tmp/wp-out.txt
+          exit $code

@@ -45,6 +45,7 @@ class WCAI_Utils {
         $d = DateTime::createFromFormat('d/m/Y', $date);
         if (!$d) return false;
         $today = new DateTime();
+        if ($d > $today) return false; // data futura
         $age = $today->diff($d)->y;
         return $age >= $years;
     }

@@ -8,11 +8,51 @@
     var currentStep = 1;
     var validationIds = [];
     var syncTimer = null;
+    var attempted = false;
+    var flaggedNative = [];
+    var consent = false;
+    var draftRestored = false;
+    var draftNotice = false;
+    var draftNoticeShown = false;
+    var activeDraftKey = '';
+    var NBSP = String.fromCharCode(160);
+    var BR_UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
+    var MIN_AGE = 7; // espelha WCAI_Utils::is_min_age (includes/class-utils.php)
+    var CPF_SELECTORS = [
+        'input[name="billing_cpf"]',
+        'input[name="wcai/billing_cpf"]',
+        'input[name="wcai/billing-cpf"]',
+        'input[name="wcai_billing_cpf"]',
+        '#contact-wcai-billing-cpf',
+        '#wcai-billing-cpf'
+    ];
+    var BIRTH_SELECTORS = [
+        'input[name="billing_birthdate"]',
+        'input[name="wcai/billing_birthdate"]',
+        'input[name="wcai/billing-birthdate"]',
+        'input[name="wcai_billing_birthdate"]',
+        '#contact-wcai-billing-birthdate',
+        '#wcai-billing-birthdate'
+    ];
+
+    var CPF_SEL = CPF_SELECTORS.join(',');
+    var BIRTH_SEL = BIRTH_SELECTORS.join(',');
+
+    // Dados do servidor (WCAI_Privacy::consent_text, wcai_terms_url) via wp_localize_script.
+    function config() {
+        return typeof window !== 'undefined' && window.wcaiCheckout ? window.wcaiCheckout : {};
+    }
 
     function cart() {
         if (!window.wp || !wp.data) return null;
         var store = wp.data.select('wc/store/cart');
         return store && typeof store.getCartData === 'function' ? store.getCartData() : null;
+    }
+
+    function customerData() {
+        if (!window.wp || !wp.data) return null;
+        var store = wp.data.select('wc/store/cart');
+        return store && typeof store.getCustomerData === 'function' ? store.getCustomerData() : null;
     }
 
     function checkoutDispatcher() {
@@ -21,12 +61,24 @@
         return dispatcher && typeof dispatcher.setExtensionData === 'function' ? dispatcher : null;
     }
 
+    // A action da store e setExtensionData(namespace, objeto, replace). Passar (NS, 'data', json)
+    // gravava a string 'data' em extensions[NS] e a Store API recusava: "is not of type object,null".
+    function pushExtensionData(checkout, json) {
+        checkout.setExtensionData(NS, { data: String(json) });
+    }
+
     function sync() {
         var checkout = checkoutDispatcher();
         if (!checkout) return;
 
-        var payload = {
-            items: state.items.map(function (item) {
+        pushExtensionData(checkout, JSON.stringify(buildPayload(state.items, consent)));
+    }
+
+    // consent: boolean estrito; o servidor recusa o pedido se não for true.
+    function buildPayload(items, accepted) {
+        return {
+            consent: accepted === true,
+            items: items.map(function (item) {
                 return {
                     key: item.key,
                     product_id: item.product_id,
@@ -38,8 +90,6 @@
                 };
             })
         };
-
-        checkout.setExtensionData(NS, 'data', JSON.stringify(payload));
     }
 
     function scheduleSync() {
@@ -92,41 +142,400 @@
         return v.slice(0, 2) + '/' + v.slice(2, 4) + '/' + v.slice(4);
     }
 
-    function inputField(label, value, placeholder, mask, onChange) {
+    // Valida CPF pelos dígitos verificadores (mesma regra de WCAI_Utils::is_valid_cpf).
+    function isValidCpf(value) {
+        var cpf = digits(value);
+
+        if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+
+        for (var t = 9; t < 11; t++) {
+            var sum = 0;
+
+            for (var c = 0; c < t; c++) {
+                sum += parseInt(cpf.charAt(c), 10) * (t + 1 - c);
+            }
+
+            if (parseInt(cpf.charAt(t), 10) !== ((10 * sum) % 11) % 10) return false;
+        }
+
+        return true;
+    }
+
+    // dd/mm/aaaa real (31/02 recusa), igual a WCAI_Utils::is_valid_date. Retorna Date ou null.
+    function parseDate(value) {
+        var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(value || ''));
+
+        if (!m) return null;
+
+        var day = parseInt(m[1], 10);
+        var month = parseInt(m[2], 10);
+        var year = parseInt(m[3], 10);
+        var date = new Date(year, month - 1, day);
+
+        if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+
+        return date;
+    }
+
+    // Idade em anos completos (null se a data é inválida). Data futura dá idade negativa (o servidor ainda não recusa futuro).
+    function ageOn(value, now) {
+        var birth = parseDate(value);
+
+        if (!birth) return null;
+
+        now = now || new Date();
+
+        var age = now.getFullYear() - birth.getFullYear();
+
+        if (now.getMonth() < birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) {
+            age--;
+        }
+
+        return age;
+    }
+
+    function isMinAge(value, years, now) {
+        var age = ageOn(value, now);
+
+        return age !== null && age >= (years || MIN_AGE);
+    }
+
+    // Rascunho restaurado pelo Woo pode vir sem máscara ou duplicado ('1505199015051990'). Devolve '' se não aproveitável.
+    function sanitizeDraft(kind, value) {
+        var d = digits(value);
+
+        if (!d) return '';
+        if (kind === 'cpf') return cpfMask(d.slice(0, 11));
+
+        var masked = dateMask(d.slice(0, 8));
+
+        return parseDate(masked) ? masked : '';
+    }
+
+    function maskCpfForReview(value) {
+        var d = digits(value);
+
+        return d.length === 11 ? d.slice(0, 3) + '.***.***-' + d.slice(9) : '';
+    }
+
+    // Linhas do resumo da revisão: titular primeiro, depois os adicionais de cada item.
+    function participantSummary(items, holder, now) {
+        var rows = [{
+            role: 'Titular',
+            name: holder && holder.name ? holder.name : '',
+            age: ageOn(holder && holder.birthdate, now),
+            cpf: maskCpfForReview(holder && holder.cpf),
+            category: 'Adulto'
+        }];
+
+        items.forEach(function (item) {
+            item.additional_participants.forEach(function (person, index) {
+                rows.push({
+                    role: 'Participante ' + (index + 2),
+                    name: person.name || '',
+                    age: ageOn(person.birthdate, now),
+                    cpf: maskCpfForReview(person.cpf),
+                    category: person.type === 'child' ? 'Criança' : 'Adulto'
+                });
+            });
+        });
+
+        return rows;
+    }
+
+    // Erro de validação do Woo que bloqueia o pedido enquanto o aceite não é marcado.
+    function consentErrors(accepted) {
+        var errors = {};
+
+        if (accepted !== true) {
+            addError(errors, 'wcai-consent', 'Aceite o consentimento e os termos de participação para finalizar o pedido.');
+        }
+
+        return errors;
+    }
+
+    // Aviso do aceite: nada antes da 1ª tentativa de finalizar; depois, só enquanto o aceite falta.
+    function consentHintVisible(accepted, tried) {
+        return tried === true && accepted !== true;
+    }
+
+    // Leva o campo para o meio da área útil (scroll-padding reserva a barra fixa) e foca sem 2º salto.
+    function focusField(el) {
+        if (!el) return;
+
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus({ preventScroll: true });
+    }
+
+    // Quanto rolar (px) para o título aparecer abaixo do cabeçalho fixo; 0 se já está visível.
+    function headingScrollDelta(top, bottom, viewportHeight, headerHeight) {
+        if (top >= headerHeight && bottom <= viewportHeight) return 0;
+
+        return Math.round(top - headerHeight - 8);
+    }
+
+    // Total do carrinho (store API: valor em unidade menor + separadores da moeda).
+    function formatTotal(totals) {
+        if (!totals || totals.total_price === undefined) return '';
+
+        var minor = parseInt(totals.currency_minor_unit, 10);
+        if (isNaN(minor)) minor = 2;
+
+        var raw = String(Math.abs(parseInt(totals.total_price, 10) || 0));
+        while (raw.length <= minor) raw = '0' + raw;
+
+        var whole = raw.slice(0, raw.length - minor).replace(/\B(?=(\d{3})+(?!\d))/g, totals.currency_thousand_separator || '.');
+        var fraction = minor ? (totals.currency_decimal_separator || ',') + raw.slice(raw.length - minor) : '';
+        var prefix = totals.currency_prefix ? String(totals.currency_prefix).trim() + NBSP : '';
+        var suffix = totals.currency_suffix ? NBSP + String(totals.currency_suffix).trim() : '';
+
+        return prefix + whole + fraction + suffix;
+    }
+
+    // Endereço antigo: estado é UF brasileira, mas o país não é o Brasil.
+    function suspectCountry(country, state) {
+        return !!country && country !== 'BR' && BR_UFS.indexOf(String(state || '').toUpperCase()) !== -1;
+    }
+
+    // Aviso do país só na etapa 2 (onde o endereço é editado).
+    function countryHintVisible(step, country, state) {
+        return step === 2 && suspectCountry(country, state);
+    }
+
+    function cpfMessage(value, who) {
+        if (!String(value || '').trim()) return 'Informe o CPF ' + who + '.';
+        return isValidCpf(value) ? '' : 'CPF ' + who + ' inválido.';
+    }
+
+    function birthMessage(value, who, now) {
+        if (!String(value || '').trim()) return 'Informe a data de nascimento ' + who + '.';
+
+        var date = parseDate(value);
+
+        if (!date) return 'Data de nascimento ' + who + ' inválida. Use dd/mm/aaaa.';
+        if (date.getTime() > (now || new Date()).getTime()) return 'A data de nascimento não pode ser futura.';
+        return isMinAge(value, MIN_AGE, now) ? '' : 'Data de nascimento ' + who + ': idade mínima de ' + MIN_AGE + ' anos.';
+    }
+
+    var DUPLICATE_CPF_MESSAGE = 'Este CPF já foi usado por outro participante.';
+
+    // "Você é o primeiro participante: 2 adultos = você + 1 acompanhante." (contagem real da reserva).
+    function peopleLabel(adults, children) {
+        return adults + ' adulto' + (adults === 1 ? '' : 's') +
+            (children ? ' + ' + children + ' criança' + (children === 1 ? '' : 's') : '');
+    }
+
+    function holderHint(adults, children) {
+        var companions = Math.max(0, adults + children - 1);
+
+        if (!companions) return 'Você é o único participante desta reserva.';
+
+        return 'Você é o primeiro participante: ' + peopleLabel(adults, children) + ' = você + ' +
+            companions + ' acompanhante' + (companions === 1 ? '' : 's') + '.';
+    }
+
+    // Tokens que o Woo resolve no cartão de endereço; qualquer outro ({number}, {neighborhood}) viraria texto cru.
+    var ADDRESS_TOKENS = ['name', 'name_upper', 'first_name', 'last_name', 'company', 'address_1', 'address_2', 'city', 'state', 'state_code', 'postcode', 'country'];
+
+    // Remove tokens desconhecidos do formato de endereço do país e as vírgulas que sobram; linha que só tinha token some.
+    function cleanAddressFormat(format) {
+        var lines = [];
+
+        String(format || '').split('\n').forEach(function (line) {
+            var cleaned = line.replace(/\{([a-z0-9_]+)\}/gi, function (token, name) {
+                return ADDRESS_TOKENS.indexOf(name) === -1 ? '' : token;
+            });
+
+            if (cleaned === line) {
+                lines.push(line);
+            } else if (cleaned.replace(/[\s,]+/g, '') !== '') {
+                lines.push(cleaned.replace(/^[\s,]+|[\s,]+$/g, ''));
+            }
+        });
+
+        return lines.join('\n');
+    }
+
+    // Ids dos campos com CPF repetido (titular + participantes do mesmo item); só os dígitos são comparados.
+    function duplicateCpfIds(items, holderCpf) {
+        var ids = {};
+
+        items.forEach(function (item, itemIndex) {
+            var seen = digits(holderCpf).length === 11 ? [digits(holderCpf)] : [];
+
+            item.additional_participants.forEach(function (participant, index) {
+                var cpf = digits(participant.cpf);
+
+                if (!isValidCpf(cpf)) return;
+
+                if (seen.indexOf(cpf) !== -1) {
+                    ids['wcai-cpf-' + itemIndex + '-' + index] = true;
+                } else {
+                    seen.push(cpf);
+                }
+            });
+        });
+
+        return ids;
+    }
+
+    // v2 guarda só dado não sensível (nome, categoria, etapa) e expira. CPF e nascimento ficam só na memória (LGPD).
+    var DRAFT_PREFIX = 'wcai_draft_v2:';
+    var LEGACY_DRAFT_PREFIX = 'wcai-draft:'; // build anterior: gravava CPF e nascimento; é apagado ao carregar.
+    var DRAFT_VERSION = 2;
+    var DRAFT_TTL_MS = 30 * 60 * 1000;
+    var DRAFT_TEXT_MAX = 120;
+
+    function hashString(text) {
+        var hash = 5381;
+
+        for (var i = 0; i < text.length; i++) {
+            hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0;
+        }
+
+        return (hash >>> 0).toString(36);
+    }
+
+    // Chave por carrinho: itens, quantidades e saída. Outro carrinho = outro rascunho.
+    function draftKey(items) {
+        return DRAFT_PREFIX + hashString(items.map(function (item) {
+            return [item.key, item.quantity, item.departure_id, item.adults, item.children].join(':');
+        }).join('|'));
+    }
+
+    function buildDraft(items, step, now) {
+        var byItem = {};
+
+        items.forEach(function (item) {
+            byItem[item.key] = item.additional_participants.map(function (person) {
+                return { type: person.type || '', name: person.name || '' };
+            });
+        });
+
+        return JSON.stringify({ v: DRAFT_VERSION, ts: now === undefined ? Date.now() : now, step: step, items: byItem });
+    }
+
+    // Devolve o rascunho só se for da versão atual e estiver dentro do prazo; senão null.
+    function parseDraft(raw, now) {
+        var draft;
+
+        try {
+            draft = raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+
+        if (!draft || typeof draft !== 'object' || draft.v !== DRAFT_VERSION || typeof draft.ts !== 'number') return null;
+        if (!draft.items || typeof draft.items !== 'object') return null;
+
+        var age = (now === undefined ? Date.now() : now) - draft.ts;
+
+        return age >= 0 && age <= DRAFT_TTL_MS ? draft : null;
+    }
+
+    // Apaga rascunhos do build anterior (com CPF e nascimento) e os v2 vencidos ou ilegíveis.
+    function sweepDrafts(store, now) {
+        var stale = [];
+
+        for (var i = 0; i < store.length; i++) {
+            var key = store.key(i);
+
+            if (!key) continue;
+            if (key.indexOf(LEGACY_DRAFT_PREFIX) === 0 || (key.indexOf(DRAFT_PREFIX) === 0 && !parseDraft(store.getItem(key), now))) stale.push(key);
+        }
+
+        stale.forEach(function (key) {
+            store.removeItem(key);
+        });
+    }
+
+    // Aplica nome e categoria salvos sobre os itens. CPF e nascimento nunca vêm do rascunho.
+    // Devolve { step, notice } ou null; notice = há participante restaurado sem CPF/nascimento.
+    function applyDraft(items, raw, now) {
+        var draft = parseDraft(raw, now);
+        var notice = false;
+
+        if (!draft) return null;
+
+        items.forEach(function (item) {
+            var saved = Array.isArray(draft.items[item.key]) ? draft.items[item.key] : [];
+
+            item.additional_participants.forEach(function (person, index) {
+                var entry = saved[index];
+
+                if (!entry || typeof entry !== 'object') return;
+
+                if (entry.type === 'adult' || entry.type === 'child') person.type = entry.type;
+                person.name = String(entry.name || '').slice(0, DRAFT_TEXT_MAX);
+                if (!person.cpf || !person.birthdate) notice = true;
+            });
+        });
+
+        var step = parseInt(draft.step, 10);
+
+        return { step: step >= 1 && step <= 4 ? step : null, notice: notice };
+    }
+
+    function inputField(label, value, placeholder, mask, onChange, attrs) {
+        attrs = attrs || {};
+
         var wrap = document.createElement('div');
         wrap.className = 'wcai-wizard-field';
 
         var labelEl = document.createElement('label');
         labelEl.textContent = label;
+        labelEl.htmlFor = attrs.id;
         wrap.appendChild(labelEl);
 
         var input = document.createElement('input');
         input.type = 'text';
+        input.id = attrs.id;
+        input.setAttribute('data-wcai-control', '');
+        input.setAttribute('aria-required', 'true');
+        if (attrs.inputmode) input.setAttribute('inputmode', attrs.inputmode);
         input.value = value || '';
         input.placeholder = placeholder || '';
+        // Dados de outra pessoa: "off" evita preencher com os dados do comprador.
         input.autocomplete = 'off';
 
         input.addEventListener('input', function () {
             var valueNow = mask ? mask(input.value) : input.value;
             input.value = valueNow;
             onChange(valueNow);
+            saveDraft();
             scheduleSync();
             updateLocalValidation();
         });
 
         wrap.appendChild(input);
+        wrap.appendChild(fieldError(attrs.id));
         return wrap;
     }
 
-    function selectField(label, value, options, onChange) {
+    function fieldError(id) {
+        var error = document.createElement('p');
+        error.id = id + '-error';
+        error.className = 'wcai-field-error';
+        error.setAttribute('role', 'alert');
+        error.hidden = true;
+        return error;
+    }
+
+    function selectField(label, value, options, onChange, attrs) {
+        attrs = attrs || {};
+
         var wrap = document.createElement('div');
         wrap.className = 'wcai-wizard-field';
 
         var labelEl = document.createElement('label');
         labelEl.textContent = label;
+        labelEl.htmlFor = attrs.id;
         wrap.appendChild(labelEl);
 
         var select = document.createElement('select');
+        select.id = attrs.id;
+        select.setAttribute('data-wcai-control', '');
+        select.setAttribute('aria-required', 'true');
 
         options.forEach(function (option) {
             var optionEl = document.createElement('option');
@@ -138,11 +547,13 @@
 
         select.addEventListener('change', function () {
             onChange(select.value);
+            saveDraft();
             scheduleSync();
             updateLocalValidation();
         });
 
         wrap.appendChild(select);
+        wrap.appendChild(fieldError(attrs.id));
         return wrap;
     }
 
@@ -209,47 +620,62 @@
         return null;
     }
 
+    // Seletores por seção nativa: o atributo data-block-name some do DOM depois que o Woo monta o React;
+    // as classes wc-block-checkout__* e os ids são o que existe no HTML final.
+    var NATIVE_GROUPS = {
+        contact: ['[data-block-name="woocommerce/checkout-contact-information-block"]', '.wc-block-checkout__contact-fields', '#contact-fields'],
+        billing: ['[data-block-name="woocommerce/checkout-billing-address-block"]', '.wc-block-checkout__billing-fields', '#billing-fields'],
+        shipping: [
+            '[data-block-name="woocommerce/checkout-shipping-address-block"]',
+            '[data-block-name="woocommerce/checkout-shipping-methods-block"]',
+            '[data-block-name="woocommerce/checkout-shipping-method-block"]',
+            '[data-block-name="woocommerce/checkout-pickup-options-block"]',
+            '.wc-block-checkout__shipping-fields', '#shipping-fields',
+            '.wc-block-checkout__shipping-option', '#shipping-option',
+            '.wc-block-checkout__pickup-options', '#pickup-options'
+        ],
+        payment: ['[data-block-name="woocommerce/checkout-payment-block"]', '.wc-block-checkout__payment-method', '#payment-method'],
+        note: ['[data-block-name="woocommerce/checkout-order-note-block"]', '.wc-block-checkout__add-note'],
+        terms: ['[data-block-name="woocommerce/checkout-terms-block"]', '.wc-block-checkout__terms'],
+        actions: ['[data-block-name="woocommerce/checkout-actions-block"]', '.wc-block-checkout__actions'],
+        express: [
+            '[data-block-name="woocommerce/checkout-express-payment-block"]',
+            '.wc-block-components-express-payment',
+            '.wc-block-components-express-payment-continue-rule'
+        ]
+    };
+
+    // Seções nativas escondidas em cada etapa (só CSS: o DOM do React nunca é alterado).
+    var HIDDEN_BY_STEP = {
+        1: ['contact', 'billing', 'shipping', 'payment', 'note', 'terms', 'actions', 'express'],
+        2: ['shipping', 'payment', 'note', 'terms', 'actions', 'express'],
+        3: ['contact', 'billing', 'shipping', 'payment', 'note', 'terms', 'actions', 'express'],
+        4: ['contact', 'billing']
+    };
+
+    // Função pura: CSS de visibilidade por etapa.
+    function stageGateCss() {
+        return [1, 2, 3, 4].map(function (step) {
+            var selectors = [];
+
+            HIDDEN_BY_STEP[step].forEach(function (group) {
+                NATIVE_GROUPS[group].forEach(function (selector) {
+                    selectors.push('body.wcai-checkout-step-' + step + ' ' + selector);
+                });
+            });
+
+            return selectors.join(',') + '{display:none!important;visibility:hidden!important;pointer-events:none!important}';
+        }).join('');
+    }
+
     function nativeSections() {
-        return {
-            contact: firstExisting([
-                '[data-block-name="woocommerce/checkout-contact-information-block"]',
-                '.wc-block-checkout__contact-fields'
-            ]),
-            billing: firstExisting([
-                '[data-block-name="woocommerce/checkout-billing-address-block"]',
-                '.wc-block-checkout__billing-fields'
-            ]),
-            shippingAddress: firstExisting([
-                '[data-block-name="woocommerce/checkout-shipping-address-block"]'
-            ]),
-            shippingMethods: firstExisting([
-                '[data-block-name="woocommerce/checkout-shipping-methods-block"]'
-            ]),
-            shippingMethod: firstExisting([
-                '[data-block-name="woocommerce/checkout-shipping-method-block"]'
-            ]),
-            pickup: firstExisting([
-                '[data-block-name="woocommerce/checkout-pickup-options-block"]'
-            ]),
-            payment: firstExisting([
-                '[data-block-name="woocommerce/checkout-payment-block"]',
-                '.wc-block-components-checkout-payment-methods',
-                '.wc-block-checkout__payment-method',
-                '.wc-block-checkout__payment-methods'
-            ]),
-            terms: firstExisting([
-                '[data-block-name="woocommerce/checkout-terms-block"]'
-            ]),
-            actions: firstExisting([
-                '[data-block-name="woocommerce/checkout-actions-block"]'
-            ]),
-            orderNote: firstExisting([
-                '[data-block-name="woocommerce/checkout-order-note-block"]'
-            ]),
-            express: firstExisting([
-                '[data-block-name="woocommerce/checkout-express-payment-block"]'
-            ])
-        };
+        var sections = {};
+
+        Object.keys(NATIVE_GROUPS).forEach(function (group) {
+            sections[group] = firstExisting(NATIVE_GROUPS[group]);
+        });
+
+        return sections;
     }
 
     function setHidden(node, hidden) {
@@ -267,19 +693,14 @@
     function setCheckoutStageClass() {
         if (!document.body) return;
 
-        document.body.classList.toggle('wcai-checkout-before-payment', currentStep !== 4);
-        document.body.classList.toggle('wcai-checkout-payment-step', currentStep === 4);
-    }
-
-    function setCheckoutStageClass() {
-        if (!document.body) return;
-
         for (var i = 1; i <= 4; i++) {
             document.body.classList.toggle('wcai-checkout-step-' + i, currentStep === i);
         }
 
         document.body.classList.toggle('wcai-checkout-before-payment', currentStep !== 4);
         document.body.classList.toggle('wcai-checkout-payment-step', currentStep === 4);
+        document.body.classList.toggle('wcai-consent-missing', !consent);
+        document.body.classList.toggle('wcai-consent-box', currentStep === 4 && !!document.getElementById('wcai-consent'));
     }
 
     function clearCheckoutStageClasses() {
@@ -291,6 +712,8 @@
 
         document.body.classList.remove('wcai-checkout-before-payment');
         document.body.classList.remove('wcai-checkout-payment-step');
+        document.body.classList.remove('wcai-consent-missing');
+        document.body.classList.remove('wcai-consent-box');
     }
 
     function applyNativeStepVisibility() {
@@ -303,81 +726,88 @@
         var style = document.createElement('style');
         style.id = 'wcai-wizard-style';
         style.textContent =
-            '#wcai-checkout-wizard{margin:0 0 14px;padding:0;border:0;background:transparent}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0 0 12px}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span{display:flex;align-items:center;justify-content:center;min-height:31px;padding:5px 6px;border:1px solid #e2e2e2;border-radius:8px;background:#fff;color:#777;font-size:10px;text-align:center;box-sizing:border-box;cursor:default}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span.is-active{border-color:#222;background:#222;color:#fff;font-weight:800}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span.is-complete{color:#222;border-color:#cfcfcf;cursor:pointer}' +
-            '#wcai-checkout-wizard .wcai-wizard-progress span.is-complete:before{content:"✓";margin-right:4px;font-weight:900}' +
+            '#wcai-checkout-wizard{box-sizing:border-box;width:65%;margin:0 0 14px;padding:0 4.5283% 0 0;border:0;background:transparent}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0 0 12px;padding:0;list-style:none}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress li{display:flex;margin:0;padding:0}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button{display:flex;flex:1;align-items:center;justify-content:center;min-height:44px;padding:5px 6px;border:1px solid #e2e2e2;border-radius:8px;background:#fff;color:#767676;font:inherit;font-size:12px;line-height:1.2;text-align:center;box-sizing:border-box;cursor:default}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button.is-active{border-color:#222;background:#222;color:#fff;font-weight:800}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button.is-complete{color:#222;border-color:#cfcfcf;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button.is-complete:before{content:"✓";margin-right:4px;font-weight:900}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button:focus-visible,#wcai-checkout-wizard .wcai-wizard-actions button:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}' +
+            '#wcai-checkout-wizard h3:focus{outline:none}' +
+            '#wcai-checkout-wizard .wcai-sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}' +
+            '#wcai-checkout-wizard .wcai-error-summary{margin:0 0 12px;padding:10px 11px;border:1px solid #b3261e;border-radius:8px;background:#fdf1f0;color:#8c1d18;font-size:13px}' +
+            '#wcai-checkout-wizard .wcai-error-summary ul{margin:6px 0 0 18px;padding:0}' +
+            '#wcai-checkout-wizard .wcai-field-error{margin:4px 0 0;color:#b3261e;font-size:12px;font-weight:700}' +
+            '#wcai-checkout-wizard [aria-invalid="true"]{border-color:#b3261e!important}' +
             '#wcai-checkout-wizard .wcai-wizard-panel{display:none;padding:14px;border:1px solid #e5e5e5;border-radius:12px;background:#fff;box-shadow:0 5px 18px rgba(0,0,0,.035)}' +
             '#wcai-checkout-wizard .wcai-wizard-panel.is-active{display:block}' +
             '#wcai-checkout-wizard h3{margin:0 0 7px;font-size:17px}' +
             '#wcai-checkout-wizard h4{margin:0 0 9px;font-size:14px}' +
             '#wcai-checkout-wizard h5{margin:0 0 9px;font-size:13px}' +
             '#wcai-checkout-wizard p{font-size:12px;line-height:1.5;color:#666}' +
+            '#wcai-checkout-wizard p.wcai-lgpd{font-size:14px;color:#555}' +
+            '#wcai-checkout-wizard p.wcai-draft-notice{font-size:14px;color:#555}' +
+            '#wcai-checkout-wizard p.wcai-lgpd a{color:inherit;text-decoration:underline}' +
             '#wcai-checkout-wizard .wcai-wizard-item{padding:12px;margin:0 0 10px;border:1px solid #e5e5e5;border-radius:10px;background:#fff}' +
             '#wcai-checkout-wizard .wcai-reservation-summary{display:grid;grid-template-columns:1fr;gap:7px;margin:10px 0}' +
             '#wcai-checkout-wizard .wcai-reservation-summary>div{display:flex;justify-content:space-between;gap:14px;padding:9px 10px;border:1px solid #ededed;border-radius:8px;background:#fafafa}' +
-            '#wcai-checkout-wizard .wcai-reservation-summary span{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#888}' +
+            '#wcai-checkout-wizard .wcai-reservation-summary span{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#888}' +
             '#wcai-checkout-wizard .wcai-reservation-summary strong{font-size:12px;text-align:right}' +
             '#wcai-checkout-wizard .wcai-wizard-person{padding:11px;margin:9px 0;border:1px solid #eee;border-radius:9px;background:#fafafa}' +
             '#wcai-checkout-wizard .wcai-wizard-field{margin:0 0 9px}' +
-            '#wcai-checkout-wizard .wcai-wizard-field label{display:block;font-weight:700;margin-bottom:4px;font-size:11px}' +
-            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard .wcai-wizard-field select{width:100%;padding:8px 9px;box-sizing:border-box;border:1px solid #d9d9d9;border-radius:7px;background:#fff}' +
+            '#wcai-checkout-wizard .wcai-wizard-field label{display:block;font-weight:700;margin-bottom:4px;font-size:12px}' +
+            '#wcai-checkout-wizard .wcai-wizard-field input,#wcai-checkout-wizard .wcai-wizard-field select{width:100%;height:44px;padding:8px 9px;box-sizing:border-box;border:1px solid #d9d9d9;border-radius:7px;background:#fff;font:inherit;font-size:16px;line-height:1.3;color:#222}' +
             '#wcai-checkout-wizard .wcai-wizard-actions{display:flex;justify-content:space-between;gap:9px;margin-top:14px;padding-top:11px;border-top:1px solid #eee}' +
-            '#wcai-checkout-wizard .wcai-wizard-actions button{min-height:38px;padding:8px 14px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-wizard-actions button{min-height:44px;padding:8px 14px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
             '#wcai-checkout-wizard .wcai-wizard-actions button:not(.wcai-wizard-secondary){background:#222;color:#fff}' +
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
             '#wcai-checkout-wizard .wcai-wizard-actions .wcai-wizard-secondary:only-child{margin-right:auto}' +
             '#wcai-checkout-wizard .wcai-warning{padding:10px 11px;border:1px solid #e4d6a2;border-radius:8px;background:#fffaf0;color:#695b2e;font-size:12px}' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-billing-address-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-payment-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-payment-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-billing-address-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-payment-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-billing-address-block"],' +
-            'body:not(.wcai-checkout-step-4) .wc-block-components-checkout-place-order-button,' +
-            'body:not(.wcai-checkout-step-4) #place_order,' +
-            'body:not(.wcai-checkout-step-4) button[name="woocommerce_checkout_place_order"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
-            'body.wcai-checkout-step-1 [data-block-name="woocommerce/checkout-order-note-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-order-note-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-address-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-methods-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-shipping-method-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-pickup-options-block"],' +
-            'body.wcai-checkout-step-3 [data-block-name="woocommerce/checkout-order-note-block"]{display:none!important;visibility:hidden!important;pointer-events:none!important}' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-payment-block"],' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-terms-block"],' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-actions-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-contact-information-block"],' +
-            'body.wcai-checkout-step-2 [data-block-name="woocommerce/checkout-billing-address-block"]{display:block}' +
-            'body.wcai-checkout-step-4 [data-block-name="woocommerce/checkout-actions-block"] .wc-block-components-checkout-place-order-button{display:block;width:100%;min-height:44px;font-weight:800;border-radius:8px}' +
-            '@media(max-width:700px){#wcai-checkout-wizard .wcai-wizard-progress{gap:3px}#wcai-checkout-wizard .wcai-wizard-progress span{min-height:29px;padding:4px 3px;font-size:8px}}';
+            stageGateCss() +
+            'body.wcai-checkout-before-payment .wc-block-components-checkout-place-order-button,body.wcai-checkout-before-payment #place_order,body.wcai-checkout-before-payment button[name="woocommerce_checkout_place_order"]{display:none!important}' +
+            'body.wcai-checkout-step-4 .wc-block-components-checkout-place-order-button{display:none!important}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-text-input:not(.is-active) input::placeholder{color:transparent!important}' +
+            'body[class*="wcai-checkout-step-"] input[aria-invalid="true"],body[class*="wcai-checkout-step-"] select[aria-invalid="true"]{border-color:#b3261e!important;box-shadow:0 0 0 1px #b3261e!important}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-text-input:has(input[aria-invalid="true"]) label{color:#b3261e!important}' +
+            '#wcai-checkout-wizard .wcai-wizard-field select{appearance:none;-webkit-appearance:none;padding-right:34px;background:#fff url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'8\' viewBox=\'0 0 12 8\'%3E%3Cpath d=\'M1 1l5 5 5-5\' fill=\'none\' stroke=\'%23222\' stroke-width=\'2\'/%3E%3C/svg%3E") no-repeat right 12px center}' +
+            '#wcai-checkout-wizard .wcai-link{display:inline;padding:0;border:0;background:none;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-review-people{margin:10px 0;padding:0;list-style:none}' +
+            '#wcai-checkout-wizard .wcai-review-people li{display:flex;flex-wrap:wrap;gap:2px 10px;margin:0 0 6px;padding:8px 10px;border:1px solid #ededed;border-radius:8px;background:#fafafa;font-size:12px}' +
+            '#wcai-checkout-wizard .wcai-review-people strong{min-width:96px}' +
+            '#wcai-checkout-wizard .wcai-consent{margin:12px 0 0;padding:12px;border:1px solid #d9d9d9;border-radius:10px;background:#fff;font-size:15px;line-height:1.5;color:#333}' +
+            '#wcai-checkout-wizard .wcai-consent p{margin:0 0 10px;font-size:15px;line-height:1.5;color:#333}' +
+            '#wcai-checkout-wizard .wcai-consent p.wcai-consent-hint{margin:8px 0 0;font-size:14px;font-weight:700;color:#b3261e}' +
+            '#wcai-checkout-wizard .wcai-consent-row{display:flex;align-items:center;gap:10px;padding:2px 0;font-size:15px;line-height:1.4;color:#222;cursor:pointer}' +
+            '#wcai-checkout-wizard .wcai-consent-row input{flex:none;width:24px;height:24px;margin:0}' +
+            '#wcai-checkout-wizard-footer{position:sticky;bottom:0;z-index:30;margin:14px 0 0;padding:0 0 8px;background:#fff;box-shadow:0 -6px 12px rgba(0,0,0,.06)}' +
+            'html:has(body[class*="wcai-checkout-step-"]){scroll-padding-bottom:calc(var(--wcai-footer-h,0px) + 16px)}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions{display:flex;justify-content:space-between;align-items:center;gap:9px;margin:0;padding-top:11px;border-top:1px solid #eee}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions button{min-height:44px;padding:8px 14px;border:1px solid #222;border-radius:8px;cursor:pointer}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions button:not(.wcai-wizard-secondary){background:#222;color:#fff}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions .wcai-wizard-secondary{background:#fff;color:#222}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions button:focus-visible{outline:3px solid #1a73e8;outline-offset:2px}' +
+            '#wcai-checkout-wizard-footer .wcai-wizard-actions .wcai-wizard-submit{flex:1;max-width:none;background:#222;color:#fff;font:inherit;font-size:15px;font-weight:800}' +
+            'body.wcai-checkout-step-4.wcai-consent-box .wc-block-checkout__terms:not(:has(input[type="checkbox"])){display:none!important}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-text-input input,body[class*="wcai-checkout-step-"] .wc-block-components-address-form__address_2-toggle{min-height:44px;font-size:16px;box-sizing:border-box}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-address-form__address_2-toggle{display:inline-flex;align-items:center;padding:8px 12px}' +
+            '@media(max-width:699px){#wcai-checkout-wizard{width:100%;padding:0}}' +
+            '@media(max-width:600px){' +
+            '#wcai-checkout-wizard .wcai-wizard-progress{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}' +
+            '#wcai-checkout-wizard .wcai-wizard-progress button{padding:6px 8px;overflow-wrap:anywhere}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-radio-control__option{min-height:44px;padding-top:12px;padding-bottom:12px}' +
+            'body[class*="wcai-checkout-step-"] .wc-block-components-checkbox label{min-height:44px;align-items:center}' +
+            '}';
 
         document.head.appendChild(style);
     }
 
-    function validateAdditional() {
+    // Função pura: devolve { idDoCampo: { message, hidden } } para os participantes adicionais.
+    function collectAdditionalErrors(items, now, holderCpf) {
         var errors = {};
+        var duplicates = duplicateCpfIds(items, holderCpf);
 
-        state.items.forEach(function (item, itemIndex) {
+        items.forEach(function (item, itemIndex) {
             var additionalAdults = 0;
             var additionalChildren = 0;
 
@@ -396,12 +826,18 @@
                     addError(errors, 'wcai-name-' + itemIndex + '-' + index, 'Informe o nome completo do participante ' + number + '.');
                 }
 
-                if (!participant.cpf) {
-                    addError(errors, 'wcai-cpf-' + itemIndex + '-' + index, 'Informe o CPF do participante ' + number + '.');
+                var who = 'do participante ' + number;
+                var cpfError = cpfMessage(participant.cpf, who);
+                var birthError = birthMessage(participant.birthdate, who, now);
+
+                if (cpfError) {
+                    addError(errors, 'wcai-cpf-' + itemIndex + '-' + index, cpfError);
+                } else if (duplicates['wcai-cpf-' + itemIndex + '-' + index]) {
+                    addError(errors, 'wcai-cpf-' + itemIndex + '-' + index, DUPLICATE_CPF_MESSAGE);
                 }
 
-                if (!participant.birthdate) {
-                    addError(errors, 'wcai-birth-' + itemIndex + '-' + index, 'Informe a data de nascimento do participante ' + number + '.');
+                if (birthError) {
+                    addError(errors, 'wcai-birth-' + itemIndex + '-' + index, birthError);
                 }
             });
 
@@ -417,8 +853,155 @@
             }
         });
 
-        setValidationErrors(errors);
+        return errors;
+    }
+
+    // Participantes comparados com o CPF do titular (campo nativo da etapa 2).
+    function participantErrors() {
+        return collectAdditionalErrors(state.items, undefined, holderInfo().cpf);
+    }
+
+    // Erros de participantes + aceite pendente: tudo no store de validação do Woo (bloqueia o pedido).
+    function publishErrors(errors) {
+        var all = {};
+        var pending = consentErrors(consent);
+
+        Object.keys(errors).forEach(function (id) { all[id] = errors[id]; });
+        Object.keys(pending).forEach(function (id) { all[id] = pending[id]; });
+
+        setValidationErrors(all);
+    }
+
+    function setConsent(value) {
+        consent = value === true;
+        setCheckoutStageClass();
+        publishErrors(participantErrors());
+
+        Array.prototype.slice.call(document.querySelectorAll('[data-wcai-consent-hint]')).forEach(function (hint) {
+            hint.hidden = !consentHintVisible(consent, attempted);
+        });
+
+        var live = document.querySelector('[data-wcai-live]');
+        if (consent && live) live.textContent = 'Aceite registrado.';
+
+        syncFooterSpace();
+
+        scheduleSync();
+    }
+
+    function validateAdditional() {
+        var errors = participantErrors();
+
+        publishErrors(errors);
+
+        if (attempted) renderInlineErrors(errors);
+
         return Object.keys(errors).length === 0;
+    }
+
+    // Mostra, por campo, a mensagem (role=alert) e liga aria-invalid/aria-describedby.
+    function renderInlineErrors(errors) {
+        var root = document.getElementById(ROOT);
+        if (!root) return;
+
+        Array.prototype.slice.call(root.querySelectorAll('[data-wcai-control]')).forEach(function (control) {
+            var error = errors[control.id];
+            var node = document.getElementById(control.id + '-error');
+
+            if (node) {
+                var text = error ? error.message : '';
+                if (node.textContent !== text) node.textContent = text;
+                node.hidden = !error;
+            }
+
+            if (error) {
+                control.setAttribute('aria-invalid', 'true');
+                control.setAttribute('aria-describedby', control.id + '-error');
+            } else {
+                control.removeAttribute('aria-invalid');
+                control.removeAttribute('aria-describedby');
+            }
+        });
+    }
+
+    // Resumo no topo da etapa. entries: [{ el, message }]. Cada campo vira um link que foca o campo.
+    // Escolha: não inserimos <p role=alert> ao lado dos inputs do Woo (nós alheios dentro da árvore React).
+    // Foca o 1º campo inválido (ou o resumo) quando focus !== false.
+    var describedNative = [];
+
+    // Campos nativos do Woo apontam para a mensagem do resumo; ao corrigir, volta o aria-describedby original.
+    function clearDescribedBy() {
+        describedNative.forEach(function (saved) {
+            if (saved.prev === null) {
+                saved.el.removeAttribute('aria-describedby');
+            } else {
+                saved.el.setAttribute('aria-describedby', saved.prev);
+            }
+        });
+
+        describedNative = [];
+    }
+
+    function reportErrors(panel, entries, focus) {
+        var summary = panel.querySelector('.wcai-error-summary');
+        if (!summary) return;
+
+        clearDescribedBy();
+
+        summary.textContent = '';
+        summary.hidden = !entries.length;
+
+        if (!entries.length) return;
+
+        var intro = document.createElement('strong');
+        intro.textContent = 'Corrija para continuar:';
+        summary.appendChild(intro);
+
+        var list = document.createElement('ul');
+
+        entries.forEach(function (entry, index) {
+            var li = document.createElement('li');
+            li.id = 'wcai-summary-error-' + index;
+
+            if (entry.el && !document.getElementById(entry.el.id + '-error')) {
+                describedNative.push({ el: entry.el, prev: entry.el.getAttribute('aria-describedby') });
+                entry.el.setAttribute('aria-describedby', li.id);
+            }
+
+            if (entry.el) {
+                var link = document.createElement('button');
+                link.type = 'button';
+                link.className = 'wcai-link';
+                link.textContent = entry.message;
+                link.addEventListener('click', function () {
+                    focusField(entry.el);
+                });
+                li.appendChild(link);
+            } else {
+                li.textContent = entry.message;
+            }
+
+            list.appendChild(li);
+        });
+
+        summary.appendChild(list);
+
+        if (focus === false) return;
+
+        var first = entries.filter(function (entry) {
+            return entry.el;
+        })[0];
+
+        var target = first ? first.el : summary;
+        focusField(target);
+    }
+
+    function errorSummary() {
+        var node = document.createElement('div');
+        node.className = 'wcai-error-summary';
+        node.tabIndex = -1;
+        node.hidden = true;
+        return node;
     }
 
     function validateDeparture() {
@@ -436,19 +1019,8 @@
     }
 
     function readBillingIdentityFields() {
-        var cpf = customField([
-            'input[name="billing_cpf"]',
-            'input[name="wcai/billing_cpf"]',
-            'input[name="wcai_billing_cpf"]',
-            '#wcai-billing-cpf'
-        ]);
-
-        var birthdate = customField([
-            'input[name="billing_birthdate"]',
-            'input[name="wcai/billing_birthdate"]',
-            'input[name="wcai_billing_birthdate"]',
-            '#wcai-billing-birthdate'
-        ]);
+        var cpf = customField(CPF_SELECTORS);
+        var birthdate = customField(BIRTH_SELECTORS);
 
         return {
             cpf: cpf ? cpf.value.trim() : '',
@@ -458,8 +1030,8 @@
         };
     }
 
-    function firstMissingRequiredField(section) {
-        if (!section) return null;
+    function missingRequiredFields(section) {
+        if (!section) return [];
 
         var fields = Array.prototype.slice.call(section.querySelectorAll('input,select,textarea'));
 
@@ -472,34 +1044,41 @@
             return field.required || field.getAttribute('aria-required') === 'true';
         }).filter(function (field) {
             return !String(field.value || '').trim();
-        })[0] || null;
+        });
     }
 
-    function validateBillingStep() {
+    // Campos nativos do WooCommerce: o bloco é React, então só marcamos aria-invalid e listamos no resumo.
+    function validateBillingStep(panel, focus) {
         var identity = readBillingIdentityFields();
         var sections = nativeSections();
+        var entries = [];
 
-        if (identity.cpfField && !identity.cpf) {
-            identity.cpfField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            identity.cpfField.focus();
-            return false;
+        function add(el, message) {
+            if (el && message && !entries.some(function (entry) { return entry.el === el; })) {
+                entries.push({ el: el, message: message });
+            }
         }
 
-        if (identity.birthdateField && !identity.birthdate) {
-            identity.birthdateField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            identity.birthdateField.focus();
-            return false;
-        }
+        flaggedNative.forEach(function (el) {
+            el.removeAttribute('aria-invalid');
+        });
 
-        var missing = firstMissingRequiredField(sections.contact) || firstMissingRequiredField(sections.billing);
+        if (identity.cpfField) add(identity.cpfField, cpfMessage(identity.cpf, 'do titular'));
+        if (identity.birthdateField) add(identity.birthdateField, birthMessage(identity.birthdate, 'do titular'));
 
-        if (missing) {
-            missing.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            missing.focus();
-            return false;
-        }
+        missingRequiredFields(sections.contact).concat(missingRequiredFields(sections.billing)).forEach(function (field) {
+            var label = field.labels && field.labels[0] ? field.labels[0].textContent.trim() : '';
+            add(field, label ? 'Preencha o campo ' + label + '.' : 'Preencha todos os campos obrigatórios.');
+        });
 
-        return true;
+        flaggedNative = entries.map(function (entry) {
+            entry.el.setAttribute('aria-invalid', 'true');
+            return entry.el;
+        });
+
+        reportErrors(panel, entries, focus);
+
+        return entries.length === 0;
     }
 
     function updateLocalValidation() {
@@ -540,8 +1119,230 @@
         return wrap;
     }
 
-    function setStep(step) {
-        currentStep = Math.max(1, Math.min(4, step));
+    // Botões Voltar/Continuar vão para a barra abaixo dos campos nativos; sem a barra, ficam no painel.
+    function mountActions(panel, step, nodes) {
+        var footer = document.getElementById('wcai-checkout-wizard-footer');
+        var host = panel;
+
+        if (footer) {
+            host = footer.querySelector('[data-wcai-actions="' + step + '"]');
+
+            if (!host) {
+                host = document.createElement('div');
+                host.setAttribute('data-wcai-actions', step);
+                footer.appendChild(host);
+            }
+
+            host.textContent = '';
+        }
+
+        nodes.forEach(function (node) {
+            host.appendChild(node);
+        });
+    }
+
+    function setNativeValue(input, value) {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Rascunho restaurado pelo Woo: limpa lixo ('1505199015051990') só em campo que o usuário não tocou nem está editando.
+    function restoreNativeDrafts() {
+        [[CPF_SELECTORS, 'cpf'], [BIRTH_SELECTORS, 'date']].forEach(function (pair) {
+            var field = firstExisting(pair[0]);
+
+            if (!field || !field.value || field === document.activeElement || field.getAttribute('data-wcai-touched')) return;
+
+            var clean = sanitizeDraft(pair[1], field.value);
+
+            if (clean !== field.value) setNativeValue(field, clean);
+        });
+    }
+
+    function nativePlaceOrderButton() {
+        return document.querySelector('.wc-block-components-checkout-place-order-button');
+    }
+
+    // Botão principal da etapa 4: "Finalizar pedido · R$ X". Espelha o estado (processando) do botão nativo.
+    function updateTotal() {
+        var data = cart();
+        var text = data ? formatTotal(data.totals) : '';
+        var nativeButton = nativePlaceOrderButton();
+
+        Array.prototype.slice.call(document.querySelectorAll('[data-wcai-submit]')).forEach(function (node) {
+            var label = 'Finalizar pedido' + (text ? ' · ' + text : '');
+
+            if (node.textContent !== label) node.textContent = label;
+            node.disabled = !!(nativeButton && nativeButton.disabled);
+        });
+    }
+
+    // O Woo só envia o pedido pelo botão nativo (escondido por CSS na etapa 4): o clique é repassado a ele.
+    function placeOrder() {
+        if (!consent) {
+            attempted = true;
+            setConsent(false);
+            focusConsent();
+            return;
+        }
+
+        if (!validateAdditional()) {
+            setStep(3, true);
+            attempted = true;
+            validateAdditional();
+
+            var invalid = document.querySelector('#' + ROOT + ' [aria-invalid="true"]');
+            if (invalid) invalid.focus();
+            return;
+        }
+
+        var nativeButton = nativePlaceOrderButton();
+
+        if (nativeButton && !nativeButton.disabled) nativeButton.click();
+    }
+
+    function focusConsent() {
+        var box = document.getElementById('wcai-consent');
+
+        focusField(box);
+    }
+
+    // Reserva espaço para a barra fixa: foco e scrollIntoView nunca ficam atrás dela.
+    function syncFooterSpace() {
+        var footer = document.getElementById('wcai-checkout-wizard-footer');
+
+        if (footer) document.documentElement.style.setProperty('--wcai-footer-h', footer.offsetHeight + 'px');
+    }
+
+    function refreshCountryHint() {
+        var node = document.querySelector('[data-wcai-country-hint]');
+        if (!node) return;
+
+        var customer = customerData();
+        var address = customer && customer.billingAddress ? customer.billingAddress : {};
+
+        node.hidden = !countryHintVisible(currentStep, address.country, address.state);
+    }
+
+    function holderInfo() {
+        var identity = readBillingIdentityFields();
+        var customer = customerData();
+        var address = customer && customer.billingAddress ? customer.billingAddress : {};
+
+        return {
+            name: [address.first_name, address.last_name].filter(Boolean).join(' '),
+            cpf: identity.cpf,
+            birthdate: identity.birthdate
+        };
+    }
+
+    // sessionStorage pode faltar (aba privada, bloqueio): o rascunho é só conveniência, então a falha é ignorada.
+    function draftStorage() {
+        try {
+            return window.sessionStorage || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    var orderDone = false;
+
+    function removeDraft(key) {
+        var store = draftStorage();
+
+        if (!store || !key) return;
+
+        try {
+            store.removeItem(key);
+        } catch (e) {
+            // sem acesso ao storage: nada a limpar.
+        }
+    }
+
+    function saveDraft() {
+        var store = draftStorage();
+
+        if (!store || orderDone || !state.items.length) return;
+
+        try {
+            store.setItem(draftKey(state.items), buildDraft(state.items, currentStep));
+        } catch (e) {
+            // cota cheia ou bloqueado: sem rascunho, o checkout segue normal.
+        }
+    }
+
+    function clearDraft() {
+        orderDone = true;
+        removeDraft(activeDraftKey);
+        if (state.items.length) removeDraft(draftKey(state.items));
+    }
+
+    // Carrinho mudou: o rascunho do carrinho anterior não vale mais.
+    function syncDraftKey() {
+        var key = state.items.length ? draftKey(state.items) : '';
+
+        if (activeDraftKey && key !== activeDraftKey) removeDraft(activeDraftKey);
+        activeDraftKey = key;
+    }
+
+    function restoreDraft() {
+        var store = draftStorage();
+        var raw = null;
+
+        if (!store) return null;
+
+        try {
+            sweepDrafts(store, Date.now());
+            raw = store.getItem(draftKey(state.items));
+        } catch (e) {
+            return null;
+        }
+
+        return applyDraft(state.items, raw);
+    }
+
+    // O formato de endereço do Brasil (plugin de campos extras) traz {number} e {neighborhood}, que o bloco não preenche.
+    // Corrige os dados do Woo (não o DOM do React) e força o cartão a redesenhar.
+    var addressNeedsRefresh = false;
+
+    function fixAddressFormats() {
+        var countries = window.wcSettings && window.wcSettings.countryData;
+
+        if (!countries) return;
+
+        Object.keys(countries).forEach(function (code) {
+            var current = countries[code] && countries[code].format;
+            var clean = typeof current === 'string' ? cleanAddressFormat(current) : current;
+
+            if (clean !== current) {
+                countries[code].format = clean;
+                addressNeedsRefresh = true;
+            }
+        });
+
+        var customer = addressNeedsRefresh ? customerData() : null;
+        var dispatcher = customer && window.wp && wp.data ? wp.data.dispatch('wc/store/cart') : null;
+
+        if (dispatcher && typeof dispatcher.setBillingAddress === 'function') {
+            addressNeedsRefresh = false;
+            dispatcher.setBillingAddress({ address_2: customer.billingAddress.address_2 || '' });
+        }
+    }
+
+    function setStep(step, moveFocus) {
+        var next = Math.max(1, Math.min(4, step));
+
+        if (next !== currentStep) attempted = false;
+
+        currentStep = next;
+
+        // Aviso do rascunho aparece uma vez: some depois que a etapa de participantes é deixada.
+        if (next === 3 && draftNotice) {
+            draftNoticeShown = true;
+        } else if (draftNoticeShown) {
+            draftNotice = false;
+            draftNoticeShown = false;
+        }
 
         var root = document.getElementById(ROOT);
         if (!root) return;
@@ -555,35 +1356,100 @@
             var labelStep = parseInt(label.getAttribute('data-step-label'), 10);
             label.classList.toggle('is-active', labelStep === currentStep);
             label.classList.toggle('is-complete', labelStep < currentStep);
-            label.setAttribute('aria-current', labelStep === currentStep ? 'step' : 'false');
-            label.setAttribute('tabindex', labelStep < currentStep ? '0' : '-1');
+            label.disabled = labelStep > currentStep;
+
+            if (labelStep === currentStep) {
+                label.setAttribute('aria-current', 'step');
+            } else {
+                label.removeAttribute('aria-current');
+            }
+        });
+
+        if (currentStep === 4) {
+            buildStepFour(root.querySelector('[data-wcai-step="4"]'));
+        }
+
+        if (currentStep === 2) {
+            restoreNativeDrafts();
+        }
+
+        Array.prototype.slice.call(document.querySelectorAll('[data-wcai-actions]')).forEach(function (host) {
+            host.hidden = parseInt(host.getAttribute('data-wcai-actions'), 10) !== currentStep;
         });
 
         applyNativeStepVisibility();
+        refreshCountryHint();
+        syncFooterSpace();
+        saveDraft();
+
+        if (moveFocus) {
+            var heading = root.querySelector('[data-wcai-step="' + currentStep + '"] h3');
+            var live = root.querySelector('[data-wcai-live]');
+
+            if (heading) {
+                heading.setAttribute('tabindex', '-1');
+                heading.focus({ preventScroll: true });
+            }
+
+            if (live && heading) {
+                live.textContent = 'Etapa ' + currentStep + ' de 4: ' + heading.textContent;
+            }
+        }
 
         if (currentStep === 3) {
             validateAdditional();
         }
 
-        if (currentStep === 2) {
-            setTimeout(function () {
-                var sections = nativeSections();
-                var target = sections.contact || sections.billing;
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 100);
-        } else if (currentStep === 4) {
-            setTimeout(function () {
-                var sections = nativeSections();
-                if (sections.payment) {
-                    sections.payment.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-                updatePlaceOrderProxy();
-            }, 120);
-        } else {
-            root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollHeadingIntoView(root.querySelector('[data-wcai-step="' + currentStep + '"] h3'));
+    }
+
+    // Altura do cabeçalho fixo/sticky no topo (admin bar, header do tema).
+    function stickyHeaderHeight() {
+        var height = 0;
+
+        Array.prototype.slice.call(document.querySelectorAll('header, #wpadminbar')).forEach(function (node) {
+            var position = window.getComputedStyle(node).position;
+            var rect = node.getBoundingClientRect();
+
+            if ((position === 'fixed' || position === 'sticky') && rect.top <= 1) height = Math.max(height, rect.bottom);
+        });
+
+        return height;
+    }
+
+    // Só rola se o título da etapa está fora da área visível (abaixo do cabeçalho, acima da barra fixa).
+    function scrollHeadingIntoView(heading) {
+        if (!heading) return;
+
+        var footer = document.getElementById('wcai-checkout-wizard-footer');
+        var rect = heading.getBoundingClientRect();
+        var delta = headingScrollDelta(rect.top, rect.bottom, window.innerHeight - (footer ? footer.offsetHeight : 0), stickyHeaderHeight());
+
+        if (delta !== 0) window.scrollBy({ top: delta, behavior: 'smooth' });
+    }
+
+    // Por que pedimos CPF e nascimento (etapas 2 e 3). Link só se o admin configurou a página de termos.
+    function lgpdNote() {
+        var note = document.createElement('p');
+        note.className = 'wcai-lgpd';
+        note.appendChild(document.createTextNode(
+            'Pedimos CPF e data de nascimento para o seguro e a lista de embarque do passeio. Seus dados são tratados conforme a LGPD.'
+        ));
+
+        var termsUrl = config().termsUrl || '';
+
+        if (/^https?:\/\//i.test(termsUrl)) {
+            var link = document.createElement('a');
+            link.href = termsUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'Termos de participação';
+            note.appendChild(document.createTextNode(' '));
+            note.appendChild(link);
+            note.appendChild(document.createTextNode('.'));
         }
+
+        return note;
     }
 
     function buildStepOne(panel) {
@@ -592,6 +1458,7 @@
         var title = document.createElement('h3');
         title.textContent = '1. Confira sua reserva';
         panel.appendChild(title);
+        panel.appendChild(errorSummary());
 
         state.items.forEach(function (item) {
             var box = document.createElement('div');
@@ -614,14 +1481,16 @@
             var peopleBox = document.createElement('div');
             peopleBox.innerHTML = '<span>Participantes</span>';
             var peopleValue = document.createElement('strong');
-            peopleValue.textContent =
-                item.adults + ' adulto' +
-                (item.adults === 1 ? '' : 's') +
-                (item.children ? ' + ' + item.children + ' criança' + (item.children === 1 ? '' : 's') : '');
+            peopleValue.textContent = peopleLabel(item.adults, item.children);
             peopleBox.appendChild(peopleValue);
             summary.appendChild(peopleBox);
 
             box.appendChild(summary);
+
+            var hint = document.createElement('p');
+            hint.className = 'wcai-holder-hint';
+            hint.textContent = holderHint(item.adults, item.children);
+            box.appendChild(hint);
 
             if (!item.departure_id) {
                 var warning = document.createElement('div');
@@ -633,12 +1502,16 @@
             panel.appendChild(box);
         });
 
-        panel.appendChild(
+        mountActions(panel, 1, [
             actions('Continuar para seus dados', function () {
-                if (!validateDeparture()) return;
-                setStep(2);
+                if (!validateDeparture()) {
+                    reportErrors(panel, [{ el: null, message: 'Escolha a data e o horário da saída na página do passeio.' }]);
+                    return;
+                }
+
+                setStep(2, true);
             })
-        );
+        ]);
     }
 
     function buildStepTwo(panel) {
@@ -647,19 +1520,30 @@
         var title = document.createElement('h3');
         title.textContent = '2. Seus dados';
         panel.appendChild(title);
+        panel.appendChild(lgpdNote());
+        panel.appendChild(errorSummary());
 
         var text = document.createElement('p');
         text.textContent = 'Preencha os dados do titular abaixo. Os campos de identificação do passeio fazem parte desta etapa e não precisam ser repetidos depois.';
         panel.appendChild(text);
 
-        panel.appendChild(
+        var countryHint = document.createElement('div');
+        countryHint.className = 'wcai-warning';
+        countryHint.setAttribute('role', 'status');
+        countryHint.setAttribute('data-wcai-country-hint', '');
+        countryHint.hidden = true;
+        countryHint.textContent = 'Confira o país: o endereço tem um estado do Brasil, mas o país informado é outro.';
+        panel.appendChild(countryHint);
+
+        mountActions(panel, 2, [
             actions('Continuar para participantes', function () {
-                if (!validateBillingStep()) return;
-                setStep(3);
+                attempted = true;
+                if (!validateBillingStep(panel)) return;
+                setStep(3, true);
             }, function () {
-                setStep(1);
+                setStep(1, true);
             })
-        );
+        ]);
     }
 
     function buildStepThree(panel) {
@@ -668,14 +1552,24 @@
         var title = document.createElement('h3');
         title.textContent = '3. Participantes';
         panel.appendChild(title);
+        panel.appendChild(lgpdNote());
+        panel.appendChild(errorSummary());
 
         var text = document.createElement('p');
         text.textContent = 'O titular é o primeiro adulto. Preencha somente os dados dos demais participantes.';
         panel.appendChild(text);
 
+        if (draftNotice) {
+            var notice = document.createElement('p');
+            notice.className = 'wcai-draft-notice';
+            notice.setAttribute('role', 'status');
+            notice.textContent = 'Por segurança, CPF e data de nascimento não são guardados ao recarregar a página.';
+            panel.appendChild(notice);
+        }
+
         var hasAdditional = false;
 
-        state.items.forEach(function (item) {
+        state.items.forEach(function (item, itemIndex) {
             if (!item.additional_participants.length) return;
 
             hasAdditional = true;
@@ -701,25 +1595,25 @@
                         { value: 'child', label: 'Criança' }
                     ], function (value) {
                         person.type = value;
-                    })
+                    }, { id: 'wcai-type-' + itemIndex + '-' + index })
                 );
 
                 personBox.appendChild(
                     inputField('Nome completo', person.name, 'Nome completo', null, function (value) {
                         person.name = value;
-                    })
+                    }, { id: 'wcai-name-' + itemIndex + '-' + index })
                 );
 
                 personBox.appendChild(
                     inputField('CPF', person.cpf, '000.000.000-00', cpfMask, function (value) {
                         person.cpf = value;
-                    })
+                    }, { id: 'wcai-cpf-' + itemIndex + '-' + index, inputmode: 'numeric' })
                 );
 
                 personBox.appendChild(
                     inputField('Data de nascimento', person.birthdate, 'dd/mm/aaaa', dateMask, function (value) {
                         person.birthdate = value;
-                    })
+                    }, { id: 'wcai-birth-' + itemIndex + '-' + index, inputmode: 'numeric' })
                 );
 
                 itemBox.appendChild(personBox);
@@ -734,14 +1628,25 @@
             panel.appendChild(none);
         }
 
-        panel.appendChild(
+        mountActions(panel, 3, [
             actions('Revisar e pagar', function () {
-                if (!validateAdditional()) return;
-                setStep(4);
+                attempted = true;
+
+                if (!validateAdditional()) {
+                    var errors = participantErrors();
+
+                    reportErrors(panel, Object.keys(errors).map(function (id) {
+                        return { el: document.getElementById(id), message: errors[id].message };
+                    }));
+                    return;
+                }
+
+                reportErrors(panel, []);
+                setStep(4, true);
             }, function () {
-                setStep(2);
+                setStep(2, true);
             })
-        );
+        ]);
     }
 
     function buildStepFour(panel) {
@@ -772,10 +1677,7 @@
             var participants = document.createElement('div');
             participants.innerHTML = '<span>Participantes</span>';
             var participantsValue = document.createElement('strong');
-            participantsValue.textContent =
-                item.adults + ' adulto' +
-                (item.adults === 1 ? '' : 's') +
-                (item.children ? ' + ' + item.children + ' criança' + (item.children === 1 ? '' : 's') : '');
+            participantsValue.textContent = peopleLabel(item.adults, item.children);
             participants.appendChild(participantsValue);
             summary.appendChild(participants);
 
@@ -783,15 +1685,99 @@
             panel.appendChild(box);
         });
 
-        var note = document.createElement('p');
-        note.textContent = 'Confira a saída e os participantes. Abaixo estão a forma de pagamento, os termos e o botão Finalizar pedido.';
-        panel.appendChild(note);
+        var peopleTitle = document.createElement('h4');
+        peopleTitle.textContent = 'Participantes';
+        panel.appendChild(peopleTitle);
+        panel.appendChild(reviewPeople());
+        panel.appendChild(consentBlock());
 
-        panel.appendChild(
-            actions('Voltar para participantes', function () {
-                setStep(3);
-            }, null)
-        );
+        var back = actions(null, null, function () {
+            setStep(3, true);
+        });
+        var submit = button('Finalizar pedido', placeOrder, false);
+        submit.className = 'wcai-wizard-submit';
+        submit.setAttribute('data-wcai-submit', '');
+        back.appendChild(submit);
+
+        mountActions(panel, 4, [back]);
+        updateTotal();
+    }
+
+    function reviewPeople() {
+        var list = document.createElement('ul');
+        list.className = 'wcai-review-people';
+
+        participantSummary(state.items, holderInfo()).forEach(function (row) {
+            var li = document.createElement('li');
+            var role = document.createElement('strong');
+            role.textContent = row.role;
+            li.appendChild(role);
+
+            [row.name || 'Nome não informado', row.age === null ? '' : row.age + ' anos', row.cpf ? 'CPF ' + row.cpf : ''].forEach(function (part) {
+                if (!part) return;
+                var span = document.createElement('span');
+                span.textContent = part;
+                li.appendChild(span);
+            });
+
+            list.appendChild(li);
+        });
+
+        return list;
+    }
+
+    function consentBlock() {
+        var cfg = config();
+        var box = document.createElement('div');
+        box.className = 'wcai-consent';
+
+        if (cfg.consentText) {
+            var text = document.createElement('p');
+            text.textContent = cfg.consentText;
+            box.appendChild(text);
+        }
+
+        var row = document.createElement('label');
+        row.className = 'wcai-consent-row';
+
+        var input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = 'wcai-consent';
+        input.checked = consent;
+        input.setAttribute('aria-required', 'true');
+        input.addEventListener('change', function () {
+            setConsent(input.checked);
+        });
+        row.appendChild(input);
+
+        var label = document.createElement('span');
+        label.appendChild(document.createTextNode('Li e aceito os '));
+
+        if (/^https?:\/\//i.test(cfg.termsUrl || '')) {
+            var link = document.createElement('a');
+            link.href = cfg.termsUrl;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'termos de participação';
+            label.appendChild(link);
+        } else {
+            label.appendChild(document.createTextNode('termos de participação'));
+        }
+
+        row.appendChild(label);
+        box.appendChild(row);
+
+        var hint = document.createElement('p');
+        hint.id = 'wcai-consent-hint';
+        hint.className = 'wcai-consent-hint';
+        hint.setAttribute('role', 'alert');
+        hint.setAttribute('data-wcai-consent-hint', '');
+        hint.hidden = !consentHintVisible(consent, attempted);
+        hint.textContent = 'Marque o aceite para finalizar o pedido.';
+        input.setAttribute('aria-describedby', hint.id);
+        box.appendChild(hint);
+
+        return box;
     }
 
     function render() {
@@ -807,6 +1793,21 @@
         });
 
         state.items = targets.map(itemState);
+        syncDraftKey();
+
+        if (!draftRestored && state.items.length) {
+            var restored = restoreDraft();
+
+            draftRestored = true;
+
+            if (restored) {
+                draftNotice = restored.notice;
+                // Sem CPF/nascimento (não guardados), a etapa de revisão não vale: volta aos participantes.
+                var savedStep = restored.notice && restored.step > 3 ? 3 : restored.step;
+
+                if (savedStep) currentStep = savedStep > 1 && !validateDeparture() ? 1 : savedStep;
+            }
+        }
 
         if (!targets.length) {
             root.style.display = 'none';
@@ -853,19 +1854,64 @@
         if (!document.getElementById(ROOT) || !window.wp || !wp.data) return;
 
         function update() {
+            fixAddressFormats();
+
             var data = cart();
             var next = sig(data);
 
-            if (next !== signature) {
+            if (next !== signature || domLost()) {
                 signature = next;
                 render();
-            } else {
-                updatePlaceOrderProxy();
             }
+
+            updateTotal();
+            refreshCountryHint();
+            restoreNativeDrafts();
+        }
+
+        // O React do Woo pode recriar nós estáticos: se o painel 1 ou a barra ficaram vazios, monta de novo.
+        function domLost() {
+            var panelOne = document.querySelector('#' + ROOT + ' [data-wcai-step="1"]');
+            var footer = document.getElementById('wcai-checkout-wizard-footer');
+
+            return state.items.length > 0 && ((panelOne && !panelOne.firstChild) || (footer && !footer.firstChild));
         }
 
         update();
         wp.data.subscribe(update, 'wc/store/cart');
+
+        // Pedido concluído: apaga o rascunho dos participantes (dados de terceiros) do navegador.
+        function checkoutComplete() {
+            var checkout = wp.data.select('wc/store/checkout');
+
+            return !!(checkout && typeof checkout.isComplete === 'function' && checkout.isComplete());
+        }
+
+        wp.data.subscribe(function () {
+            if (checkoutComplete()) clearDraft();
+        }, 'wc/store/checkout');
+
+        // Saída da página com pedido feito (ex.: redirecionamento ao gateway): garante a limpeza.
+        window.addEventListener('pagehide', function () {
+            if (orderDone || checkoutComplete()) clearDraft();
+        });
+
+        window.addEventListener('resize', syncFooterSpace);
+
+        // Enter num campo de texto avança a etapa (o botão da etapa valida); nunca em textarea, select ou botão.
+        document.addEventListener('keydown', function (event) {
+            var target = event.target;
+
+            if (event.key !== 'Enter' || event.isComposing || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+            if (!target || target.tagName !== 'INPUT' || /^(checkbox|radio|button|submit)$/i.test(target.type)) return;
+            if (currentStep === 4 || !document.body.classList.contains('wcai-checkout-step-' + currentStep)) return;
+            if (!target.closest('#' + ROOT + ', .wc-block-checkout__form')) return;
+
+            event.preventDefault();
+
+            var primary = document.querySelector('[data-wcai-actions="' + currentStep + '"] button:not(.wcai-wizard-secondary)');
+            if (primary) primary.click();
+        }, true);
 
         document.addEventListener('click', function (event) {
             var target = event.target;
@@ -878,9 +1924,92 @@
             var targetStep = parseInt(label.getAttribute('data-step-label'), 10);
 
             if (targetStep < currentStep) {
-                setStep(targetStep);
+                setStep(targetStep, true);
             }
         });
+
+        // Woo rejeita inputmode/placeholder em checkout fields adicionais: aplica aqui, ao focar o campo nativo do titular.
+        document.addEventListener('focusin', function (event) {
+            var target = event.target;
+            if (!target || !target.matches) return;
+            var hint = target.matches(CPF_SELECTORS.join(',')) ? '000.000.000-00' : (target.matches(BIRTH_SELECTORS.join(',')) ? 'dd/mm/aaaa' : '');
+            if (!hint) return;
+            target.setAttribute('inputmode', 'numeric');
+            target.setAttribute('placeholder', hint);
+        });
+
+        // Máscara de CPF e de data no campo nativo do titular (bloco React: usa o setter nativo para o estado atualizar).
+        document.addEventListener('input', function (event) {
+            var target = event.target;
+            if (!target || !target.matches) return;
+
+            var mask = target.matches(CPF_SEL) ? cpfMask : (target.matches(BIRTH_SEL) ? dateMask : null);
+            if (!mask) return;
+
+            // Evento sintético (nosso) não conta como edição do usuário.
+            if (event.isTrusted) target.setAttribute('data-wcai-touched', '1');
+
+            var masked = mask(target.value);
+
+            if (masked !== target.value) {
+                setNativeValue(target, masked);
+                return;
+            }
+
+            var root = document.getElementById(ROOT);
+            var panel = root && root.querySelector('[data-wcai-step="2"]');
+
+            if (attempted && currentStep === 2 && panel) validateBillingStep(panel, false);
+        });
+
+        // Sem aceite, o clique em "Finalizar pedido" não chega ao Woo (o teclado também gera clique).
+        document.addEventListener('click', function (event) {
+            var target = event.target;
+
+            if (consent || !target || !target.closest || !document.body.classList.contains('wcai-checkout-step-4')) return;
+            if (!target.closest('.wc-block-components-checkout-place-order-button')) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            focusConsent();
+        }, true);
+    }
+
+    // Ambiente de teste (Node): expõe só as funções puras, sem tocar no DOM.
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = {
+            isValidCpf: isValidCpf,
+            parseDate: parseDate,
+            isMinAge: isMinAge,
+            cpfMessage: cpfMessage,
+            birthMessage: birthMessage,
+            collectAdditionalErrors: collectAdditionalErrors,
+            pushExtensionData: pushExtensionData,
+            cpfMask: cpfMask,
+            dateMask: dateMask,
+            ageOn: ageOn,
+            sanitizeDraft: sanitizeDraft,
+            maskCpfForReview: maskCpfForReview,
+            participantSummary: participantSummary,
+            consentErrors: consentErrors,
+            consentHintVisible: consentHintVisible,
+            focusField: focusField,
+            headingScrollDelta: headingScrollDelta,
+            buildPayload: buildPayload,
+            formatTotal: formatTotal,
+            suspectCountry: suspectCountry,
+            countryHintVisible: countryHintVisible,
+            stageGateCss: stageGateCss,
+            duplicateCpfIds: duplicateCpfIds,
+            holderHint: holderHint,
+            peopleLabel: peopleLabel,
+            cleanAddressFormat: cleanAddressFormat,
+            draftKey: draftKey,
+            buildDraft: buildDraft,
+            applyDraft: applyDraft,
+            sweepDrafts: sweepDrafts
+        };
+        return;
     }
 
     if (document.readyState === 'loading') {

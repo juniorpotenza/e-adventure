@@ -105,7 +105,8 @@ class WCAI_Participants_DB {
 
         $format = array();
         foreach ( $data as $key => $value ) {
-            $format[] = is_numeric( $value ) ? '%d' : '%s';
+            // cpf sempre %s: %d descartaria o zero à esquerda.
+            $format[] = ( 'cpf' !== $key && is_numeric( $value ) ) ? '%d' : '%s';
         }
 
         return $wpdb->update(

@@ -40,7 +40,20 @@ O estado operacional e o estado jurídico são independentes.
 - accepted: a versão vigente está aceita;
 - version_outdated: existe aceite histórico, mas para uma versão diferente da vigente.
 
-A coluna legada termo_assinado permanece apenas como compatibilidade/transição. O aceite jurídico versionado em wcai_legal_acceptances é a fonte de verdade para documentos.
+A coluna legada termo_assinado ainda é lida pela interface de Minha Conta. Ela não é gravada como fonte de verdade. O aceite versionado em wcai_legal_acceptances é a fonte de verdade para documentos. Remova a leitura de termo_assinado antes de eliminar a coluna.
+
+## Estados da reserva
+
+| Estado | Significado | Ocupa vaga |
+| --- | --- | --- |
+| hold | Bloqueio temporário criado no checkout. Expira em 15 minutos. | Sim |
+| pending | Reserva aguardando pagamento. | Sim |
+| confirmed | Pagamento confirmado. Só este estado assina, gera ingresso e aparece na agenda e no scanner. | Sim |
+| cancelled | Cancelada. Reconfirmar exige nova checagem de vagas. | Não |
+| refunded | Reembolsada. | Não |
+| expired | Hold vencido. O cron wcai_expire_holds roda a cada 5 minutos. | Não |
+
+A passagem de hold para confirmed ocorre dentro do GET_LOCK da saída, com nova checagem de capacidade.
 
 ## Segurança e privacidade
 
@@ -49,7 +62,11 @@ A coluna legada termo_assinado permanece apenas como compatibilidade/transição
 - CPFs, e-mails, nascimentos, IPs e assinaturas não entram em texto livre de auditoria.
 - Evidências de IP e user-agent devem ser armazenadas como hash quando necessárias.
 - O aplicativo de campo deve manter somente dados mínimos e expirar o cache local.
-- O fluxo público de assinatura usa nonce e sessão de assinatura vinculada por HMAC ao pedido/participante.
+- O fluxo público de assinatura usa nonce e sessão de assinatura vinculada por HMAC ao pedido/participante. O cookie HMAC leva expiração (exp).
+- Prova de posse: o cliente envia o order_key do pedido, além do CPF. O servidor devolve o mesmo erro para vínculo inválido e sessão inválida.
+- O PNG da assinatura fica em wp-content/uploads/wcai-private/. Um endpoint com capability serve o arquivo.
+- Menor de 18 anos exige nome e CPF do responsável. O servidor grava os dois no aceite (CPF em hash).
+- Dados pessoais têm exportador e eliminador do WordPress (LGPD).
 
 ## Evolução
 

@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- Suite com WordPress + WooCommerce reais. Testes com stubs rodam em phpunit-unit.xml.dist. -->
+<phpunit bootstrap="tests/bootstrap.php" colors="true">
+    <testsuites>
+        <testsuite name="wp">
+            <file>tests/test-t1-participants.php</file>
+            <file>tests/test-t3-reservations.php</file>
+            <file>tests/test-t8-migration.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>
