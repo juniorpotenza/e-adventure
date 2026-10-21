@@ -7,7 +7,8 @@ Screens:
       OnVisible: |-
         =If(
             IsBlank(gblItem),
-            Notify("Selecione um item na carteira.", NotificationType.Information); Navigate(scrCarteira, ScreenTransition.None),
+            false,
+            UpdateContext({locForn: LookUp(colForn, Codigo_Fornecedor = gblItem.ItemPO.Codigo_Fornecedor)});
             ClearCollect(colDosMarcos, Filter(colMarcos, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
             ClearCollect(colDosOcor, Filter(colOcor, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
             ClearCollect(colDosAcoes, Filter(colAcoes, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
@@ -27,7 +28,7 @@ Screens:
         )
     Children:
     - cabFundo_Dossie:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =0
@@ -35,7 +36,7 @@ Screens:
           Height: =56
           Fill: =nfCorNavy
     - cabMarca_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="DIL · Diligenciamento SAP"
           X: =20
@@ -47,7 +48,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabUsuario_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =User().FullName & "  ·  " & gblPerfil
           X: =Parent.Width - 560
@@ -59,7 +60,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -71,7 +72,7 @@ Screens:
                 ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
                 ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
                 ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
-                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colAcoes, AddColumns(Filter(DIL_Acoes, Ativo = true), PrazoData, IfError(DateTimeValue(Prazo), Blank()))),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
@@ -88,7 +89,6 @@ Screens:
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
                         RC, LookUp(colReq, Numero_RC = v.Numero_RC),
                         ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -110,7 +110,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - menuFundo_Dossie:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =56
@@ -118,7 +118,7 @@ Screens:
           Height: =Parent.Height - 56
           Fill: =nfCorNavy
     - galMenu_Dossie:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
@@ -132,7 +132,7 @@ Screens:
           OnSelect: =Switch(ThisItem.Chave, "inicio", Navigate(scrInicio, ScreenTransition.None), "carteira", Navigate(scrCarteira, ScreenTransition.None), "dossie", Navigate(scrDossie, ScreenTransition.None), "ocorrencias", Navigate(scrOcorrencias, ScreenTransition.None), "acoes", Navigate(scrAcoes, ScreenTransition.None), "agenda", Navigate(scrAgenda, ScreenTransition.None), "comunicacoes", Navigate(scrComunicacoes, ScreenTransition.None), "gestao", Navigate(scrGestao, ScreenTransition.None), "admin", Navigate(scrAdmin, ScreenTransition.None))
         Children:
         - mnuSel_Dossie:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -141,7 +141,7 @@ Screens:
               Fill: =If(ThisItem.Chave = "dossie", nfCorNavy2, nfCorNavy)
               OnSelect: =Select(Parent)
         - mnuRotulo_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Rotulo
               X: =16
@@ -154,7 +154,7 @@ Screens:
               OnSelect: =Select(Parent)
               FontWeight: =If(ThisItem.Chave = "dossie", FontWeight.Semibold, FontWeight.Normal)
     - menuRodape_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Atualizado " & If(IsBlank(gblCarregadoEm), "—", Text(gblCarregadoEm, "dd/mm hh:mm"))
           X: =16
@@ -165,7 +165,7 @@ Screens:
           Color: =nfCorLinha
           Font: =Font.'Segoe UI'
     - lblTitulo_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Dossiê do processo"
           X: =240
@@ -177,7 +177,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - dCab_Dossie:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240
           Y: =120
@@ -187,7 +187,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - dCabFaixa_Dossie:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240
           Y: =120
@@ -195,7 +195,7 @@ Screens:
           Height: =84
           Fill: =Switch(gblItem.Situacao, "Crítico", nfCorVermelho, "Em risco", nfCorLaranja, nfCorVerde)
     - dIdent_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="RC " & gblItem.Numero_RC & " / " & gblItem.Item_RC & "   ·   PO " & gblItem.Numero_PO & " / " & gblItem.Item_PO
           X: =256
@@ -207,7 +207,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - dDesc_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(gblItem.ItemPO.Material, "—") & " · " & Coalesce(gblItem.ItemPO.Descricao_Produto, "—") & "  ·  " & Coalesce(gblItem.ItemPO.Nome_Fornecedor, "—")
           X: =256
@@ -218,7 +218,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - dSit_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =gblItem.Situacao
           X: =240 + Parent.Width - 260 - 400
@@ -230,7 +230,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - btnNovaOcor_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Registrar ocorrência"
           X: =240 + Parent.Width - 260 - 270
@@ -250,7 +250,7 @@ Screens:
           RadiusBottomRight: =4
           Visible: =gblPodeEditar
     - btnVoltar_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="‹ Voltar à carteira"
           X: =240 + Parent.Width - 260 - 270
@@ -269,7 +269,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba0_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Resumo"
           X: =240 + 0
@@ -288,7 +288,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba1_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Compromissos"
           X: =240 + 150
@@ -307,7 +307,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba2_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Marcos"
           X: =240 + 300
@@ -326,7 +326,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba3_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Ocorrências"
           X: =240 + 450
@@ -345,7 +345,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba4_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Ações"
           X: =240 + 600
@@ -364,7 +364,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba5_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Comunicações"
           X: =240 + 750
@@ -383,7 +383,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba6_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Histórico"
           X: =240 + 900
@@ -402,7 +402,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - rTit00_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Status de liberação do PO"
           X: =240
@@ -414,7 +414,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal00_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(gblItem.ItemPO.Status_Liberacao_PO, "—")
           X: =470
@@ -427,7 +427,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit01_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Status EF / EM (SAP)"
           X: =240
@@ -439,7 +439,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal01_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(gblItem.ItemPO.Status_EF, "—") & " / " & Coalesce(gblItem.ItemPO.Status_EM, "—")
           X: =470
@@ -452,7 +452,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit02_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Data 1ª remessa (SAP)"
           X: =240
@@ -464,7 +464,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal02_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =If(IsBlank(gblItem.ItemPO.Data_1_Remessa_Item_SAP), "—", Text(gblItem.ItemPO.Data_1_Remessa_Item_SAP, "dd/mm/yyyy"))
           X: =470
@@ -477,7 +477,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit03_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Código do fornecedor"
           X: =240
@@ -489,7 +489,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal03_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(gblItem.ItemPO.Codigo_Fornecedor, "—")
           X: =470
@@ -502,7 +502,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit04_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Ocorrências abertas"
           X: =240
@@ -514,7 +514,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal04_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =gblItem.QtdOcorrAbertas
           X: =470
@@ -527,7 +527,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit05_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Ações pendentes"
           X: =240
@@ -539,7 +539,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal05_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =gblItem.QtdAcoesPend
           X: =470
@@ -552,7 +552,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit06_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Marcos atrasados"
           X: =240
@@ -564,7 +564,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal06_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =gblItem.QtdMarcosAtrasados
           X: =470
@@ -577,7 +577,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit07_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Tipo / origem do vínculo RC×PO"
           X: =240
@@ -589,7 +589,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal07_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(gblItem.Tipo_Vinculo.Value, "—") & " / " & Coalesce(gblItem.Origem_Vinculo.Value, "—")
           X: =470
@@ -602,7 +602,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit10_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Responsável pela diligência"
           X: =840
@@ -614,7 +614,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal10_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(gblItem.RC.Responsavel_Diligencia.DisplayName, "—")
           X: =1070
@@ -627,7 +627,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit11_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Prioridade / risco (RC)"
           X: =840
@@ -639,7 +639,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal11_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(gblItem.RC.Prioridade.Value, "—") & " / " & Coalesce(gblItem.RC.Nivel_Risco.Value, "—")
           X: =1070
@@ -652,7 +652,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit12_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Status / criação da RC"
           X: =840
@@ -664,7 +664,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal12_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(gblItem.RC.Status_RC, "—") & " / " & If(IsBlank(gblItem.RC.Data_Criacao_RC), "—", Text(gblItem.RC.Data_Criacao_RC, "dd/mm/yyyy"))
           X: =1070
@@ -677,7 +677,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit13_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: '="Item RC: utilização / avaliação"'
           X: =840
@@ -689,7 +689,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal13_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(gblItem.ItemRC.Utilizacao_Material, "—") & " / " & Coalesce(gblItem.ItemRC.Tipo_Avaliacao, "—")
           X: =1070
@@ -702,7 +702,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit14_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Fornecedor / CNPJ"
           X: =840
@@ -714,9 +714,9 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal14_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
-          Text: =Coalesce(gblItem.Forn.Nome_Fornecedor, gblItem.ItemPO.Nome_Fornecedor, "—") & " / " & Coalesce(gblItem.Forn.CNPJ, "—")
+          Text: =Coalesce(locForn.Nome_Fornecedor, gblItem.ItemPO.Nome_Fornecedor, "—") & " / " & Coalesce(locForn.CNPJ, "—")
           X: =1070
           Y: =438
           Width: =Parent.Width - 260 - 830
@@ -727,7 +727,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit15_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Contato / telefone"
           X: =840
@@ -739,9 +739,9 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal15_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
-          Text: =Coalesce(gblItem.Forn.Contato_Principal, "—") & " / " & Coalesce(gblItem.Forn.Telefone, "—")
+          Text: =Coalesce(locForn.Contato_Principal, "—") & " / " & Coalesce(locForn.Telefone, "—")
           X: =1070
           Y: =482
           Width: =Parent.Width - 260 - 830
@@ -752,7 +752,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit16_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="E-mail do fornecedor"
           X: =840
@@ -764,9 +764,9 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal16_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
-          Text: =Coalesce(gblItem.Forn.Email_Principal, "—")
+          Text: =Coalesce(locForn.Email_Principal, "—")
           X: =1070
           Y: =526
           Width: =Parent.Width - 260 - 830
@@ -777,7 +777,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - rTit17_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Status / risco do fornecedor"
           X: =840
@@ -789,9 +789,9 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
     - rVal17_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
-          Text: =Coalesce(gblItem.Forn.Status_Fornecedor.Value, "—") & " / " & Coalesce(gblItem.Forn.Nivel_Risco_Fornecedor.Value, "—")
+          Text: =Coalesce(locForn.Status_Fornecedor.Value, "—") & " / " & Coalesce(locForn.Nivel_Risco_Fornecedor.Value, "—")
           X: =1070
           Y: =570
           Width: =Parent.Width - 260 - 830
@@ -802,7 +802,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
     - galMarcos_Dossie:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Sort(colDosMarcos, Data_Planejada)
@@ -816,7 +816,7 @@ Screens:
           Visible: =locAba = "Marcos"
         Children:
         - dmFundo_Dossie:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -824,7 +824,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - dmData_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: '="Plan.: " & If(IsBlank(ThisItem.Data_Planejada), "—", Text(ThisItem.Data_Planejada, "dd/mm/yyyy")) & Char(10) & "Real.: " & If(IsBlank(ThisItem.Data_Realizada), "—", Text(ThisItem.Data_Realizada, "dd/mm/yyyy"))'
               X: =12
@@ -835,7 +835,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - dmDesc_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Descricao_Marco, "—")
               X: =170
@@ -847,7 +847,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - dmStatus_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Status_Marco.Value, "—")
               X: =Parent.TemplateWidth - 340
@@ -859,7 +859,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - dmResp_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Responsavel_Pessoa.DisplayName, "—")
               X: =Parent.TemplateWidth - 210
@@ -870,7 +870,7 @@ Screens:
               Color: =nfCorSuave
               Font: =Font.'Segoe UI'
     - galOcor_Dossie:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Sort(colDosOcor, Data_Ocorrencia, SortOrder.Descending)
@@ -884,7 +884,7 @@ Screens:
           Visible: =locAba = "Ocorrências"
         Children:
         - doFundo_Dossie:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -892,7 +892,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - doData_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(ThisItem.Data_Ocorrencia), "—", Text(ThisItem.Data_Ocorrencia, "dd/mm/yyyy"))
               X: =12
@@ -903,7 +903,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - doSev_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Severidade.Value, "—")
               X: =104
@@ -915,7 +915,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - doDesc_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Tipo_Ocorrencia.Value, "—") & " · " & Coalesce(ThisItem.Descricao, "")
               X: =190
@@ -926,7 +926,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - doStatus_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Status_Ocorrencia.Value, "—")
               X: =Parent.TemplateWidth - 140
@@ -938,10 +938,10 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
     - galAcoes_Dossie:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
-          Items: =Sort(colDosAcoes, Prazo)
+          Items: =Sort(colDosAcoes, PrazoData)
           X: =240
           Y: =262
           Width: =Parent.Width - 260
@@ -952,7 +952,7 @@ Screens:
           Visible: =locAba = "Ações"
         Children:
         - daFundo_Dossie:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -960,19 +960,19 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - daPrazo_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
-              Text: =If(IsBlank(ThisItem.Prazo), "—", Text(ThisItem.Prazo, "dd/mm/yyyy"))
+              Text: =If(IsBlank(ThisItem.PrazoData), "—", Text(ThisItem.PrazoData, "dd/mm/yyyy"))
               X: =12
               Y: =0
               Width: =90
               Height: =Parent.TemplateHeight
               Size: =10
-              Color: =If(ThisItem.Prazo < Now() && !(ThisItem.Status_Acao.Value in nfAcaoFechadas), nfCorVermelho, nfCorTexto)
+              Color: =If(ThisItem.PrazoData < Now() && !(ThisItem.Status_Acao.Value in nfAcaoFechadas), nfCorVermelho, nfCorTexto)
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - daDesc_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Tipo_Acao.Value, "—") & " · " & Coalesce(ThisItem.Descricao_Acao, "")
               X: =104
@@ -983,7 +983,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - daResp_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Responsavel_Pessoa.DisplayName, ThisItem.Responsavel, "—")
               X: =Parent.TemplateWidth - 360
@@ -994,7 +994,7 @@ Screens:
               Color: =nfCorSuave
               Font: =Font.'Segoe UI'
         - daStatus_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Status_Acao.Value, "—") & " · " & Coalesce(ThisItem.Prioridade.Value, "—")
               X: =Parent.TemplateWidth - 150
@@ -1006,7 +1006,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
     - galComun_Dossie:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Sort(colDosComun, Data_Comunicacao, SortOrder.Descending)
@@ -1020,7 +1020,7 @@ Screens:
           Visible: =locAba = "Comunicações"
         Children:
         - dcFundo_Dossie:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -1028,7 +1028,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - dcData_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(ThisItem.Data_Comunicacao), "—", Text(ThisItem.Data_Comunicacao, "dd/mm/yyyy hh:mm"))
               X: =12
@@ -1039,7 +1039,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - dcAssunto_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Assunto, "—")
               X: =136
@@ -1051,7 +1051,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - dcEnvio_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(LookUp(colEnvios, Chave_Entidade = ThisItem.Chave_Comunicacao)), "Sem registro de envio", "E-mail enviado (DIL_10)")
               X: =Parent.TemplateWidth - 250
@@ -1062,7 +1062,7 @@ Screens:
               Color: =nfCorSuave
               Font: =Font.'Segoe UI'
     - galHist_Dossie:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Sort(colDosHist, Data_Evento, SortOrder.Descending)
@@ -1076,7 +1076,7 @@ Screens:
           Visible: =locAba = "Histórico"
         Children:
         - dhFundo_Dossie:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -1084,7 +1084,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - dhData_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(ThisItem.Data_Evento), "—", Text(ThisItem.Data_Evento, "dd/mm/yyyy hh:mm"))
               X: =12
@@ -1095,7 +1095,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - dhTipo_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Entidade.Value, "—") & " · " & Coalesce(ThisItem.Tipo_Evento.Value, "—")
               X: =136
@@ -1107,7 +1107,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - dhDesc_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: '=Coalesce(ThisItem.Campo_Alterado, "") & ": " & Coalesce(ThisItem.Valor_Anterior, "∅") & " → " & Coalesce(ThisItem.Valor_Novo, "∅") & Char(10) & Coalesce(ThisItem.Observacao, "")'
               X: =340
@@ -1118,7 +1118,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
     - galComp_Dossie:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Sort(colDosComp, Data_Compromisso, SortOrder.Descending)
@@ -1132,7 +1132,7 @@ Screens:
           Visible: =locAba = "Compromissos"
         Children:
         - cpFundo_Dossie:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -1141,7 +1141,7 @@ Screens:
               Fill: =If(ThisItem.IsSelected, nfCorFundo, nfCorCartao)
               OnSelect: =Select(Parent)
         - cpData_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(ThisItem.Data_Compromisso), "—", Text(ThisItem.Data_Compromisso, "dd/mm/yyyy"))
               X: =12
@@ -1153,7 +1153,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - cpAnt_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(ThisItem.Data_Compromisso_Anterior), "", "antes " & Text(ThisItem.Data_Compromisso_Anterior, "dd/mm/yyyy"))
               X: =12
@@ -1164,7 +1164,7 @@ Screens:
               Color: =nfCorSuave
               Font: =Font.'Segoe UI'
         - cpTipo_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Tipo_Compromisso.Value, "—") & " · " & Coalesce(ThisItem.Status_Compromisso.Value, "—") & " · origem " & Coalesce(ThisItem.Origem_Compromisso.Value, "—")
               X: =126
@@ -1176,7 +1176,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - cpObs_Dossie:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Responsavel_Registro_Pessoa.DisplayName, ThisItem.Responsavel_Registro, "—") & "  —  " & Coalesce(ThisItem.Observacao, "")
               X: =126
@@ -1187,7 +1187,7 @@ Screens:
               Color: =nfCorSuave
               Font: =Font.'Segoe UI'
     - cpVazio_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Nenhum compromisso registrado para este item."
           X: =240
@@ -1199,7 +1199,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Compromissos" && IsEmpty(galComp_Dossie.AllItems)
     - cpPainel_Dossie:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + (Parent.Width - 260) * 0.6 + 16
           Y: =262
@@ -1210,7 +1210,7 @@ Screens:
           BorderThickness: =1
           Visible: =locAba = "Compromissos" && gblPodeEditar
     - btnCompNovo_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Novo compromisso"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
@@ -1230,7 +1230,7 @@ Screens:
           RadiusBottomRight: =4
           Visible: =locAba = "Compromissos" && gblPodeEditar
     - btnCompReprog_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Reprogramar selecionado"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 186
@@ -1250,7 +1250,7 @@ Screens:
           RadiusBottomRight: =4
           Visible: =locAba = "Compromissos" && gblPodeEditar
     - cpModo_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: '=If(locCompModo = "reprogramar", "Nova data para: " & Coalesce(galComp_Dossie.Selected.Tipo_Compromisso.Value, "") & " de " & If(IsBlank(galComp_Dossie.Selected.Data_Compromisso), "—", Text(galComp_Dossie.Selected.Data_Compromisso, "dd/mm/yyyy")), "Registrar novo compromisso do fornecedor")'
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
@@ -1263,7 +1263,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Compromissos" && gblPodeEditar
     - cpT0_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Tipo *"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
@@ -1275,7 +1275,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
     - ddTipoComp_Dossie:
-        Control: Classic/DropDown
+        Control: Classic/DropDown@2.3.1
         Properties:
           Items: =Choices([@DIL_Compromissos].Tipo_Compromisso)
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
@@ -1286,7 +1286,7 @@ Screens:
           BorderColor: =nfCorLinha
           Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
     - cpT1_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Origem *"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
@@ -1298,7 +1298,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
     - ddOrigemComp_Dossie:
-        Control: Classic/DropDown
+        Control: Classic/DropDown@2.3.1
         Properties:
           Items: =Choices([@DIL_Compromissos].Origem_Compromisso)
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
@@ -1309,7 +1309,7 @@ Screens:
           BorderColor: =nfCorLinha
           Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
     - cpT2_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Status *"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
@@ -1321,7 +1321,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Compromissos" && gblPodeEditar
     - ddStatusComp_Dossie:
-        Control: Classic/DropDown
+        Control: Classic/DropDown@2.3.1
         Properties:
           Items: =Choices([@DIL_Compromissos].Status_Compromisso)
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
@@ -1333,7 +1333,7 @@ Screens:
           Default: =If(locCompModo = "reprogramar", galComp_Dossie.Selected.Status_Compromisso.Value, "Aberto")
           Visible: =locAba = "Compromissos" && gblPodeEditar
     - cpT3_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Data *"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
@@ -1345,7 +1345,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Compromissos" && gblPodeEditar
     - dtComp_Dossie:
-        Control: Classic/DatePicker
+        Control: Classic/DatePicker@2.6.0
         Properties:
           DefaultDate: =If(locCompModo = "reprogramar" && !IsBlank(galComp_Dossie.Selected), galComp_Dossie.Selected.Data_Compromisso, DateAdd(Today(), 7, TimeUnit.Days))
           Height: =36
@@ -1356,7 +1356,7 @@ Screens:
           Y: =488
           Width: =(Parent.Width - 260) * 0.4 - 16 - 126
     - txtObsComp_Dossie:
-        Control: Classic/TextInput
+        Control: Classic/TextInput@2.3.2
         Properties:
           Default: =If(locCompModo = "reprogramar", galComp_Dossie.Selected.Observacao, "")
           HintText: '="Observação (ex.: confirmado por e-mail do fornecedor)"'
@@ -1369,7 +1369,7 @@ Screens:
           Mode: =TextMode.MultiLine
           Visible: =locAba = "Compromissos" && gblPodeEditar
     - btnCompSalvar_Dossie:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Gravar compromisso"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
@@ -1420,7 +1420,7 @@ Screens:
                 ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
                 ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
                 ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
-                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colAcoes, AddColumns(Filter(DIL_Acoes, Ativo = true), PrazoData, IfError(DateTimeValue(Prazo), Blank()))),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
@@ -1437,7 +1437,6 @@ Screens:
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
                         RC, LookUp(colReq, Numero_RC = v.Numero_RC),
                         ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -1463,7 +1462,7 @@ Screens:
           RadiusBottomRight: =4
           Visible: =locAba = "Compromissos" && gblPodeEditar
     - cpNota_Dossie:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="O marco correspondente (MARCO-COMP-…) é criado/atualizado pelo fluxo DIL_05, que também registra o histórico."
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
@@ -1474,3 +1473,45 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Compromissos" && gblPodeEditar
+    - blqFundo_Dossie:
+        Control: Rectangle@2.3.0
+        Properties:
+          X: =220
+          Y: =56
+          Width: =Parent.Width - 220
+          Height: =Parent.Height - 56
+          Fill: =nfCorFundo
+          Visible: =IsBlank(gblItem)
+    - blqMsg_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: ="Nenhum processo selecionado. Escolha um item na carteira."
+          X: =240
+          Y: =160
+          Width: =Parent.Width - 260
+          Height: =40
+          Size: =13
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =IsBlank(gblItem)
+    - blqBotao_Dossie:
+        Control: Classic/Button@2.2.0
+        Properties:
+          Text: ="Ir para a carteira"
+          X: =240
+          Y: =216
+          Width: =220
+          Height: =40
+          OnSelect: =Navigate(scrCarteira, ScreenTransition.None)
+          Fill: =nfCorAzul
+          Color: =nfCorCartao
+          HoverFill: =nfCorNavy2
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =IsBlank(gblItem)

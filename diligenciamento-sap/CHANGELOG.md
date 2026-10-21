@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.4.0-candidato-v6] — 2026-10-21
+
+### Evidência nova
+- `.msapp` salvo pelo usuário no Studio com as listas conectadas: lido o Verificador (`AppCheckerResult.sarif`,
+  817 itens: 741 de acessibilidade, 45 avisos de desempenho/delegação, **31 erros de fórmula**) e o esquema real
+  das fontes (`References/DataSources.json`). Esquema do Studio importado como fonte oficial
+  (`schema/esquema_studio.json`, sem GUIDs): **todas as colunas das 14 listas usadas pelo app confirmadas**.
+- Versões dos controles clássicos fixadas como o Studio grava (`Classic/Button@2.2.0` etc.).
+
+### Corrigido (31 erros)
+- `User().FirstName` não existe → primeiro nome extraído de `User().FullName`.
+- `DIL_Acoes.Prazo` é **texto**: coluna derivada `PrazoData = IfError(DateTimeValue(Prazo), Blank())` para filtros,
+  ordenação e cores; nova ação grava `Prazo` como texto ISO (`yyyy-mm-dd`).
+- `Navigate` não é permitido em `OnVisible` (Dossiê, Gestão, Administração) → painel de bloqueio com botão.
+- Campos do fornecedor no Dossiê: busca direta em `colForn` (`locForn`) em vez de coluna aninhada na carteira.
+- ComboBox de responsável: `SearchItems` explícito (o padrão do Studio apontava para dados de amostra);
+  `IsSearchable` removido (não existe no clássico).
+- Validador: novas regras para `User().<propriedade>`, `Navigate` em `OnVisible` e comparação de coluna de texto.
+
+### Observações
+- `DIL_Acoes_1`: fonte duplicada adicionada no Studio, não usada pelo app — pode ser removida.
+- `DIL_Marcos.Ativo` confirmado como texto (o app não usa essa coluna).
+
 ## [0.3.0-candidato-v5] — 2026-10-21
 
 ### Adicionado

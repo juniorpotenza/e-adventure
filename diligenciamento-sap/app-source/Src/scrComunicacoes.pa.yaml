@@ -6,7 +6,7 @@ Screens:
       Fill: =nfCorFundo
     Children:
     - cabFundo_Comunicacoes:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =0
@@ -14,7 +14,7 @@ Screens:
           Height: =56
           Fill: =nfCorNavy
     - cabMarca_Comunicacoes:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="DIL · Diligenciamento SAP"
           X: =20
@@ -26,7 +26,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabUsuario_Comunicacoes:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =User().FullName & "  ·  " & gblPerfil
           X: =Parent.Width - 560
@@ -38,7 +38,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Comunicacoes:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -50,7 +50,7 @@ Screens:
                 ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
                 ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
                 ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
-                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colAcoes, AddColumns(Filter(DIL_Acoes, Ativo = true), PrazoData, IfError(DateTimeValue(Prazo), Blank()))),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
@@ -67,7 +67,6 @@ Screens:
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
                         RC, LookUp(colReq, Numero_RC = v.Numero_RC),
                         ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -89,7 +88,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - menuFundo_Comunicacoes:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =56
@@ -97,7 +96,7 @@ Screens:
           Height: =Parent.Height - 56
           Fill: =nfCorNavy
     - galMenu_Comunicacoes:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
@@ -111,7 +110,7 @@ Screens:
           OnSelect: =Switch(ThisItem.Chave, "inicio", Navigate(scrInicio, ScreenTransition.None), "carteira", Navigate(scrCarteira, ScreenTransition.None), "dossie", Navigate(scrDossie, ScreenTransition.None), "ocorrencias", Navigate(scrOcorrencias, ScreenTransition.None), "acoes", Navigate(scrAcoes, ScreenTransition.None), "agenda", Navigate(scrAgenda, ScreenTransition.None), "comunicacoes", Navigate(scrComunicacoes, ScreenTransition.None), "gestao", Navigate(scrGestao, ScreenTransition.None), "admin", Navigate(scrAdmin, ScreenTransition.None))
         Children:
         - mnuSel_Comunicacoes:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -120,7 +119,7 @@ Screens:
               Fill: =If(ThisItem.Chave = "comunicacoes", nfCorNavy2, nfCorNavy)
               OnSelect: =Select(Parent)
         - mnuRotulo_Comunicacoes:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Rotulo
               X: =16
@@ -133,7 +132,7 @@ Screens:
               OnSelect: =Select(Parent)
               FontWeight: =If(ThisItem.Chave = "comunicacoes", FontWeight.Semibold, FontWeight.Normal)
     - menuRodape_Comunicacoes:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Atualizado " & If(IsBlank(gblCarregadoEm), "—", Text(gblCarregadoEm, "dd/mm hh:mm"))
           X: =16
@@ -144,7 +143,7 @@ Screens:
           Color: =nfCorLinha
           Font: =Font.'Segoe UI'
     - lblTitulo_Comunicacoes:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Comunicações"
           X: =240
@@ -156,7 +155,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - aviso_Comun:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240
           Y: =120
@@ -166,7 +165,7 @@ Screens:
           BorderColor: =nfCorLaranja
           BorderThickness: =1
     - avisoTxt_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Consulta apenas. O envio de e-mails é feito exclusivamente pelo fluxo DIL_10 (comunicações COM-SLA-*), que impede reenvio do mesmo evento."
           X: =252
@@ -177,7 +176,7 @@ Screens:
           Color: =nfCorLaranja
           Font: =Font.'Segoe UI'
     - txtBusca_Comun:
-        Control: Classic/TextInput
+        Control: Classic/TextInput@2.3.2
         Properties:
           Default: =""
           HintText: ="Buscar assunto, PO ou RC"
@@ -188,7 +187,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddEnvio_Comun:
-        Control: Classic/DropDown
+        Control: Classic/DropDown@2.3.1
         Properties:
           Items: =["(Todas)", "Enviada pelo DIL_10", "Aguardando DIL_10", "Fora do escopo do DIL_10", "Inativa"]
           X: =552
@@ -198,7 +197,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - galComun_Comun:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: |-
@@ -229,7 +228,7 @@ Screens:
           ShowScrollbar: =true
         Children:
         - cmFundo_Comun:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -238,7 +237,7 @@ Screens:
               Fill: =If(ThisItem.IsSelected, nfCorFundo, nfCorCartao)
               OnSelect: =Select(Parent)
         - cmAssunto_Comun:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Assunto, "(sem assunto)")
               X: =12
@@ -250,7 +249,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - cmInfo_Comun:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(ThisItem.Data_Comunicacao), "—", Text(ThisItem.Data_Comunicacao, "dd/mm/yyyy hh:mm")) & " · " & Coalesce(ThisItem.Tipo_Comunicacao.Value, "—") & " · " & Coalesce(ThisItem.Sentido.Value, "—")
               X: =12
@@ -261,7 +260,7 @@ Screens:
               Color: =nfCorSuave
               Font: =Font.'Segoe UI'
         - cmStatus_Comun:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.StatusEnvio
               X: =Parent.TemplateWidth - 190
@@ -274,7 +273,7 @@ Screens:
               FontWeight: =FontWeight.Semibold
               Align: =Align.Right
     - detFundo_Comun:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + (Parent.Width - 260) * 0.55 + 16
           Y: =224
@@ -284,7 +283,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - detVazio_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Selecione uma comunicação."
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 16
@@ -296,7 +295,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =IsBlank(galComun_Comun.Selected)
     - detT0_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Chave"
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 16
@@ -308,7 +307,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detV0_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =galComun_Comun.Selected.Chave_Comunicacao
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 150
@@ -321,7 +320,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detT1_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="RC / PO"
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 16
@@ -333,7 +332,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detV1_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="RC " & galComun_Comun.Selected.Numero_RC & "/" & galComun_Comun.Selected.Item_RC & " · PO " & galComun_Comun.Selected.Numero_PO & "/" & galComun_Comun.Selected.Item_PO
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 150
@@ -346,7 +345,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detT2_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Situação do envio"
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 16
@@ -358,7 +357,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detV2_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =galComun_Comun.Selected.StatusEnvio & If(IsBlank(galComun_Comun.Selected.DataEnvio), "", " em " & Text(galComun_Comun.Selected.DataEnvio, "dd/mm/yyyy hh:mm"))
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 150
@@ -371,7 +370,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detT3_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Responsável"
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 16
@@ -383,7 +382,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detV3_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(galComun_Comun.Selected.Responsavel_Pessoa.DisplayName, galComun_Comun.Selected.Responsavel, "—")
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 150
@@ -396,7 +395,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detT4_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Assunto"
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 16
@@ -408,7 +407,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detV4_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(galComun_Comun.Selected.Assunto, "")
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 150
@@ -421,7 +420,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detTResumo_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Conteúdo registrado (corpo usado pelo DIL_10)"
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 16
@@ -433,7 +432,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =!IsBlank(galComun_Comun.Selected)
     - detResumo_Comun:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Coalesce(galComun_Comun.Selected.Resumo, "")
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 16
@@ -446,7 +445,7 @@ Screens:
           Visible: =!IsBlank(galComun_Comun.Selected)
           VerticalAlign: =VerticalAlign.Top
     - btnAnexo_Comun:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Abrir anexo"
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 16

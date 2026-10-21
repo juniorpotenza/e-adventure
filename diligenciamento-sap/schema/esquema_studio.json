@@ -1,0 +1,945 @@
+{
+ "DIL_Configuracao": [
+  {
+   "exibicao": "Chave_Configuracao",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Categoria",
+   "interno": "field_1",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Nome_Parametro",
+   "interno": "field_2",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Valor_Texto",
+   "interno": "field_3",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Valor_Numero",
+   "interno": "field_4",
+   "tipo": "Numero"
+  },
+  {
+   "exibicao": "Valor_Data",
+   "interno": "field_5",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "field_6",
+   "tipo": "Booleano"
+  },
+  {
+   "exibicao": "Descricao",
+   "interno": "field_7",
+   "tipo": "Texto"
+  }
+ ],
+ "DIL_Vinculo_RC_PO": [
+  {
+   "exibicao": "Chave_Vinculo",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_RC",
+   "interno": "Numero_RC",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_RC",
+   "interno": "Item_RC",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_PO",
+   "interno": "Numero_PO",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_PO",
+   "interno": "Item_PO",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Quantidade_Vinculada",
+   "interno": "Quantidade_Vinculada",
+   "tipo": "Numero"
+  },
+  {
+   "exibicao": "Percentual_Vinculado",
+   "interno": "Percentual_Vinculado",
+   "tipo": "Numero"
+  },
+  {
+   "exibicao": "Tipo_Vinculo",
+   "interno": "Tipo_Vinculo",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Origem_Vinculo",
+   "interno": "Origem_Vinculo",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Data_Vinculo",
+   "interno": "Data_Vinculo",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "Ativo",
+   "tipo": "Booleano"
+  }
+ ],
+ "DIL_Itens_Pedido": [
+  {
+   "exibicao": "Chave_Item_PO",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_PO",
+   "interno": "Numero_PO",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_PO",
+   "interno": "Item_PO",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Material",
+   "interno": "Material",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Descricao_Produto",
+   "interno": "Descricao_Produto",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Codigo_Fornecedor",
+   "interno": "Codigo_Fornecedor",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Nome_Fornecedor",
+   "interno": "Nome_Fornecedor",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Data_1_Remessa_Item_SAP",
+   "interno": "Data_1_Remessa_Item_SAP",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Status_Liberacao_PO",
+   "interno": "Status_Liberacao_PO",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Status_EF",
+   "interno": "Status_EF",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Status_EM",
+   "interno": "Status_EM",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Valor_1_SAP",
+   "interno": "Valor_1_SAP",
+   "tipo": "Numero"
+  },
+  {
+   "exibicao": "Valor_2_SAP",
+   "interno": "Valor_2_SAP",
+   "tipo": "Numero"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "Ativo",
+   "tipo": "Booleano"
+  }
+ ],
+ "DIL_Ocorrencias": [
+  {
+   "exibicao": "Chave_Ocorrencia",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_RC",
+   "interno": "field_1",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_RC",
+   "interno": "field_2",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_PO",
+   "interno": "field_3",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_PO",
+   "interno": "field_4",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Codigo_Fornecedor",
+   "interno": "field_5",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Tipo_Ocorrencia",
+   "interno": "field_6",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Severidade",
+   "interno": "field_7",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Descricao",
+   "interno": "field_8",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Data_Ocorrencia",
+   "interno": "field_9",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Status_Ocorrencia",
+   "interno": "field_10",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Responsavel",
+   "interno": "field_11",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Data_Resolucao",
+   "interno": "field_12",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Observacao",
+   "interno": "field_13",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "field_14",
+   "tipo": "Booleano"
+  },
+  {
+   "exibicao": "Responsavel_Pessoa",
+   "interno": "Responsavel_Pessoa",
+   "tipo": "Pessoa"
+  }
+ ],
+ "DIL_Acoes": [
+  {
+   "exibicao": "Chave_Acao",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_RC",
+   "interno": "field_1",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_RC",
+   "interno": "field_2",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_PO",
+   "interno": "field_3",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_PO",
+   "interno": "field_4",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Chave_Ocorrencia",
+   "interno": "field_5",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Tipo_Acao",
+   "interno": "field_6",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Descricao_Acao",
+   "interno": "field_7",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Responsavel",
+   "interno": "field_8",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Prazo",
+   "interno": "field_9",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Status_Acao",
+   "interno": "field_10",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Data_Conclusao",
+   "interno": "field_11",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Prioridade",
+   "interno": "field_12",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Observacao",
+   "interno": "field_13",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "field_14",
+   "tipo": "Booleano"
+  },
+  {
+   "exibicao": "Responsavel_Pessoa",
+   "interno": "Responsavel_Pessoa",
+   "tipo": "Pessoa"
+  }
+ ],
+ "DIL_Marcos": [
+  {
+   "exibicao": "Chave_Marco",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_RC",
+   "interno": "field_1",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_RC",
+   "interno": "field_2",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_PO",
+   "interno": "field_3",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_PO",
+   "interno": "field_4",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Tipo_Marco",
+   "interno": "field_5",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Descricao_Marco",
+   "interno": "field_6",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Data_Planejada",
+   "interno": "field_7",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Data_Realizada",
+   "interno": "field_8",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Status_Marco",
+   "interno": "field_9",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Responsavel",
+   "interno": "field_10",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Observacao",
+   "interno": "field_11",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "field_12",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Responsavel_Pessoa",
+   "interno": "Responsavel_Pessoa",
+   "tipo": "Pessoa"
+  }
+ ],
+ "DIL_Comunicacoes": [
+  {
+   "exibicao": "Chave_Comunicacao",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_RC",
+   "interno": "field_1",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_RC",
+   "interno": "field_2",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_PO",
+   "interno": "field_3",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_PO",
+   "interno": "field_4",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Codigo_Fornecedor",
+   "interno": "field_5",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Tipo_Comunicacao",
+   "interno": "field_6",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Data_Comunicacao",
+   "interno": "field_7",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Sentido",
+   "interno": "field_8",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Assunto",
+   "interno": "field_9",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Resumo",
+   "interno": "field_10",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Responsavel",
+   "interno": "field_11",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Anexo_Link",
+   "interno": "field_12",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "field_13",
+   "tipo": "Booleano"
+  },
+  {
+   "exibicao": "Responsavel_Pessoa",
+   "interno": "Responsavel_Pessoa",
+   "tipo": "Pessoa"
+  },
+  {
+   "exibicao": "Anexo_Link_1",
+   "interno": "Anexo_Link_1",
+   "tipo": "Hyperlink"
+  }
+ ],
+ "DIL_Historico": [
+  {
+   "exibicao": "Chave_Historico",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Entidade",
+   "interno": "field_1",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Chave_Entidade",
+   "interno": "field_2",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Tipo_Evento",
+   "interno": "field_3",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Campo_Alterado",
+   "interno": "field_4",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Valor_Anterior",
+   "interno": "field_5",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Valor_Novo",
+   "interno": "field_6",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Data_Evento",
+   "interno": "field_7",
+   "tipo": "DataHora"
+  },
+  {
+   "exibicao": "Usuario_Evento",
+   "interno": "field_8",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Origem_Evento",
+   "interno": "field_9",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Observacao",
+   "interno": "field_10",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Usuario_Evento_Pessoa",
+   "interno": "Usuario_Evento_Pessoa",
+   "tipo": "Pessoa"
+  }
+ ],
+ "DIL_SLA": [
+  {
+   "exibicao": "Chave_SLA",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Nome_SLA",
+   "interno": "field_1",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Tipo_SLA",
+   "interno": "field_2",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "field_3",
+   "tipo": "Booleano"
+  },
+  {
+   "exibicao": "Quantidade_Horas",
+   "interno": "field_4",
+   "tipo": "Numero"
+  },
+  {
+   "exibicao": "Prioridade",
+   "interno": "field_5",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Nivel_Risco",
+   "interno": "field_6",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Grupo_Compradores",
+   "interno": "field_7",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Notificar_Email",
+   "interno": "field_8",
+   "tipo": "Booleano"
+  },
+  {
+   "exibicao": "Notificar_Teams",
+   "interno": "field_9",
+   "tipo": "Booleano"
+  },
+  {
+   "exibicao": "Observacao",
+   "interno": "field_10",
+   "tipo": "Texto"
+  }
+ ],
+ "DIL_Integracao_Execucao": [
+  {
+   "exibicao": "Chave_Execucao",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Tipo_Integracao",
+   "interno": "field_1",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Data_Inicio",
+   "interno": "field_2",
+   "tipo": "DataHora"
+  },
+  {
+   "exibicao": "Data_Fim",
+   "interno": "field_3",
+   "tipo": "DataHora"
+  },
+  {
+   "exibicao": "Status_Execucao",
+   "interno": "field_4",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Registros_Lidos",
+   "interno": "field_5",
+   "tipo": "Numero"
+  },
+  {
+   "exibicao": "Registros_Processados",
+   "interno": "field_6",
+   "tipo": "Numero"
+  },
+  {
+   "exibicao": "Registros_Erro",
+   "interno": "field_7",
+   "tipo": "Numero"
+  },
+  {
+   "exibicao": "Arquivo_Origem",
+   "interno": "field_8",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Mensagem",
+   "interno": "field_9",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Executado_Por",
+   "interno": "field_10",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Executado_Por_Pessoa",
+   "interno": "Executado_Por_Pessoa",
+   "tipo": "Pessoa"
+  }
+ ],
+ "DIL_Compromissos": [
+  {
+   "exibicao": "Chave_Compromisso",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_RC",
+   "interno": "field_1",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_RC",
+   "interno": "field_2",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_PO",
+   "interno": "field_3",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_PO",
+   "interno": "field_4",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Codigo_Fornecedor",
+   "interno": "field_5",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Tipo_Compromisso",
+   "interno": "field_6",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Data_Compromisso",
+   "interno": "field_7",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Data_Compromisso_Anterior",
+   "interno": "field_8",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Origem_Compromisso",
+   "interno": "field_9",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Status_Compromisso",
+   "interno": "field_10",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Data_Registro",
+   "interno": "field_11",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Responsavel_Registro",
+   "interno": "field_12",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Observacao",
+   "interno": "field_13",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "field_14",
+   "tipo": "Booleano"
+  },
+  {
+   "exibicao": "Responsavel_Registro_Pessoa",
+   "interno": "Responsavel_Registro_Pessoa",
+   "tipo": "Pessoa"
+  }
+ ],
+ "DIL_Requisicoes": [
+  {
+   "exibicao": "Chave_RC",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_RC",
+   "interno": "Numero_RC",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Tipo_Doc_Compra",
+   "interno": "Tipo_Doc_Compra",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Descricao_Tipo_Doc",
+   "interno": "Descricao_Tipo_Doc",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Status_RC",
+   "interno": "Status_RC",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Data_Criacao_RC",
+   "interno": "Data_Criacao_RC",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Grupo_Compradores",
+   "interno": "Grupo_Compradores",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Responsavel_Diligencia",
+   "interno": "Responsavel_Diligencia",
+   "tipo": "Pessoa"
+  },
+  {
+   "exibicao": "Prioridade",
+   "interno": "Prioridade",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Nivel_Risco",
+   "interno": "Nivel_Risco",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Data_Ultima_Atualizacao_SAP",
+   "interno": "Data_Ultima_Atualizacao_SAP",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Ativa",
+   "interno": "Ativa",
+   "tipo": "Booleano"
+  },
+  {
+   "exibicao": "Observacao",
+   "interno": "Observacao",
+   "tipo": "Texto"
+  }
+ ],
+ "DIL_Fornecedores": [
+  {
+   "exibicao": "Chave_Fornecedor",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Codigo_Fornecedor",
+   "interno": "field_1",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Nome_Fornecedor",
+   "interno": "field_2",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "CNPJ",
+   "interno": "field_3",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Email_Principal",
+   "interno": "field_4",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Telefone",
+   "interno": "field_5",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Contato_Principal",
+   "interno": "field_6",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Categoria_Fornecedor",
+   "interno": "field_7",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Status_Fornecedor",
+   "interno": "field_8",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Nivel_Risco_Fornecedor",
+   "interno": "field_9",
+   "tipo": "Escolha"
+  },
+  {
+   "exibicao": "Responsavel_Fornecedor",
+   "interno": "field_10",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Observacao",
+   "interno": "field_11",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "field_12",
+   "tipo": "Booleano"
+  },
+  {
+   "exibicao": "Responsavel_Fornecedor_Pessoa",
+   "interno": "Responsavel_Fornecedor_Pessoa",
+   "tipo": "Pessoa"
+  }
+ ],
+ "DIL_Itens_Requisicao": [
+  {
+   "exibicao": "Chave_Item_RC",
+   "interno": "Title",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Numero_RC",
+   "interno": "Numero_RC",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Item_RC",
+   "interno": "Item_RC",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Material",
+   "interno": "Material",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Descricao_Produto",
+   "interno": "Descricao_Produto",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Utilizacao_Material",
+   "interno": "Utilizacao_Material",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Tipo_Avaliacao",
+   "interno": "Tipo_Avaliacao",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Grupo_Compradores",
+   "interno": "Grupo_Compradores",
+   "tipo": "Texto"
+  },
+  {
+   "exibicao": "Data_1_Remessa_Item_SAP",
+   "interno": "Data_1_Remessa_Item_SAP",
+   "tipo": "Data"
+  },
+  {
+   "exibicao": "Ativo",
+   "interno": "Ativo",
+   "tipo": "Booleano"
+  }
+ ]
+}

@@ -4,10 +4,9 @@ Screens:
   scrGestao:
     Properties:
       Fill: =nfCorFundo
-      OnVisible: =If(!gblPodeGestao, Notify("Acesso restrito ao perfil de gestão.", NotificationType.Warning); Navigate(scrInicio, ScreenTransition.None))
     Children:
     - cabFundo_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =0
@@ -15,7 +14,7 @@ Screens:
           Height: =56
           Fill: =nfCorNavy
     - cabMarca_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="DIL · Diligenciamento SAP"
           X: =20
@@ -27,7 +26,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabUsuario_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =User().FullName & "  ·  " & gblPerfil
           X: =Parent.Width - 560
@@ -39,7 +38,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Gestao:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -51,7 +50,7 @@ Screens:
                 ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
                 ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
                 ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
-                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colAcoes, AddColumns(Filter(DIL_Acoes, Ativo = true), PrazoData, IfError(DateTimeValue(Prazo), Blank()))),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
@@ -68,7 +67,6 @@ Screens:
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
                         RC, LookUp(colReq, Numero_RC = v.Numero_RC),
                         ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -90,7 +88,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - menuFundo_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =56
@@ -98,7 +96,7 @@ Screens:
           Height: =Parent.Height - 56
           Fill: =nfCorNavy
     - galMenu_Gestao:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
@@ -112,7 +110,7 @@ Screens:
           OnSelect: =Switch(ThisItem.Chave, "inicio", Navigate(scrInicio, ScreenTransition.None), "carteira", Navigate(scrCarteira, ScreenTransition.None), "dossie", Navigate(scrDossie, ScreenTransition.None), "ocorrencias", Navigate(scrOcorrencias, ScreenTransition.None), "acoes", Navigate(scrAcoes, ScreenTransition.None), "agenda", Navigate(scrAgenda, ScreenTransition.None), "comunicacoes", Navigate(scrComunicacoes, ScreenTransition.None), "gestao", Navigate(scrGestao, ScreenTransition.None), "admin", Navigate(scrAdmin, ScreenTransition.None))
         Children:
         - mnuSel_Gestao:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -121,7 +119,7 @@ Screens:
               Fill: =If(ThisItem.Chave = "gestao", nfCorNavy2, nfCorNavy)
               OnSelect: =Select(Parent)
         - mnuRotulo_Gestao:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Rotulo
               X: =16
@@ -134,7 +132,7 @@ Screens:
               OnSelect: =Select(Parent)
               FontWeight: =If(ThisItem.Chave = "gestao", FontWeight.Semibold, FontWeight.Normal)
     - menuRodape_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Atualizado " & If(IsBlank(gblCarregadoEm), "—", Text(gblCarregadoEm, "dd/mm hh:mm"))
           X: =16
@@ -145,7 +143,7 @@ Screens:
           Color: =nfCorLinha
           Font: =Font.'Segoe UI'
     - lblTitulo_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Visão da gestão"
           X: =240
@@ -157,7 +155,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo0_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 0 * ((Parent.Width - 260 - 48) / 5 + 12)
           Y: =120
@@ -167,7 +165,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa0_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 0 * ((Parent.Width - 260 - 48) / 5 + 12)
           Y: =120
@@ -175,7 +173,7 @@ Screens:
           Height: =92
           Fill: =nfCorAzul
     - kpiTitulo0_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Itens na carteira"
           X: =240 + 0 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
@@ -186,7 +184,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor0_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =CountRows(colCarteira)
           X: =240 + 0 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
@@ -198,7 +196,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo1_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 1 * ((Parent.Width - 260 - 48) / 5 + 12)
           Y: =120
@@ -208,7 +206,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa1_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 1 * ((Parent.Width - 260 - 48) / 5 + 12)
           Y: =120
@@ -216,7 +214,7 @@ Screens:
           Height: =92
           Fill: =nfCorLaranja
     - kpiTitulo1_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Ocorrências abertas"
           X: =240 + 1 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
@@ -227,7 +225,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor1_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =CountRows(Filter(colOcor, !(Status_Ocorrencia.Value in nfOcorFechadas)))
           X: =240 + 1 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
@@ -239,7 +237,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo2_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 2 * ((Parent.Width - 260 - 48) / 5 + 12)
           Y: =120
@@ -249,7 +247,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa2_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 2 * ((Parent.Width - 260 - 48) / 5 + 12)
           Y: =120
@@ -257,7 +255,7 @@ Screens:
           Height: =92
           Fill: =nfCorVermelho
     - kpiTitulo2_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Ações vencidas"
           X: =240 + 2 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
@@ -268,9 +266,9 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor2_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
-          Text: =CountRows(Filter(Filter(colAcoes, !(Status_Acao.Value in nfAcaoFechadas)), Prazo < Now()))
+          Text: =CountRows(Filter(Filter(colAcoes, !(Status_Acao.Value in nfAcaoFechadas)), PrazoData < Now()))
           X: =240 + 2 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =156
           Width: =(Parent.Width - 260 - 48) / 5 - 24
@@ -280,7 +278,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo3_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 3 * ((Parent.Width - 260 - 48) / 5 + 12)
           Y: =120
@@ -290,7 +288,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa3_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 3 * ((Parent.Width - 260 - 48) / 5 + 12)
           Y: =120
@@ -298,7 +296,7 @@ Screens:
           Height: =92
           Fill: =nfCorVermelho
     - kpiTitulo3_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Escalonamentos SLA abertos"
           X: =240 + 3 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
@@ -309,7 +307,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor3_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =CountRows(Filter(Filter(colAcoes, !(Status_Acao.Value in nfAcaoFechadas)), Tipo_Acao.Value = "Escalonamento"))
           X: =240 + 3 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
@@ -321,7 +319,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo4_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 4 * ((Parent.Width - 260 - 48) / 5 + 12)
           Y: =120
@@ -331,7 +329,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa4_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 4 * ((Parent.Width - 260 - 48) / 5 + 12)
           Y: =120
@@ -339,7 +337,7 @@ Screens:
           Height: =92
           Fill: =nfCorVerde
     - kpiTitulo4_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="E-mails enviados (DIL_10)"
           X: =240 + 4 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
@@ -350,7 +348,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor4_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =CountRows(colEnvios)
           X: =240 + 4 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
@@ -362,7 +360,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - b1Fundo_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240
           Y: =228
@@ -372,7 +370,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - b1Titulo_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Carteira por situação"
           X: =240 + 12
@@ -384,7 +382,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - galB1_Gestao:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: '=With({t: AddColumns(GroupBy(AddColumns(colCarteira, Rotulo, Situacao), Rotulo, Itens), Qtd, CountRows(Itens))}, Sort(AddColumns(t, Max, Max(t, Qtd)), Qtd, SortOrder.Descending))'
@@ -397,7 +395,7 @@ Screens:
           ShowScrollbar: =true
         Children:
         - b1Rot_Gestao:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Rotulo
               X: =0
@@ -408,7 +406,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - b1Barra_Gestao:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =176
               Y: =8
@@ -416,7 +414,7 @@ Screens:
               Height: =Parent.TemplateHeight - 16
               Fill: =nfCorAzul
         - b1Qtd_Gestao:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Qtd
               X: =Parent.TemplateWidth - 50
@@ -429,7 +427,7 @@ Screens:
               FontWeight: =FontWeight.Semibold
               Align: =Align.Right
     - b2Fundo_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + (Parent.Width - 260 - 32) / 3 + 16
           Y: =228
@@ -439,7 +437,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - b2Titulo_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Ocorrências abertas por severidade"
           X: =240 + (Parent.Width - 260 - 32) / 3 + 16 + 12
@@ -451,7 +449,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - galB2_Gestao:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: '=With({t: AddColumns(GroupBy(AddColumns(Filter(colOcor, !(Status_Ocorrencia.Value in nfOcorFechadas)), Rotulo, Coalesce(Severidade.Value, "(sem severidade)")), Rotulo, Itens), Qtd, CountRows(Itens))}, Sort(AddColumns(t, Max, Max(t, Qtd)), Qtd, SortOrder.Descending))'
@@ -464,7 +462,7 @@ Screens:
           ShowScrollbar: =true
         Children:
         - b2Rot_Gestao:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Rotulo
               X: =0
@@ -475,7 +473,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - b2Barra_Gestao:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =176
               Y: =8
@@ -483,7 +481,7 @@ Screens:
               Height: =Parent.TemplateHeight - 16
               Fill: =nfCorAzul
         - b2Qtd_Gestao:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Qtd
               X: =Parent.TemplateWidth - 50
@@ -496,7 +494,7 @@ Screens:
               FontWeight: =FontWeight.Semibold
               Align: =Align.Right
     - b3Fundo_Gestao:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 2 * ((Parent.Width - 260 - 32) / 3 + 16)
           Y: =228
@@ -506,7 +504,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - b3Titulo_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Ações pendentes por responsável"
           X: =240 + 2 * ((Parent.Width - 260 - 32) / 3 + 16) + 12
@@ -518,7 +516,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - galB3_Gestao:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: '=With({t: AddColumns(GroupBy(AddColumns(Filter(colAcoes, !(Status_Acao.Value in nfAcaoFechadas)), Rotulo, Coalesce(Responsavel_Pessoa.DisplayName, Responsavel, "(sem responsável)")), Rotulo, Itens), Qtd, CountRows(Itens))}, Sort(AddColumns(t, Max, Max(t, Qtd)), Qtd, SortOrder.Descending))'
@@ -531,7 +529,7 @@ Screens:
           ShowScrollbar: =true
         Children:
         - b3Rot_Gestao:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Rotulo
               X: =0
@@ -542,7 +540,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - b3Barra_Gestao:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =176
               Y: =8
@@ -550,7 +548,7 @@ Screens:
               Height: =Parent.TemplateHeight - 16
               Fill: =nfCorAzul
         - b3Qtd_Gestao:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Qtd
               X: =Parent.TemplateWidth - 50
@@ -563,7 +561,7 @@ Screens:
               FontWeight: =FontWeight.Semibold
               Align: =Align.Right
     - lblBI_Gestao:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: '="Escopo: registros ativos carregados no app (limite de delegação). Tendências e indicadores executivos: relatório Power BI (pendente de publicação)."'
           X: =240
@@ -573,3 +571,45 @@ Screens:
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
+    - blqFundo_Gestao:
+        Control: Rectangle@2.3.0
+        Properties:
+          X: =220
+          Y: =56
+          Width: =Parent.Width - 220
+          Height: =Parent.Height - 56
+          Fill: =nfCorFundo
+          Visible: =!gblPodeGestao
+    - blqMsg_Gestao:
+        Control: Label@2.5.1
+        Properties:
+          Text: ="Acesso restrito aos perfis Coordenador, Gestor, Auditor e Administrador."
+          X: =240
+          Y: =160
+          Width: =Parent.Width - 260
+          Height: =40
+          Size: =13
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =!gblPodeGestao
+    - blqBotao_Gestao:
+        Control: Classic/Button@2.2.0
+        Properties:
+          Text: ="Voltar ao Início"
+          X: =240
+          Y: =216
+          Width: =220
+          Height: =40
+          OnSelect: =Navigate(scrInicio, ScreenTransition.None)
+          Fill: =nfCorAzul
+          Color: =nfCorCartao
+          HoverFill: =nfCorNavy2
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =!gblPodeGestao

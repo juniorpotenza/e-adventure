@@ -7,7 +7,7 @@ Screens:
       OnVisible: '=If(IsBlank(locMes), UpdateContext({locMes: Date(Year(Today()), Month(Today()), 1)}))'
     Children:
     - cabFundo_Agenda:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =0
@@ -15,7 +15,7 @@ Screens:
           Height: =56
           Fill: =nfCorNavy
     - cabMarca_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="DIL · Diligenciamento SAP"
           X: =20
@@ -27,7 +27,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabUsuario_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =User().FullName & "  ·  " & gblPerfil
           X: =Parent.Width - 560
@@ -39,7 +39,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Agenda:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -51,7 +51,7 @@ Screens:
                 ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
                 ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
                 ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
-                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colAcoes, AddColumns(Filter(DIL_Acoes, Ativo = true), PrazoData, IfError(DateTimeValue(Prazo), Blank()))),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
@@ -68,7 +68,6 @@ Screens:
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
                         RC, LookUp(colReq, Numero_RC = v.Numero_RC),
                         ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -90,7 +89,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - menuFundo_Agenda:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =56
@@ -98,7 +97,7 @@ Screens:
           Height: =Parent.Height - 56
           Fill: =nfCorNavy
     - galMenu_Agenda:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
@@ -112,7 +111,7 @@ Screens:
           OnSelect: =Switch(ThisItem.Chave, "inicio", Navigate(scrInicio, ScreenTransition.None), "carteira", Navigate(scrCarteira, ScreenTransition.None), "dossie", Navigate(scrDossie, ScreenTransition.None), "ocorrencias", Navigate(scrOcorrencias, ScreenTransition.None), "acoes", Navigate(scrAcoes, ScreenTransition.None), "agenda", Navigate(scrAgenda, ScreenTransition.None), "comunicacoes", Navigate(scrComunicacoes, ScreenTransition.None), "gestao", Navigate(scrGestao, ScreenTransition.None), "admin", Navigate(scrAdmin, ScreenTransition.None))
         Children:
         - mnuSel_Agenda:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -121,7 +120,7 @@ Screens:
               Fill: =If(ThisItem.Chave = "agenda", nfCorNavy2, nfCorNavy)
               OnSelect: =Select(Parent)
         - mnuRotulo_Agenda:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Rotulo
               X: =16
@@ -134,7 +133,7 @@ Screens:
               OnSelect: =Select(Parent)
               FontWeight: =If(ThisItem.Chave = "agenda", FontWeight.Semibold, FontWeight.Normal)
     - menuRodape_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Atualizado " & If(IsBlank(gblCarregadoEm), "—", Text(gblCarregadoEm, "dd/mm hh:mm"))
           X: =16
@@ -145,7 +144,7 @@ Screens:
           Color: =nfCorLinha
           Font: =Font.'Segoe UI'
     - lblTitulo_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Agenda / Marcos"
           X: =240
@@ -157,7 +156,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - btnMesAnt_Agenda:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="‹"
           X: =240
@@ -176,7 +175,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - lblMes_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =Switch(Month(locMes), 1, "Janeiro", 2, "Fevereiro", 3, "Março", 4, "Abril", 5, "Maio", 6, "Junho", 7, "Julho", 8, "Agosto", 9, "Setembro", 10, "Outubro", 11, "Novembro", "Dezembro") & " de " & Year(locMes)
           X: =292
@@ -189,7 +188,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Align: =Align.Center
     - btnMesProx_Agenda:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="›"
           X: =560
@@ -208,7 +207,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnHoje_Agenda:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Hoje"
           X: =616
@@ -227,7 +226,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - lblDia0_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Dom"
           X: =240 + 0 * ((Parent.Width - 260) * 0.58) / 7
@@ -240,7 +239,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Align: =Align.Center
     - lblDia1_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Seg"
           X: =240 + 1 * ((Parent.Width - 260) * 0.58) / 7
@@ -253,7 +252,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Align: =Align.Center
     - lblDia2_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Ter"
           X: =240 + 2 * ((Parent.Width - 260) * 0.58) / 7
@@ -266,7 +265,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Align: =Align.Center
     - lblDia3_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Qua"
           X: =240 + 3 * ((Parent.Width - 260) * 0.58) / 7
@@ -279,7 +278,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Align: =Align.Center
     - lblDia4_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Qui"
           X: =240 + 4 * ((Parent.Width - 260) * 0.58) / 7
@@ -292,7 +291,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Align: =Align.Center
     - lblDia5_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Sex"
           X: =240 + 5 * ((Parent.Width - 260) * 0.58) / 7
@@ -305,7 +304,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Align: =Align.Center
     - lblDia6_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Sáb"
           X: =240 + 6 * ((Parent.Width - 260) * 0.58) / 7
@@ -318,7 +317,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Align: =Align.Center
     - galCalendario_Agenda:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: '=With({ini: DateAdd(locMes, 1 - Weekday(locMes), TimeUnit.Days)}, ForAll(Sequence(42, 0), {Dia: DateAdd(ini, Value, TimeUnit.Days)}))'
@@ -333,7 +332,7 @@ Screens:
           OnSelect: '=UpdateContext({locDia: ThisItem.Dia})'
         Children:
         - calFundo_Agenda:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =1
               Y: =1
@@ -342,7 +341,7 @@ Screens:
               Fill: =If(!IsBlank(locDia) && ThisItem.Dia = locDia, RGBA(209, 224, 250, 1), nfCorCartao)
               OnSelect: =Select(Parent)
         - calNum_Agenda:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Day(ThisItem.Dia)
               X: =6
@@ -355,7 +354,7 @@ Screens:
               FontWeight: =FontWeight.Semibold
               OnSelect: =Select(Parent)
         - calQtd_Agenda:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: '=With({q: CountRows(Filter(colMarcos, Text(Data_Planejada, "yyyymmdd") = Text(ThisItem.Dia, "yyyymmdd")))}, If(q = 0, "", q & If(q = 1, " marco", " marcos")))'
               X: =6
@@ -368,7 +367,7 @@ Screens:
               FontWeight: =FontWeight.Semibold
               OnSelect: =Select(Parent)
     - lblLista_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =If(IsBlank(locDia), "Próximos 30 dias", "Marcos em " & Text(locDia, "dd/mm/yyyy"))
           X: =240 + (Parent.Width - 260) * 0.58 + 16
@@ -380,7 +379,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - btnLimpar_Agenda:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Limpar dia"
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + (Parent.Width - 260) * 0.42 - 16 - 110
@@ -400,7 +399,7 @@ Screens:
           RadiusBottomRight: =4
           Visible: =!IsBlank(locDia)
     - galLista_Agenda:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: |-
@@ -424,7 +423,7 @@ Screens:
           ShowScrollbar: =true
         Children:
         - agFundo_Agenda:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -432,7 +431,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - agData_Agenda:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(ThisItem.Data_Planejada), "—", Text(ThisItem.Data_Planejada, "dd/mm"))
               X: =10
@@ -444,7 +443,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - agDesc_Agenda:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Descricao_Marco, "Marco") & Char(10) & "PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO & " · " & Coalesce(ThisItem.Status_Marco.Value, "—")
               X: =70
@@ -455,7 +454,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
     - lblVazio_Agenda:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Nenhum marco no período."
           X: =240 + (Parent.Width - 260) * 0.58 + 16

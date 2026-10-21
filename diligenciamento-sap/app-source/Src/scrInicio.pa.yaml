@@ -6,7 +6,7 @@ Screens:
       Fill: =nfCorFundo
     Children:
     - cabFundo_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =0
@@ -14,7 +14,7 @@ Screens:
           Height: =56
           Fill: =nfCorNavy
     - cabMarca_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="DIL · Diligenciamento SAP"
           X: =20
@@ -26,7 +26,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabUsuario_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =User().FullName & "  ·  " & gblPerfil
           X: =Parent.Width - 560
@@ -38,7 +38,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Inicio:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -50,7 +50,7 @@ Screens:
                 ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
                 ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
                 ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
-                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colAcoes, AddColumns(Filter(DIL_Acoes, Ativo = true), PrazoData, IfError(DateTimeValue(Prazo), Blank()))),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
@@ -67,7 +67,6 @@ Screens:
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
                         RC, LookUp(colReq, Numero_RC = v.Numero_RC),
                         ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -89,7 +88,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - menuFundo_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =56
@@ -97,7 +96,7 @@ Screens:
           Height: =Parent.Height - 56
           Fill: =nfCorNavy
     - galMenu_Inicio:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
@@ -111,7 +110,7 @@ Screens:
           OnSelect: =Switch(ThisItem.Chave, "inicio", Navigate(scrInicio, ScreenTransition.None), "carteira", Navigate(scrCarteira, ScreenTransition.None), "dossie", Navigate(scrDossie, ScreenTransition.None), "ocorrencias", Navigate(scrOcorrencias, ScreenTransition.None), "acoes", Navigate(scrAcoes, ScreenTransition.None), "agenda", Navigate(scrAgenda, ScreenTransition.None), "comunicacoes", Navigate(scrComunicacoes, ScreenTransition.None), "gestao", Navigate(scrGestao, ScreenTransition.None), "admin", Navigate(scrAdmin, ScreenTransition.None))
         Children:
         - mnuSel_Inicio:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -120,7 +119,7 @@ Screens:
               Fill: =If(ThisItem.Chave = "inicio", nfCorNavy2, nfCorNavy)
               OnSelect: =Select(Parent)
         - mnuRotulo_Inicio:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Rotulo
               X: =16
@@ -133,7 +132,7 @@ Screens:
               OnSelect: =Select(Parent)
               FontWeight: =If(ThisItem.Chave = "inicio", FontWeight.Semibold, FontWeight.Normal)
     - menuRodape_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Atualizado " & If(IsBlank(gblCarregadoEm), "—", Text(gblCarregadoEm, "dd/mm hh:mm"))
           X: =16
@@ -144,7 +143,7 @@ Screens:
           Color: =nfCorLinha
           Font: =Font.'Segoe UI'
     - lblTitulo_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Central do Diligenciador"
           X: =240
@@ -156,9 +155,9 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - lblSaudacao_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
-          Text: ="Olá, " & User().FirstName & ". Situação em " & Text(Today(), "dd/mm/yyyy") & "."
+          Text: ="Olá, " & First(Split(User().FullName, " ")).Value & ". Situação em " & Text(Today(), "dd/mm/yyyy") & "."
           X: =240
           Y: =120
           Width: =Parent.Width - 260
@@ -167,7 +166,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiFundo0_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 0 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -177,7 +176,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa0_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 0 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -185,7 +184,7 @@ Screens:
           Height: =92
           Fill: =nfCorAzul
     - kpiTitulo0_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Itens na carteira"
           X: =240 + 0 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -196,7 +195,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor0_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =CountRows(colCarteira)
           X: =240 + 0 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -208,7 +207,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo1_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 1 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -218,7 +217,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa1_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 1 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -226,7 +225,7 @@ Screens:
           Height: =92
           Fill: =nfCorVermelho
     - kpiTitulo1_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Críticos"
           X: =240 + 1 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -237,7 +236,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor1_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =CountRows(Filter(colCarteira, Situacao = "Crítico"))
           X: =240 + 1 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -249,7 +248,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo2_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 2 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -259,7 +258,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa2_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 2 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -267,7 +266,7 @@ Screens:
           Height: =92
           Fill: =nfCorLaranja
     - kpiTitulo2_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Em risco"
           X: =240 + 2 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -278,7 +277,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor2_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =CountRows(Filter(colCarteira, Situacao = "Em risco"))
           X: =240 + 2 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -290,7 +289,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo3_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 3 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -300,7 +299,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa3_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 3 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -308,7 +307,7 @@ Screens:
           Height: =92
           Fill: =nfCorLaranja
     - kpiTitulo3_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Marcos atrasados"
           X: =240 + 3 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -319,7 +318,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor3_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =CountRows(Filter(colMarcos, IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
           X: =240 + 3 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -331,7 +330,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo4_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 4 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -341,7 +340,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa4_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 4 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -349,7 +348,7 @@ Screens:
           Height: =92
           Fill: =nfCorAzul
     - kpiTitulo4_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Ações pendentes"
           X: =240 + 4 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -360,7 +359,7 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor4_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =CountRows(Filter(colAcoes, !(Status_Acao.Value in nfAcaoFechadas)))
           X: =240 + 4 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -372,7 +371,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo5_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 5 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -382,7 +381,7 @@ Screens:
           BorderColor: =nfCorLinha
           BorderThickness: =1
     - kpiFaixa5_Inicio:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =240 + 5 * ((Parent.Width - 260 - 60) / 6 + 12)
           Y: =160
@@ -390,7 +389,7 @@ Screens:
           Height: =92
           Fill: =nfCorVermelho
     - kpiTitulo5_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Minhas ações vencidas"
           X: =240 + 5 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
@@ -401,9 +400,9 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
     - kpiValor5_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
-          Text: =CountRows(Filter(colAcoes, Lower(Responsavel_Pessoa.Email) = nfEmailUsuario && Prazo < Now() && !(Status_Acao.Value in nfAcaoFechadas)))
+          Text: =CountRows(Filter(colAcoes, Lower(Responsavel_Pessoa.Email) = nfEmailUsuario && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas)))
           X: =240 + 5 * ((Parent.Width - 260 - 60) / 6 + 12) + 16
           Y: =196
           Width: =(Parent.Width - 260 - 60) / 6 - 24
@@ -413,7 +412,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - lblPrior_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Prioridades que exigem atenção"
           X: =240
@@ -425,7 +424,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - galPrioridades_Inicio:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =FirstN(Sort(Filter(colCarteira, Situacao <> "Normal"), QtdCriticas * 1000 + QtdMarcosAtrasados * 10 + QtdOcorrAbertas, SortOrder.Descending), 50)
@@ -439,7 +438,7 @@ Screens:
           OnSelect: =Set(gblItem, ThisItem); Navigate(scrDossie, ScreenTransition.None)
         Children:
         - pFundo_Inicio:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -448,7 +447,7 @@ Screens:
               Fill: =nfCorCartao
               OnSelect: =Select(Parent)
         - pFaixa_Inicio:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -456,7 +455,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =Switch(ThisItem.Situacao, "Crítico", nfCorVermelho, "Em risco", nfCorLaranja, nfCorVerde)
         - pChave_Inicio:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: ="RC " & ThisItem.Numero_RC & "/" & ThisItem.Item_RC & "  ·  PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO
               X: =16
@@ -468,7 +467,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - pDesc_Inicio:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.ItemPO.Descricao_Produto, "—") & "  ·  " & Coalesce(ThisItem.ItemPO.Nome_Fornecedor, "—")
               X: =16
@@ -479,7 +478,7 @@ Screens:
               Color: =nfCorSuave
               Font: =Font.'Segoe UI'
         - pSit_Inicio:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Situacao
               X: =Parent.TemplateWidth - 120
@@ -492,7 +491,7 @@ Screens:
               FontWeight: =FontWeight.Semibold
               Align: =Align.Right
         - pQtd_Inicio:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.QtdOcorrAbertas & " ocorr. · " & ThisItem.QtdAcoesPend & " ações"
               X: =Parent.TemplateWidth - 160
@@ -504,7 +503,7 @@ Screens:
               Font: =Font.'Segoe UI'
               Align: =Align.Right
     - lblPriorVazio_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Nenhum item crítico ou em risco."
           X: =240
@@ -516,7 +515,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =IsEmpty(galPrioridades_Inicio.AllItems)
     - lblMarcos_Inicio:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Próximos marcos (15 dias)"
           X: =240 + (Parent.Width - 260) * 0.62 + 16
@@ -528,7 +527,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - galMarcos_Inicio:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Sort(Filter(colMarcos, IsBlank(Data_Realizada) && Data_Planejada >= Today() && Data_Planejada <= DateAdd(Today(), 15, TimeUnit.Days)), Data_Planejada)
@@ -541,7 +540,7 @@ Screens:
           ShowScrollbar: =true
         Children:
         - mFundo_Inicio:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -549,7 +548,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - mData_Inicio:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(ThisItem.Data_Planejada), "—", Text(ThisItem.Data_Planejada, "dd/mm"))
               X: =12
@@ -561,7 +560,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - mDesc_Inicio:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Descricao_Marco, "Marco") & Char(10) & "PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO
               X: =76

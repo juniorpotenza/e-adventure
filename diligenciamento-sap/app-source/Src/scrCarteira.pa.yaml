@@ -6,7 +6,7 @@ Screens:
       Fill: =nfCorFundo
     Children:
     - cabFundo_Carteira:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =0
@@ -14,7 +14,7 @@ Screens:
           Height: =56
           Fill: =nfCorNavy
     - cabMarca_Carteira:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="DIL · Diligenciamento SAP"
           X: =20
@@ -26,7 +26,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabUsuario_Carteira:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =User().FullName & "  ·  " & gblPerfil
           X: =Parent.Width - 560
@@ -38,7 +38,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Carteira:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -50,7 +50,7 @@ Screens:
                 ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
                 ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
                 ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
-                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colAcoes, AddColumns(Filter(DIL_Acoes, Ativo = true), PrazoData, IfError(DateTimeValue(Prazo), Blank()))),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
@@ -67,7 +67,6 @@ Screens:
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
                         RC, LookUp(colReq, Numero_RC = v.Numero_RC),
                         ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -89,7 +88,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - menuFundo_Carteira:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =56
@@ -97,7 +96,7 @@ Screens:
           Height: =Parent.Height - 56
           Fill: =nfCorNavy
     - galMenu_Carteira:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
@@ -111,7 +110,7 @@ Screens:
           OnSelect: =Switch(ThisItem.Chave, "inicio", Navigate(scrInicio, ScreenTransition.None), "carteira", Navigate(scrCarteira, ScreenTransition.None), "dossie", Navigate(scrDossie, ScreenTransition.None), "ocorrencias", Navigate(scrOcorrencias, ScreenTransition.None), "acoes", Navigate(scrAcoes, ScreenTransition.None), "agenda", Navigate(scrAgenda, ScreenTransition.None), "comunicacoes", Navigate(scrComunicacoes, ScreenTransition.None), "gestao", Navigate(scrGestao, ScreenTransition.None), "admin", Navigate(scrAdmin, ScreenTransition.None))
         Children:
         - mnuSel_Carteira:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -120,7 +119,7 @@ Screens:
               Fill: =If(ThisItem.Chave = "carteira", nfCorNavy2, nfCorNavy)
               OnSelect: =Select(Parent)
         - mnuRotulo_Carteira:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Rotulo
               X: =16
@@ -133,7 +132,7 @@ Screens:
               OnSelect: =Select(Parent)
               FontWeight: =If(ThisItem.Chave = "carteira", FontWeight.Semibold, FontWeight.Normal)
     - menuRodape_Carteira:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Atualizado " & If(IsBlank(gblCarregadoEm), "—", Text(gblCarregadoEm, "dd/mm hh:mm"))
           X: =16
@@ -144,7 +143,7 @@ Screens:
           Color: =nfCorLinha
           Font: =Font.'Segoe UI'
     - lblTitulo_Carteira:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Minha carteira"
           X: =240
@@ -156,7 +155,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - txtBusca_Carteira:
-        Control: Classic/TextInput
+        Control: Classic/TextInput@2.3.2
         Properties:
           Default: =""
           HintText: ="Buscar RC, PO, material, descrição ou fornecedor"
@@ -167,7 +166,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddSituacao_Carteira:
-        Control: Classic/DropDown
+        Control: Classic/DropDown@2.3.1
         Properties:
           Items: =["(Todos)", "Crítico", "Em risco", "Normal"]
           X: =612
@@ -177,7 +176,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddFornecedor_Carteira:
-        Control: Classic/DropDown
+        Control: Classic/DropDown@2.3.1
         Properties:
           Items: '=Ungroup(Table({o: ["(Todos)"]}, {o: Sort(Distinct(colCarteira, ItemPO.Nome_Fornecedor), Value)}), o)'
           X: =774
@@ -187,7 +186,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddEscopo_Carteira:
-        Control: Classic/DropDown
+        Control: Classic/DropDown@2.3.1
         Properties:
           Items: =["Minha carteira (responsável pela RC)", "Com ações sob minha responsabilidade", "Todos os itens"]
           X: =1046
@@ -198,7 +197,7 @@ Screens:
           BorderColor: =nfCorLinha
           Default: =If(CountRows(Filter(colCarteira, Lower(RC.Responsavel_Diligencia.Email) = nfEmailUsuario)) > 0, "Minha carteira (responsável pela RC)", "Todos os itens")
     - cabCarteira0:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="RC / item · responsável"
           X: =240 + 16
@@ -210,7 +209,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabCarteira1:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="PO / item"
           X: =240 + 150
@@ -222,7 +221,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabCarteira2:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Material · descrição"
           X: =240 + 284
@@ -234,7 +233,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabCarteira3:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Fornecedor"
           X: =240 + 620
@@ -246,7 +245,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabCarteira4:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="1ª remessa"
           X: =240 + 864
@@ -258,7 +257,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabCarteira5:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Pendências"
           X: =240 + 958
@@ -270,7 +269,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabCarteira6:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Situação · prioridade"
           X: =240 + 1132
@@ -282,7 +281,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - galCarteira_Carteira:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: |-
@@ -310,7 +309,7 @@ Screens:
           OnSelect: =Set(gblItem, ThisItem); Navigate(scrDossie, ScreenTransition.None)
         Children:
         - cFundo_Carteira:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -319,7 +318,7 @@ Screens:
               Fill: =nfCorCartao
               OnSelect: =Select(Parent)
         - cFaixa_Carteira:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -327,7 +326,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =Switch(ThisItem.Situacao, "Crítico", nfCorVermelho, "Em risco", nfCorLaranja, nfCorVerde)
         - cRC_Carteira:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Numero_RC & " / " & ThisItem.Item_RC & Char(10) & Coalesce(ThisItem.RC.Responsavel_Diligencia.DisplayName, "sem responsável")
               X: =16
@@ -339,7 +338,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - cPO_Carteira:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Numero_PO & " / " & ThisItem.Item_PO
               X: =150
@@ -351,7 +350,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - cDesc_Carteira:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.ItemPO.Material, "—") & " · " & Coalesce(ThisItem.ItemPO.Descricao_Produto, "—")
               X: =284
@@ -362,7 +361,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - cForn_Carteira:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.ItemPO.Nome_Fornecedor, "—")
               X: =620
@@ -373,7 +372,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - cRem_Carteira:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(ThisItem.ItemPO.Data_1_Remessa_Item_SAP), "—", Text(ThisItem.ItemPO.Data_1_Remessa_Item_SAP, "dd/mm/yyyy"))
               X: =864
@@ -384,7 +383,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - cPend_Carteira:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.QtdOcorrAbertas & " ocorr. · " & ThisItem.QtdAcoesPend & " ações · " & ThisItem.QtdMarcosAtrasados & " marcos atras."
               X: =958
@@ -395,7 +394,7 @@ Screens:
               Color: =nfCorSuave
               Font: =Font.'Segoe UI'
         - cSit_Carteira:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Situacao & Char(10) & Coalesce(ThisItem.RC.Prioridade.Value, "—")
               X: =1132
@@ -407,7 +406,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
     - lblTotal_Carteira:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =CountRows(galCarteira_Carteira.AllItems) & " de " & CountRows(colCarteira) & " itens (RC/PO vinculados e ativos)"
           X: =240

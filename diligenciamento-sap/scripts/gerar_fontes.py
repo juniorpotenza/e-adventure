@@ -92,7 +92,7 @@ Concurrent(
     ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
     ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
     ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
-    ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+    ClearCollect(colAcoes, AddColumns(Filter(DIL_Acoes, Ativo = true), PrazoData, IfError(DateTimeValue(Prazo), Blank()))),
     ClearCollect(colMarcos, DIL_Marcos),
     ClearCollect(colComun, DIL_Comunicacoes),
     ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
@@ -109,7 +109,6 @@ ClearCollect(
             ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
             RC, LookUp(colReq, Numero_RC = v.Numero_RC),
             ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-            Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
             QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
             QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
             QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -158,8 +157,14 @@ def f(v):
     return "=" + str(v)
 
 
+# Versões exatamente como o Power Apps Studio gravou ao salvar o app (21/10/2026).
+VERSOES = {"Label": "2.5.1", "Rectangle": "2.3.0", "Gallery": "2.15.0", "Classic/Button": "2.2.0",
+           "Classic/TextInput": "2.3.2", "Classic/DropDown": "2.3.1", "Classic/DatePicker": "2.6.0",
+           "Classic/ComboBox": "2.4.0"}
+
+
 def ctl(nome, tipo, props, filhos=None, variante=None):
-    corpo = {"Control": tipo}
+    corpo = {"Control": f"{tipo}@{VERSOES[tipo]}" if tipo in VERSOES else tipo}
     if variante:
         corpo["Variant"] = variante
     corpo["Properties"] = {k: f(v) for k, v in props.items()}
@@ -265,6 +270,17 @@ def cabecalho_e_menu(chave, titulo):
     ]
 
 
+def bloqueio(s, condicao, mensagem, texto_botao="Voltar ao Início", destino="scrInicio"):
+    """Painel por cima do conteúdo (Navigate não é permitido em OnVisible)."""
+    return [
+        retangulo(f"blqFundo_{s}", LARG_MENU, ALT_CAB, f"Parent.Width - {LARG_MENU}", f"Parent.Height - {ALT_CAB}",
+                  "nfCorFundo", Visible=condicao),
+        rotulo(f"blqMsg_{s}", txt(mensagem), X0, Y0 + 40, LARG_CONTEUDO, 40, 13, "nfCorTexto", True, Visible=condicao),
+        botao(f"blqBotao_{s}", txt(texto_botao), X0, Y0 + 96, 220, 40,
+              f"Navigate({destino}, ScreenTransition.None)", Visible=condicao),
+    ]
+
+
 def tela(chave, nome_tela, titulo, filhos, on_visible=None):
     props = {"Fill": "nfCorFundo"}
     if on_visible:
@@ -328,9 +344,9 @@ def tela_inicio():
                              " && !(Status_Marco.Value in nfMarcoFechados)))", "nfCorLaranja"),
         ("Ações pendentes", f"CountRows(Filter(colAcoes, {abertas}))", "nfCorAzul"),
         ("Minhas ações vencidas", f"CountRows(Filter(colAcoes, Lower(Responsavel_Pessoa.Email) = nfEmailUsuario"
-                                  f" && Prazo < Now() && {abertas}))", "nfCorVermelho"),
+                                  f" && PrazoData < Now() && {abertas}))", "nfCorVermelho"),
     ]
-    filhos = [rotulo(f"lblSaudacao_{s}", '"Olá, " & User().FirstName & ". Situação em " & Text(Today(), "dd/mm/yyyy") & "."',
+    filhos = [rotulo(f"lblSaudacao_{s}", '"Olá, " & First(Split(User().FullName, " ")).Value & ". Situação em " & Text(Today(), "dd/mm/yyyy") & "."',
                      X0, Y0, LARG_CONTEUDO, 28, 11, "nfCorSuave")]
     for i, (t, v, c) in enumerate(kpis):
         filhos += cartao_kpi(s, i, t, v, c)
@@ -435,7 +451,8 @@ def tela_dossie():
     filtro_item = "Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO"
     on_visible = f"""If(
     IsBlank(gblItem),
-    Notify("Selecione um item na carteira.", NotificationType.Information); Navigate(scrCarteira, ScreenTransition.None),
+    false,
+    UpdateContext({{locForn: LookUp(colForn, Codigo_Fornecedor = gblItem.ItemPO.Codigo_Fornecedor)}});
     ClearCollect(colDosMarcos, Filter(colMarcos, {filtro_item}));
     ClearCollect(colDosOcor, Filter(colOcor, {filtro_item}));
     ClearCollect(colDosAcoes, Filter(colAcoes, {filtro_item}));
@@ -493,10 +510,10 @@ def tela_dossie():
         ("Prioridade / risco (RC)", 'Coalesce(gblItem.RC.Prioridade.Value, "—") & " / " & Coalesce(gblItem.RC.Nivel_Risco.Value, "—")'),
         ("Status / criação da RC", 'Coalesce(gblItem.RC.Status_RC, "—") & " / " & ' + data("gblItem.RC.Data_Criacao_RC")),
         ("Item RC: utilização / avaliação", 'Coalesce(gblItem.ItemRC.Utilizacao_Material, "—") & " / " & Coalesce(gblItem.ItemRC.Tipo_Avaliacao, "—")'),
-        ("Fornecedor / CNPJ", 'Coalesce(gblItem.Forn.Nome_Fornecedor, gblItem.ItemPO.Nome_Fornecedor, "—") & " / " & Coalesce(gblItem.Forn.CNPJ, "—")'),
-        ("Contato / telefone", 'Coalesce(gblItem.Forn.Contato_Principal, "—") & " / " & Coalesce(gblItem.Forn.Telefone, "—")'),
-        ("E-mail do fornecedor", 'Coalesce(gblItem.Forn.Email_Principal, "—")'),
-        ("Status / risco do fornecedor", 'Coalesce(gblItem.Forn.Status_Fornecedor.Value, "—") & " / " & Coalesce(gblItem.Forn.Nivel_Risco_Fornecedor.Value, "—")'),
+        ("Fornecedor / CNPJ", 'Coalesce(locForn.Nome_Fornecedor, gblItem.ItemPO.Nome_Fornecedor, "—") & " / " & Coalesce(locForn.CNPJ, "—")'),
+        ("Contato / telefone", 'Coalesce(locForn.Contato_Principal, "—") & " / " & Coalesce(locForn.Telefone, "—")'),
+        ("E-mail do fornecedor", 'Coalesce(locForn.Email_Principal, "—")'),
+        ("Status / risco do fornecedor", 'Coalesce(locForn.Status_Fornecedor.Value, "—") & " / " & Coalesce(locForn.Nivel_Risco_Fornecedor.Value, "—")'),
     ]
     for col, (lista, x) in enumerate([(resumo, X0), (resumo2, X0 + 600)]):
         for i, (t, v) in enumerate(lista):
@@ -536,10 +553,10 @@ def tela_dossie():
             rotulo(f"doStatus_{s}", 'Coalesce(ThisItem.Status_Ocorrencia.Value, "—")', "Parent.TemplateWidth - 140", 0, 130,
                    "Parent.TemplateHeight", 10, "nfCorAzul", True),
         ]),
-        grade("Acoes", "Sort(colDosAcoes, Prazo)", "Ações", [
+        grade("Acoes", "Sort(colDosAcoes, PrazoData)", "Ações", [
             fundo("da"),
-            rotulo(f"daPrazo_{s}", data("ThisItem.Prazo"), 12, 0, 90, "Parent.TemplateHeight", 10,
-                   'If(ThisItem.Prazo < Now() && !(ThisItem.Status_Acao.Value in nfAcaoFechadas), nfCorVermelho, nfCorTexto)', True),
+            rotulo(f"daPrazo_{s}", data("ThisItem.PrazoData"), 12, 0, 90, "Parent.TemplateHeight", 10,
+                   'If(ThisItem.PrazoData < Now() && !(ThisItem.Status_Acao.Value in nfAcaoFechadas), nfCorVermelho, nfCorTexto)', True),
             rotulo(f"daDesc_{s}", 'Coalesce(ThisItem.Tipo_Acao.Value, "—") & " · " & Coalesce(ThisItem.Descricao_Acao, "")',
                    104, 0, "Parent.TemplateWidth - 470", "Parent.TemplateHeight", 9, "nfCorTexto"),
             rotulo(f"daResp_{s}", 'Coalesce(ThisItem.Responsavel_Pessoa.DisplayName, ThisItem.Responsavel, "—")',
@@ -565,6 +582,8 @@ def tela_dossie():
         ], 60),
     ]
     filhos += aba_compromissos(s, yg, filtro_item)
+    filhos += bloqueio(s, "IsBlank(gblItem)", "Nenhum processo selecionado. Escolha um item na carteira.",
+                       "Ir para a carteira", "scrCarteira")
     return tela("dossie", "scrDossie", "Dossiê do processo", filhos, on_visible)
 
 
@@ -857,16 +876,16 @@ def tela_acoes():
         ddStatus_{s}.Selected.Value = "(Todos)" || Status_Acao.Value = ddStatus_{s}.Selected.Value,
         ddPrio_{s}.Selected.Value = "(Todos)" || Prioridade.Value = ddPrio_{s}.Selected.Value,
         ddPrazo_{s}.Selected.Value = "(Todos os prazos)"
-            || (ddPrazo_{s}.Selected.Value = "Vencidas" && Prazo < Now() && {abertas})
-            || (ddPrazo_{s}.Selected.Value = "Vencem em 7 dias" && Prazo >= Now() && Prazo <= DateAdd(Now(), 7, TimeUnit.Days) && {abertas})
+            || (ddPrazo_{s}.Selected.Value = "Vencidas" && PrazoData < Now() && {abertas})
+            || (ddPrazo_{s}.Selected.Value = "Vencem em 7 dias" && PrazoData >= Now() && PrazoData <= DateAdd(Now(), 7, TimeUnit.Days) && {abertas})
     ),
-    Prazo
+    PrazoData
 )"""
     larg_lista = f"({LARG_CONTEUDO}) * 0.58"
     xd = f"{X0} + ({LARG_CONTEUDO}) * 0.58 + 16"
     wd = f"({LARG_CONTEUDO}) * 0.42 - 16"
     yl = yf + 52
-    vencida = "ThisItem.Prazo < Now() && !(ThisItem.Status_Acao.Value in nfAcaoFechadas)"
+    vencida = "ThisItem.PrazoData < Now() && !(ThisItem.Status_Acao.Value in nfAcaoFechadas)"
     linha = [
         retangulo(f"aFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1",
                   "If(ThisItem.IsSelected, nfCorFundo, nfCorCartao)", OnSelect="Select(Parent)"),
@@ -875,7 +894,7 @@ def tela_acoes():
                14, 4, "Parent.TemplateWidth - 150", 24, 10, "nfCorTexto", True),
         rotulo(f"aDesc_{s}", 'Coalesce(ThisItem.Descricao_Acao, "") & "  —  " & Coalesce(ThisItem.Responsavel_Pessoa.DisplayName, ThisItem.Responsavel, "sem responsável")',
                14, 28, "Parent.TemplateWidth - 150", 30, 9, "nfCorSuave"),
-        rotulo(f"aPrazo_{s}", '"Prazo " & ' + data("ThisItem.Prazo"), "Parent.TemplateWidth - 140", 4, 130, 24, 10,
+        rotulo(f"aPrazo_{s}", '"Prazo " & ' + data("ThisItem.PrazoData"), "Parent.TemplateWidth - 140", 4, 130, 24, 10,
                f"If({vencida}, nfCorVermelho, nfCorTexto)", True, Align="Align.Right"),
         rotulo(f"aStatus_{s}", 'Coalesce(ThisItem.Status_Acao.Value, "—") & " · " & Coalesce(ThisItem.Prioridade.Value, "—")',
                "Parent.TemplateWidth - 160", 30, 150, 24, 9, "nfCorSuave", Align="Align.Right"),
@@ -890,7 +909,7 @@ def tela_acoes():
         ("Chave", f"{sel}.Chave_Acao"),
         ("Ocorrência", f'Coalesce({sel}.Chave_Ocorrencia, "—")'),
         ("Responsável", f'Coalesce({sel}.Responsavel_Pessoa.DisplayName, {sel}.Responsavel, "—")'),
-        ("Prazo", data(f"{sel}.Prazo", "dd/mm/yyyy hh:mm")),
+        ("Prazo", data(f"{sel}.PrazoData", "dd/mm/yyyy hh:mm")),
         ("Concluída em", data(f"{sel}.Data_Conclusao")),
         ("Descrição", f'Coalesce({sel}.Descricao_Acao, "")'),
     ]
@@ -951,7 +970,7 @@ def tela_acoes():
             Descricao_Acao: Trim(txtDesc_{s}.Text),
             Responsavel: cmbResp_{s}.Selected.DisplayName,
             Responsavel_Pessoa: cmbResp_{s}.Selected,
-            Prazo: dtPrazo_{s}.SelectedDate,
+            Prazo: Text(dtPrazo_{s}.SelectedDate, "yyyy-mm-dd"),
             Status_Acao: {{Value: "Aberta"}},
             Prioridade: ddPrioNova_{s}.Selected,
             Ativo: true
@@ -978,7 +997,8 @@ def tela_acoes():
         ("Prioridade", lista_suspensa(f"ddPrioNova_{s}", "Choices([@DIL_Acoes].Prioridade)", 0, 0, 0, Visible=vis_n)),
         ("Responsável *", ctl(f"cmbResp_{s}", "Classic/ComboBox", {
             "Items": "Choices([@DIL_Acoes].Responsavel_Pessoa)", "DisplayFields": '["DisplayName"]',
-            "SearchFields": '["DisplayName", "Email"]', "SelectMultiple": False, "IsSearchable": True,
+            "SearchFields": '["DisplayName", "Email"]', "SelectMultiple": False,
+            "SearchItems": f"Search(Choices([@DIL_Acoes].Responsavel_Pessoa), cmbResp_{s}.SearchText, DisplayName)",
             "InputTextPlaceholder": txt("Buscar pessoa"), "Height": 36, "Size": 10, "BorderColor": "nfCorLinha",
             "Visible": vis_n})),
         ("Prazo *", ctl(f"dtPrazo_{s}", "Classic/DatePicker", {
@@ -1187,7 +1207,7 @@ def tela_gestao():
     kpis = [
         ("Itens na carteira", "CountRows(colCarteira)", "nfCorAzul"),
         ("Ocorrências abertas", f"CountRows({abertas_oc})", "nfCorLaranja"),
-        ("Ações vencidas", f"CountRows(Filter({abertas_ac}, Prazo < Now()))", "nfCorVermelho"),
+        ("Ações vencidas", f"CountRows(Filter({abertas_ac}, PrazoData < Now()))", "nfCorVermelho"),
         ("Escalonamentos SLA abertos", f'CountRows(Filter({abertas_ac}, Tipo_Acao.Value = "Escalonamento"))', "nfCorVermelho"),
         ("E-mails enviados (DIL_10)", "CountRows(colEnvios)", "nfCorVerde"),
     ]
@@ -1206,7 +1226,8 @@ def tela_gestao():
     filhos.append(rotulo(f"lblBI_{s}", txt("Escopo: registros ativos carregados no app (limite de delegação). "
                                            "Tendências e indicadores executivos: relatório Power BI (pendente de publicação)."),
                          X0, "Parent.Height - 56", LARG_CONTEUDO, 40, 9, "nfCorSuave"))
-    on_visible = 'If(!gblPodeGestao, Notify("Acesso restrito ao perfil de gestão.", NotificationType.Warning); Navigate(scrInicio, ScreenTransition.None))'
+    filhos += bloqueio(s, "!gblPodeGestao", "Acesso restrito aos perfis Coordenador, Gestor, Auditor e Administrador.")
+    on_visible = None
     return tela("gestao", "scrGestao", "Visão da gestão", filhos, on_visible)
 
 
@@ -1214,7 +1235,7 @@ def tela_admin():
     s = "Admin"
     on_visible = """If(
     !gblPodeAdmin,
-    Notify("Acesso restrito à administração.", NotificationType.Warning); Navigate(scrInicio, ScreenTransition.None),
+    false,
     Concurrent(
         ClearCollect(colExec, FirstN(Sort(DIL_Integracao_Execucao, ID, SortOrder.Descending), 30)),
         ClearCollect(colConfig, DIL_Configuracao),
@@ -1290,6 +1311,7 @@ def tela_admin():
                    "Parent.TemplateWidth - 300", "Parent.TemplateHeight", 9, "nfCorTexto"),
         ], Visible='locAba = "Auditoria"'),
     ]
+    filhos += bloqueio(s, "!gblPodeAdmin", "Acesso restrito aos perfis Gestor e Administrador.")
     return tela("admin", "scrAdmin", "Administração e configurações", filhos, on_visible)
 
 

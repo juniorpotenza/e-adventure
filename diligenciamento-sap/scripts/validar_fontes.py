@@ -119,6 +119,11 @@ def main():
         for c in d.get("colunas", []):
             colunas.setdefault(c["exibicao"], []).append((lst, c))
     usadas, listas_usadas = {}, set()
+    tipos_por_nome = {}
+    for c_lista in colunas.values():
+        for _, c in c_lista:
+            tipos_por_nome.setdefault(c["exibicao"], set()).add(c["tipo"])
+    so_texto = {n for n, t in tipos_por_nome.items() if t == {"Texto"}}
     for prop, fx in formulas(combinado):
         limpo = sem_strings(fx)
         for lst in re.findall(r"\bDIL_[A-Za-z_]+", limpo):
@@ -135,6 +140,15 @@ def main():
                 erros.append(f"coluna inexistente no esquema: {ident} (propriedade {prop})")
             else:
                 usadas[ident] = colunas[ident]
+        # Regras aprendidas com o Verificador do Studio (21/10/2026):
+        if prop == "OnVisible" and "Navigate(" in limpo:
+            erros.append(f"Navigate em OnVisible não é permitido pelo Studio (ErrNavigateNotAllowed): {fx[:60]}")
+        for m in re.findall(r"User\(\)\.(\w+)", limpo):
+            if m not in ("FullName", "Email", "Image", "EntraObjectId"):
+                erros.append(f"User().{m} não existe (ErrInvalidName); use FullName/Email")
+        for nome in so_texto:
+            if re.search(rf"\b{nome}\s*[<>]|[<>]=?\s*(?:\w+\.)*{nome}\b", limpo):
+                erros.append(f"coluna de TEXTO comparada como data/número: {nome} (ErrBadType); converta antes")
         for alvo in re.findall(r"Navigate\(\s*(\w+)", fx):
             if alvo not in telas:
                 erros.append(f"Navigate para tela inexistente: {alvo}")

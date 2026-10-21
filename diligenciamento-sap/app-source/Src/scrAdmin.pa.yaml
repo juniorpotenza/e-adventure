@@ -7,7 +7,7 @@ Screens:
       OnVisible: |-
         =If(
             !gblPodeAdmin,
-            Notify("Acesso restrito à administração.", NotificationType.Warning); Navigate(scrInicio, ScreenTransition.None),
+            false,
             Concurrent(
                 ClearCollect(colExec, FirstN(Sort(DIL_Integracao_Execucao, ID, SortOrder.Descending), 30)),
                 ClearCollect(colConfig, DIL_Configuracao),
@@ -18,7 +18,7 @@ Screens:
         )
     Children:
     - cabFundo_Admin:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =0
@@ -26,7 +26,7 @@ Screens:
           Height: =56
           Fill: =nfCorNavy
     - cabMarca_Admin:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="DIL · Diligenciamento SAP"
           X: =20
@@ -38,7 +38,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - cabUsuario_Admin:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: =User().FullName & "  ·  " & gblPerfil
           X: =Parent.Width - 560
@@ -50,7 +50,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Admin:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -62,7 +62,7 @@ Screens:
                 ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
                 ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
                 ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
-                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colAcoes, AddColumns(Filter(DIL_Acoes, Ativo = true), PrazoData, IfError(DateTimeValue(Prazo), Blank()))),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
@@ -79,7 +79,6 @@ Screens:
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
                         RC, LookUp(colReq, Numero_RC = v.Numero_RC),
                         ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -101,7 +100,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - menuFundo_Admin:
-        Control: Rectangle
+        Control: Rectangle@2.3.0
         Properties:
           X: =0
           Y: =56
@@ -109,7 +108,7 @@ Screens:
           Height: =Parent.Height - 56
           Fill: =nfCorNavy
     - galMenu_Admin:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
@@ -123,7 +122,7 @@ Screens:
           OnSelect: =Switch(ThisItem.Chave, "inicio", Navigate(scrInicio, ScreenTransition.None), "carteira", Navigate(scrCarteira, ScreenTransition.None), "dossie", Navigate(scrDossie, ScreenTransition.None), "ocorrencias", Navigate(scrOcorrencias, ScreenTransition.None), "acoes", Navigate(scrAcoes, ScreenTransition.None), "agenda", Navigate(scrAgenda, ScreenTransition.None), "comunicacoes", Navigate(scrComunicacoes, ScreenTransition.None), "gestao", Navigate(scrGestao, ScreenTransition.None), "admin", Navigate(scrAdmin, ScreenTransition.None))
         Children:
         - mnuSel_Admin:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -132,7 +131,7 @@ Screens:
               Fill: =If(ThisItem.Chave = "admin", nfCorNavy2, nfCorNavy)
               OnSelect: =Select(Parent)
         - mnuRotulo_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Rotulo
               X: =16
@@ -145,7 +144,7 @@ Screens:
               OnSelect: =Select(Parent)
               FontWeight: =If(ThisItem.Chave = "admin", FontWeight.Semibold, FontWeight.Normal)
     - menuRodape_Admin:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Atualizado " & If(IsBlank(gblCarregadoEm), "—", Text(gblCarregadoEm, "dd/mm hh:mm"))
           X: =16
@@ -156,7 +155,7 @@ Screens:
           Color: =nfCorLinha
           Font: =Font.'Segoe UI'
     - lblTitulo_Admin:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: ="Administração e configurações"
           X: =240
@@ -168,7 +167,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - btnAba0_Admin:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Integrações"
           X: =240 + 0
@@ -187,7 +186,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba1_Admin:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Parâmetros e perfis"
           X: =240 + 180
@@ -206,7 +205,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba2_Admin:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Regras SLA"
           X: =240 + 360
@@ -225,7 +224,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba3_Admin:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Modelos de e-mail"
           X: =240 + 540
@@ -244,7 +243,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba4_Admin:
-        Control: Classic/Button
+        Control: Classic/Button@2.2.0
         Properties:
           Text: ="Auditoria"
           X: =240 + 720
@@ -263,7 +262,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - galExec_Admin:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =colExec
@@ -277,7 +276,7 @@ Screens:
           Visible: =locAba = "Integrações"
         Children:
         - exFundo_Admin:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -285,7 +284,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - exChave_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Chave_Execucao & Char(10) & Coalesce(ThisItem.Tipo_Integracao.Value, "—")
               X: =12
@@ -297,7 +296,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - exStatus_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Status_Execucao.Value, "—")
               X: =280
@@ -309,7 +308,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - exDatas_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: ="Início " & If(IsBlank(ThisItem.Data_Inicio), "—", Text(ThisItem.Data_Inicio, "dd/mm hh:mm")) & Char(10) & "Fim " & If(IsBlank(ThisItem.Data_Fim), "—", Text(ThisItem.Data_Fim, "dd/mm hh:mm"))
               X: =396
@@ -320,7 +319,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - exQtd_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: ="Lidos " & ThisItem.Registros_Lidos & " · Proc. " & ThisItem.Registros_Processados & " · Erro " & ThisItem.Registros_Erro
               X: =552
@@ -331,7 +330,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - exMsg_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Mensagem, "")
               X: =788
@@ -342,7 +341,7 @@ Screens:
               Color: =nfCorSuave
               Font: =Font.'Segoe UI'
     - infoParam_Admin:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: '="Perfis (proposta, a aprovar): linhas em DIL_Configuracao com Categoria = ""Perfil_Usuario"", Nome_Parametro = e-mail do usuário em minúsculas e Valor_Texto = Diligenciador, Coordenador, Gestor, Auditor ou Administrador. Sem linha, o perfil é Diligenciador. O menu por perfil NÃO substitui as permissões SharePoint das listas. Edição pelo app: pendente de aprovação (somente leitura nesta versão)."'
           X: =240
@@ -355,7 +354,7 @@ Screens:
           Visible: =locAba = "Parâmetros e perfis"
           VerticalAlign: =VerticalAlign.Top
     - galConfig_Admin:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =colConfig
@@ -369,7 +368,7 @@ Screens:
           Visible: =locAba = "Parâmetros e perfis"
         Children:
         - cfFundo_Admin:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -377,7 +376,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - cfCat_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Categoria, "—")
               X: =12
@@ -389,7 +388,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - cfNome_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Nome_Parametro, "—")
               X: =220
@@ -401,7 +400,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - cfValor_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Valor_Texto, "—")
               X: =548
@@ -412,7 +411,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
     - infoSLA_Admin:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: '="Importante: o fluxo DIL_08 calcula o escalonamento com horas fixas no próprio fluxo (Crítica 4 h, Alta 8 h, Média 24 h, demais 48 h, contadas de Data_Ocorrencia). A lista DIL_SLA é consultada somente pelo DIL_09 para escolher o canal. Alterar DIL_SLA não muda o prazo de escalonamento; essa mudança exige alteração planejada do DIL_08 (pendente)."'
           X: =240
@@ -425,7 +424,7 @@ Screens:
           Visible: =locAba = "Regras SLA"
           VerticalAlign: =VerticalAlign.Top
     - galSLA_Admin:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =colSLA
@@ -439,7 +438,7 @@ Screens:
           Visible: =locAba = "Regras SLA"
         Children:
         - slFundo_Admin:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -447,7 +446,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - slChave_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Chave_SLA, "—")
               X: =12
@@ -459,7 +458,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - slNome_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Nome_SLA, "—")
               X: =280
@@ -470,7 +469,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
     - infoModelos_Admin:
-        Control: Label
+        Control: Label@2.5.1
         Properties:
           Text: '="Situação atual: o DIL_10 envia o Assunto e o Resumo gravados em cada comunicação COM-SLA-* (gerada pelo DIL_09) e registra Envio_Email no DIL_Historico para não reenviar. Modelos editáveis são uma mudança separada no DIL_10 (verificar esquema real, buscar modelo, substituir variáveis, testar envio e idempotência, aprovar e documentar rollback). Pendente de aprovação."'
           X: =240
@@ -483,7 +482,7 @@ Screens:
           Visible: =locAba = "Modelos de e-mail"
           VerticalAlign: =VerticalAlign.Top
     - galAud_Admin:
-        Control: Gallery
+        Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =colHistRecente
@@ -497,7 +496,7 @@ Screens:
           Visible: =locAba = "Auditoria"
         Children:
         - auFundo_Admin:
-            Control: Rectangle
+            Control: Rectangle@2.3.0
             Properties:
               X: =0
               Y: =0
@@ -505,7 +504,7 @@ Screens:
               Height: =Parent.TemplateHeight - 1
               Fill: =nfCorCartao
         - auData_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =If(IsBlank(ThisItem.Data_Evento), "—", Text(ThisItem.Data_Evento, "dd/mm/yyyy hh:mm"))
               X: =12
@@ -516,7 +515,7 @@ Screens:
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
         - auTipo_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =Coalesce(ThisItem.Origem_Evento.Value, "—") & Char(10) & Coalesce(ThisItem.Tipo_Evento.Value, "—")
               X: =136
@@ -528,7 +527,7 @@ Screens:
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - auDesc_Admin:
-            Control: Label
+            Control: Label@2.5.1
             Properties:
               Text: =ThisItem.Chave_Entidade & Char(10) & Coalesce(ThisItem.Observacao, "")
               X: =292
@@ -538,3 +537,45 @@ Screens:
               Size: =9
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
+    - blqFundo_Admin:
+        Control: Rectangle@2.3.0
+        Properties:
+          X: =220
+          Y: =56
+          Width: =Parent.Width - 220
+          Height: =Parent.Height - 56
+          Fill: =nfCorFundo
+          Visible: =!gblPodeAdmin
+    - blqMsg_Admin:
+        Control: Label@2.5.1
+        Properties:
+          Text: ="Acesso restrito aos perfis Gestor e Administrador."
+          X: =240
+          Y: =160
+          Width: =Parent.Width - 260
+          Height: =40
+          Size: =13
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =!gblPodeAdmin
+    - blqBotao_Admin:
+        Control: Classic/Button@2.2.0
+        Properties:
+          Text: ="Voltar ao Início"
+          X: =240
+          Y: =216
+          Width: =220
+          Height: =40
+          OnSelect: =Navigate(scrInicio, ScreenTransition.None)
+          Fill: =nfCorAzul
+          Color: =nfCorCartao
+          HoverFill: =nfCorNavy2
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =!gblPodeAdmin

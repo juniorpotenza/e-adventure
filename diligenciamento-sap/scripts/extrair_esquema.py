@@ -249,12 +249,51 @@ def main():
         }
 
     aplicar_confirmacoes(resultado)
+    aplicar_esquema_studio(resultado)  # prevalece: é o que o app efetivamente enxerga
     (RAIZ / "schema").mkdir(exist_ok=True)
     (RAIZ / "schema" / "dil_schema.json").write_text(json.dumps(resultado, ensure_ascii=False, indent=2) + "\n")
     (RAIZ / "local").mkdir(exist_ok=True)
     (RAIZ / "local" / "evidencias_fluxos.json").write_text(json.dumps(eventos, ensure_ascii=False, indent=1, default=list))
     escrever_markdown(resultado)
     print("OK:", sum(1 for v in resultado["listas"].values() if "colunas" in v), "listas mapeadas")
+
+
+def tipo_studio(cols, interno):
+    _, t, fmt, _ = cols[interno]
+    if t == "object":
+        if f"{interno}#Claims" in cols:
+            return "Pessoa"
+        return "Escolha"
+    if t == "boolean":
+        return "Booleano"
+    if t in ("number", "integer"):
+        return "Numero"
+    return {"date": "Data", "date-time": "DataHora", "uri": "Hyperlink"}.get(fmt, "Texto")
+
+
+def aplicar_esquema_studio(r):
+    """Esquema lido pelo próprio Power Apps Studio (References/DataSources.json de um .msapp salvo
+    com as listas conectadas). É a evidência mais forte: nome interno e tipo efetivos no app.
+    Entrada local: local/esquema_studio.json. Saída versionada (sem GUIDs): schema/esquema_studio.json."""
+    arq = RAIZ / "local" / "esquema_studio.json"
+    if not arq.exists():
+        return
+    bruto = json.loads(arq.read_text())
+    publico = {}
+    for lista, cols in bruto.items():
+        if lista not in r["listas"] or "colunas" not in r["listas"][lista]:
+            continue
+        por_titulo = {v[0]: k for k, v in cols.items() if v[0] and "#" not in k}
+        publico[lista] = []
+        for c in r["listas"][lista]["colunas"]:
+            interno = "Title" if c["interno"] == "Title" else por_titulo.get(c["exibicao"])
+            if interno is None:
+                c["interno_status"] = "AUSENTE no esquema do Studio"
+                continue
+            c["interno"], c["interno_status"] = interno, "confirmado (esquema do Power Apps Studio)"
+            c["tipo"], c["tipo_status"] = tipo_studio(cols, interno), "confirmado (esquema do Power Apps Studio)"
+            publico[lista].append({"exibicao": c["exibicao"], "interno": interno, "tipo": c["tipo"]})
+    (RAIZ / "schema" / "esquema_studio.json").write_text(json.dumps(publico, ensure_ascii=False, indent=1) + "\n")
 
 
 def aplicar_confirmacoes(r):
