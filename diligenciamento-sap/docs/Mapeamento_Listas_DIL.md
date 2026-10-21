@@ -1,6 +1,6 @@
 # Mapeamento das listas DIL (gerado)
 
-> Gerado por `scripts/extrair_esquema.py` em 2026-10-21T19:56:56Z a partir de `DIL.zip` (sha256 `c40f37d6566455f2…`). **Não editar à mão** — rode o script de novo.
+> Gerado por `scripts/extrair_esquema.py` em 2026-10-21T22:14:35Z a partir de `DIL.zip` (sha256 `c40f37d6566455f2…`). **Não editar à mão** — rode o script de novo.
 
 ## Regras aplicadas
 
@@ -188,22 +188,22 @@ Legenda: *confirmado* = há evidência direta em fluxo/filtro; *inferido* = dedu
 
 | Exibição (Power Apps) | Interno (fluxo/OData) | Status interno | Tipo | Status tipo |
 |---|---|---|---|---|
-| `Chave_Compromisso` | `Title` | confirmado (fluxos gravam Title com o prefixo da chave) | Texto | confirmado (Title) |
-| `Numero_RC` | `field_1` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Item_RC` | `field_2` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Numero_PO` | `field_3` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Item_PO` | `field_4` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Codigo_Fornecedor` | `field_5` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Tipo_Compromisso` | `field_6` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Data_Compromisso` | `field_7` | confirmado (usado em fluxo) | Data | inferido (valores do CSV) |
-| `Data_Compromisso_Anterior` | `field_8` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Origem_Compromisso` | `field_9` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Status_Compromisso` | `field_10` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Data_Registro` | `field_11` | inferido (posição) | Data | inferido (valores do CSV) |
-| `Responsavel_Registro` | `field_12` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Observacao` | `field_13` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Ativo` | `field_14` | inferido (posição) | Booleano | inferido (valores do CSV) |
-| `Responsavel_Registro_Pessoa` | `Responsavel_Registro_Pessoa` | inferido (= nome de exibição) | Pessoa | inferido (sufixo _Pessoa) |
+| `Chave_Compromisso` | `Title` | confirmado (fluxos gravam Title com o prefixo da chave) | Texto | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Numero_RC` | `field_1` | confirmado (usado em fluxo) | Texto | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Item_RC` | `field_2` | confirmado (usado em fluxo) | Texto | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Numero_PO` | `field_3` | confirmado (usado em fluxo) | Texto | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Item_PO` | `field_4` | confirmado (usado em fluxo) | Texto | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Codigo_Fornecedor` | `field_5` | inferido (posição; coluna confirmada pelo usuário) | Texto | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Tipo_Compromisso` | `field_6` | confirmado (usado em fluxo) | Escolha | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Data_Compromisso` | `field_7` | confirmado (usado em fluxo) | DataHora | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Data_Compromisso_Anterior` | `field_8` | inferido (posição; coluna confirmada pelo usuário) | DataHora | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Origem_Compromisso` | `field_9` | inferido (posição; coluna confirmada pelo usuário) | Escolha | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Status_Compromisso` | `field_10` | confirmado (usado em fluxo) | Escolha | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Data_Registro` | `field_11` | inferido (posição; coluna confirmada pelo usuário) | DataHora | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Responsavel_Registro` | `field_12` | inferido (posição; coluna confirmada pelo usuário) | Texto | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Observacao` | `field_13` | inferido (posição; coluna confirmada pelo usuário) | TextoMultilinha | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Ativo` | `field_14` | inferido (posição; coluna confirmada pelo usuário) | Booleano | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Responsavel_Registro_Pessoa` | `Responsavel_Registro_Pessoa` | inferido (= nome de exibição) | Pessoa | confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026) |
 
 ## DIL_Marcos
 

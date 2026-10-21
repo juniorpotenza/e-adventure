@@ -248,12 +248,31 @@ def main():
             "colunas": colunas,
         }
 
+    aplicar_confirmacoes(resultado)
     (RAIZ / "schema").mkdir(exist_ok=True)
     (RAIZ / "schema" / "dil_schema.json").write_text(json.dumps(resultado, ensure_ascii=False, indent=2) + "\n")
     (RAIZ / "local").mkdir(exist_ok=True)
     (RAIZ / "local" / "evidencias_fluxos.json").write_text(json.dumps(eventos, ensure_ascii=False, indent=1, default=list))
     escrever_markdown(resultado)
     print("OK:", sum(1 for v in resultado["listas"].values() if "colunas" in v), "listas mapeadas")
+
+
+def aplicar_confirmacoes(r):
+    """Aplica schema/confirmacoes_usuario.json (tipos vistos em Configurações da lista)."""
+    arq = RAIZ / "schema" / "confirmacoes_usuario.json"
+    if not arq.exists():
+        return
+    conf = json.loads(arq.read_text())
+    for lista, cols in conf.items():
+        if lista.startswith("_") or "colunas" not in r["listas"].get(lista, {}):
+            continue
+        fonte = cols.get("_fonte", "usuário")
+        for c in r["listas"][lista]["colunas"]:
+            tipo = cols.get(c["exibicao"])
+            if tipo:
+                c["tipo"], c["tipo_status"] = tipo, f"confirmado (usuário: {fonte})"
+                if c["interno_status"].startswith("inferido (posição)"):
+                    c["interno_status"] = "inferido (posição; coluna confirmada pelo usuário)"
 
 
 def escrever_markdown(r):

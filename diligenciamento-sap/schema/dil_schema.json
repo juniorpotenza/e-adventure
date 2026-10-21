@@ -1,5 +1,5 @@
 {
-  "gerado_em": "2026-10-21T19:56:56Z",
+  "gerado_em": "2026-10-21T22:14:35Z",
   "fonte": {
     "arquivo": "DIL.zip",
     "sha256": "c40f37d6566455f25d4a59c1b9b140d0298919153d5f466c326fc110a318ad5a",
@@ -1209,7 +1209,7 @@
           "interno": "Title",
           "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
           "tipo": "Texto",
-          "tipo_status": "confirmado (Title)",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
@@ -1217,7 +1217,7 @@
           "interno": "field_1",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
@@ -1225,7 +1225,7 @@
           "interno": "field_2",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
@@ -1233,7 +1233,7 @@
           "interno": "field_3",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
@@ -1241,87 +1241,87 @@
           "interno": "field_4",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Codigo_Fornecedor",
           "interno": "field_5",
-          "interno_status": "inferido (posição)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Tipo_Compromisso",
           "interno": "field_6",
           "interno_status": "confirmado (usado em fluxo)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Data_Compromisso",
           "interno": "field_7",
           "interno_status": "confirmado (usado em fluxo)",
-          "tipo": "Data",
-          "tipo_status": "inferido (valores do CSV)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Data_Compromisso_Anterior",
           "interno": "field_8",
-          "interno_status": "inferido (posição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Origem_Compromisso",
           "interno": "field_9",
-          "interno_status": "inferido (posição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Status_Compromisso",
           "interno": "field_10",
           "interno_status": "confirmado (usado em fluxo)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Data_Registro",
           "interno": "field_11",
-          "interno_status": "inferido (posição)",
-          "tipo": "Data",
-          "tipo_status": "inferido (valores do CSV)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Responsavel_Registro",
           "interno": "field_12",
-          "interno_status": "inferido (posição)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Observacao",
           "interno": "field_13",
-          "interno_status": "inferido (posição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
+          "tipo": "TextoMultilinha",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Ativo",
           "interno": "field_14",
-          "interno_status": "inferido (posição)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
           "tipo": "Booleano",
-          "tipo_status": "inferido (valores do CSV)",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [],
           "valores_observados": [
             "Falso",
@@ -1333,7 +1333,7 @@
           "interno": "Responsavel_Registro_Pessoa",
           "interno_status": "inferido (= nome de exibição)",
           "tipo": "Pessoa",
-          "tipo_status": "inferido (sufixo _Pessoa)",
+          "tipo_status": "confirmado (usuário: print de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         }
       ]

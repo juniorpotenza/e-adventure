@@ -95,6 +95,7 @@ Concurrent(
     ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
     ClearCollect(colMarcos, DIL_Marcos),
     ClearCollect(colComun, DIL_Comunicacoes),
+    ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
     ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
 );
 ClearCollect(
@@ -427,12 +428,14 @@ def tela_dossie():
     ClearCollect(colDosOcor, Filter(colOcor, {filtro_item}));
     ClearCollect(colDosAcoes, Filter(colAcoes, {filtro_item}));
     ClearCollect(colDosComun, Filter(colComun, {filtro_item}));
+    ClearCollect(colDosComp, Filter(colComp, {filtro_item}));
     ClearCollect(
         colDosChaves,
         ForAll(colDosMarcos, {{Chave: Chave_Marco}}),
         ForAll(colDosOcor, {{Chave: Chave_Ocorrencia}}),
         ForAll(colDosAcoes, {{Chave: Chave_Acao}}),
-        ForAll(colDosComun, {{Chave: Chave_Comunicacao}})
+        ForAll(colDosComun, {{Chave: Chave_Comunicacao}}),
+        ForAll(colDosComp, {{Chave: Chave_Compromisso}})
     );
     Clear(colDosHist);
     ForAll(colDosChaves As k, Collect(colDosHist, Filter(DIL_Historico, Chave_Entidade = k.Chave)));
@@ -454,7 +457,7 @@ def tela_dossie():
         botao(f"btnVoltar_{s}", txt("‹ Voltar à carteira"), f"{X0} + {LARG_CONTEUDO} - 270", Y0 + 46, 250, 30,
               "Navigate(scrCarteira, ScreenTransition.None)", primario=False),
     ]
-    abas = ["Resumo", "Marcos", "Ocorrências", "Ações", "Comunicações", "Histórico"]
+    abas = ["Resumo", "Compromissos", "Marcos", "Ocorrências", "Ações", "Comunicações", "Histórico"]
     for i, a in enumerate(abas):
         filhos.append(botao(f"btnAba{i}_{s}", txt(a), f"{X0} + {i * 150}", yc, 144, 34,
                             f'UpdateContext({{locAba: "{a}"}})', primario=False,
@@ -537,7 +540,119 @@ def tela_dossie():
                    340, 0, "Parent.TemplateWidth - 350", "Parent.TemplateHeight", 9, "nfCorTexto"),
         ], 60),
     ]
+    filhos += aba_compromissos(s, yg, filtro_item)
     return tela("dossie", "scrDossie", "Dossiê do processo", filhos, on_visible)
+
+
+def aba_compromissos(s, yg, filtro_item):
+    """Compromissos do fornecedor no Dossiê. Grava em DIL_Compromissos; o fluxo DIL_05 cria ou
+    atualiza o marco MARCO-COMP-<chave> e registra o histórico (o app não duplica esse histórico)."""
+    vis = 'locAba = "Compromissos"'
+    sel = f"galComp_{s}.Selected"
+    wl = f"({LARG_CONTEUDO}) * 0.6"
+    xp = f"{X0} + ({LARG_CONTEUDO}) * 0.6 + 16"
+    wp = f"({LARG_CONTEUDO}) * 0.4 - 16"
+    alt = f"Parent.Height - {yg + 16}"
+    reprog = 'locCompModo = "reprogramar"'
+    linha = [
+        retangulo(f"cpFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1",
+                  "If(ThisItem.IsSelected, nfCorFundo, nfCorCartao)", OnSelect="Select(Parent)"),
+        rotulo(f"cpData_{s}", data("ThisItem.Data_Compromisso"), 12, 4, 100, 24, 12, "nfCorAzul", True),
+        rotulo(f"cpAnt_{s}", 'If(IsBlank(ThisItem.Data_Compromisso_Anterior), "", "antes " & Text(ThisItem.Data_Compromisso_Anterior, "dd/mm/yyyy"))',
+               12, 30, 110, 24, 9, "nfCorSuave"),
+        rotulo(f"cpTipo_{s}", 'Coalesce(ThisItem.Tipo_Compromisso.Value, "—") & " · " & Coalesce(ThisItem.Status_Compromisso.Value, "—") & " · origem " & Coalesce(ThisItem.Origem_Compromisso.Value, "—")',
+               126, 4, "Parent.TemplateWidth - 136", 24, 10, "nfCorTexto", True),
+        rotulo(f"cpObs_{s}", 'Coalesce(ThisItem.Responsavel_Registro_Pessoa.DisplayName, ThisItem.Responsavel_Registro, "—") & "  —  " & Coalesce(ThisItem.Observacao, "")',
+               126, 30, "Parent.TemplateWidth - 136", 24, 9, "nfCorSuave"),
+    ]
+    novo = f"""Patch(
+        DIL_Compromissos,
+        Defaults(DIL_Compromissos),
+        {{
+            Chave_Compromisso: "COMP-APP-" & Text(Now(), "yyyymmddhhmmss") & "-" & Text(RandBetween(100, 999)),
+            Numero_RC: gblItem.Numero_RC,
+            Item_RC: gblItem.Item_RC,
+            Numero_PO: gblItem.Numero_PO,
+            Item_PO: gblItem.Item_PO,
+            Codigo_Fornecedor: gblItem.ItemPO.Codigo_Fornecedor,
+            Tipo_Compromisso: ddTipoComp_{s}.Selected,
+            Data_Compromisso: dtComp_{s}.SelectedDate,
+            Origem_Compromisso: ddOrigemComp_{s}.Selected,
+            Status_Compromisso: ddStatusComp_{s}.Selected,
+            Data_Registro: Now(),
+            Responsavel_Registro: User().FullName,
+            Responsavel_Registro_Pessoa: nfPessoaAtual,
+            Observacao: txtObsComp_{s}.Text,
+            Ativo: true
+        }}
+    )"""
+    altera = f"""Patch(
+        DIL_Compromissos,
+        LookUp(DIL_Compromissos, ID = {sel}.ID),
+        {{
+            Data_Compromisso_Anterior: {sel}.Data_Compromisso,
+            Data_Compromisso: dtComp_{s}.SelectedDate,
+            Status_Compromisso: ddStatusComp_{s}.Selected,
+            Observacao: txtObsComp_{s}.Text
+        }}
+    )"""
+    depois = (f'Notify("Compromisso gravado. O marco é atualizado pelo fluxo DIL_05 em instantes; use Atualizar dados.", '
+              f'NotificationType.Success);\n' + CARGA +
+              f';\nClearCollect(colDosComp, Filter(colComp, {filtro_item}));\nUpdateContext({{locCompModo: "novo"}})')
+    salvar = f"""If(
+    IsBlank(dtComp_{s}.SelectedDate) || IsBlank(ddStatusComp_{s}.Selected)
+        || (!({reprog}) && (IsBlank(ddTipoComp_{s}.Selected) || IsBlank(ddOrigemComp_{s}.Selected))),
+    Notify("Preencha tipo, origem, status e data.", NotificationType.Error),
+    {reprog} && IsBlank({sel}),
+    Notify("Selecione na lista o compromisso a reprogramar.", NotificationType.Error),
+    IfError(
+        If({reprog}, {altera}, {novo}),
+        Notify("Não foi possível gravar: " & FirstError.Message, NotificationType.Error),
+        {depois}
+    )
+)"""
+    ed = f"{vis} && gblPodeEditar"
+    filhos = [
+        galeria(f"galComp_{s}", "Sort(colDosComp, Data_Compromisso, SortOrder.Descending)", X0, yg, wl, alt, 60, linha,
+                Visible=vis),
+        rotulo(f"cpVazio_{s}", txt("Nenhum compromisso registrado para este item."), X0, yg + 8, wl, 28, 10, "nfCorSuave",
+               Visible=f"{vis} && IsEmpty(galComp_{s}.AllItems)"),
+        retangulo(f"cpPainel_{s}", xp, yg, wp, alt, BorderColor="nfCorAzul", BorderThickness=1, Visible=ed),
+        botao(f"btnCompNovo_{s}", txt("Novo compromisso"), f"{xp} + 16", yg + 12, 160, 32,
+              'UpdateContext({locCompModo: "novo"})', primario=False, Visible=ed,
+              Fill=f'If({reprog}, nfCorCartao, nfCorAzul)', Color=f'If({reprog}, nfCorAzul, nfCorCartao)'),
+        botao(f"btnCompReprog_{s}", txt("Reprogramar selecionado"), f"{xp} + 186", yg + 12, 200, 32,
+              'UpdateContext({locCompModo: "reprogramar"})', primario=False, Visible=ed,
+              Fill=f'If({reprog}, nfCorAzul, nfCorCartao)', Color=f'If({reprog}, nfCorCartao, nfCorAzul)'),
+        rotulo(f"cpModo_{s}", f'If({reprog}, "Nova data para: " & Coalesce({sel}.Tipo_Compromisso.Value, "") & " de " & ' + data(f"{sel}.Data_Compromisso") + ', "Registrar novo compromisso do fornecedor")',
+               f"{xp} + 16", yg + 52, f"{wp} - 32", 28, 10, "nfCorTexto", True, Visible=ed),
+    ]
+    campos = [
+        ("Tipo *", lista_suspensa(f"ddTipoComp_{s}", "Choices([@DIL_Compromissos].Tipo_Compromisso)", 0, 0, 0,
+                                  Visible=f"{ed} && !({reprog})")),
+        ("Origem *", lista_suspensa(f"ddOrigemComp_{s}", "Choices([@DIL_Compromissos].Origem_Compromisso)", 0, 0, 0,
+                                    Visible=f"{ed} && !({reprog})")),
+        ("Status *", lista_suspensa(f"ddStatusComp_{s}", "Choices([@DIL_Compromissos].Status_Compromisso)", 0, 0, 0,
+                                    Default=f'If({reprog}, {sel}.Status_Compromisso.Value, "Aberto")', Visible=ed)),
+        ("Data *", ctl(f"dtComp_{s}", "Classic/DatePicker", {
+            "DefaultDate": f"If({reprog} && !IsBlank({sel}), {sel}.Data_Compromisso, DateAdd(Today(), 7, TimeUnit.Days))",
+            "Height": 36, "Size": 10, "BorderColor": "nfCorLinha", "Visible": ed})),
+    ]
+    for i, (t, c) in enumerate(campos):
+        yy = yg + 88 + i * 46
+        pr = c[next(iter(c))]["Properties"]
+        pr["X"], pr["Y"], pr["Width"] = f(f"{xp} + 110"), f(yy), f(f"{wp} - 126")
+        filhos += [rotulo(f"cpT{i}_{s}", txt(t), f"{xp} + 16", yy, 90, 36, 9, "nfCorSuave", Visible=pr["Visible"][1:]), c]
+    yo = yg + 88 + len(campos) * 46
+    filhos += [
+        entrada(f"txtObsComp_{s}", "Observação (ex.: confirmado por e-mail do fornecedor)", f"{xp} + 16", yo,
+                f"{wp} - 32", 70, multilinha=True, padrao=f'If({reprog}, {sel}.Observacao, "")', Visible=ed),
+        botao(f"btnCompSalvar_{s}", txt("Gravar compromisso"), f"{xp} + 16", yo + 82, 190, 36, salvar, Visible=ed),
+        rotulo(f"cpNota_{s}", txt("O marco correspondente (MARCO-COMP-…) é criado/atualizado pelo fluxo DIL_05, "
+                                  "que também registra o histórico."),
+               f"{xp} + 16", yo + 126, f"{wp} - 32", 44, 9, "nfCorSuave", Visible=ed),
+    ]
+    return filhos
 
 
 def tela_ocorrencias():

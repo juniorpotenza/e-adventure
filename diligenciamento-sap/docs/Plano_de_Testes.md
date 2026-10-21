@@ -38,6 +38,8 @@ Limite destes testes: não resolvem nomes de fontes de dados, tipos reais das co
 | F-05 | Registrar ocorrência completa | 1 item em `DIL_Ocorrencias` (`OCOR-APP-…`, Status Aberta, Ativo Sim, Responsavel_Pessoa = usuário) + 1 item em `DIL_Historico` (Inclusão) | ⏳ |
 | F-06 | Alterar status de ocorrência para Resolvida | Status e `Data_Resolucao` gravados; histórico "Status" | ⏳ |
 | F-07 | Registrar ação vinculada à ocorrência | 1 item em `DIL_Acoes` (`ACAO-APP-…`, Aberta) + histórico; tipo "Escalonamento" não aparece | ⏳ |
+| F-07b | Dossiê > Compromissos > Novo compromisso (Entrega, data D+7) | 1 item em `DIL_Compromissos` (`COMP-APP-…`, Ativo Sim); em até ~2 min o DIL_05 cria `MARCO-COMP-COMP-APP-…` em `DIL_Marcos` e registra Inclusão no histórico; após **Atualizar dados** o marco aparece na Agenda | ⏳ |
+| F-07c | Reprogramar o compromisso para outra data | `Data_Compromisso_Anterior` = data antiga; DIL_05 atualiza a data do marco (sem criar outro) e registra Alteração no histórico | ⏳ |
 | F-08 | Atualizar andamento sendo/não sendo o responsável | Responsável e coordenação podem; outro diligenciador vê aviso e não edita pelo app | ⏳ |
 | F-09 | Agenda: navegar meses, clicar em dia com marco | Lista filtra o dia; atrasados em vermelho | ⏳ |
 | F-10 | Comunicações: comparar "Enviada pelo DIL_10" com `DIL_Historico` (`Envio_Email`) | Coincidem; não existe botão de envio | ⏳ |

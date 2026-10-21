@@ -54,6 +54,7 @@ Screens:
                 ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
+                ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
@@ -569,6 +570,7 @@ Screens:
                 ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
+                ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
@@ -814,6 +816,7 @@ Screens:
                 ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
+                ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(

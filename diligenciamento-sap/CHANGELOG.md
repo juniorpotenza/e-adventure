@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.0-candidato-v4] — 2026-10-21
+
+### Adicionado
+- Tipos de `DIL_Compromissos` confirmados pelo usuário (`schema/confirmacoes_usuario.json`, aplicado pelo extrator).
+- Dossiê: aba **Compromissos** — registrar compromisso do fornecedor e reprogramar data (grava
+  `Data_Compromisso_Anterior`). O marco continua sendo criado/atualizado pelo **DIL_05** (inalterado), que
+  registra o histórico; o app não duplica esse registro.
+- App passa a usar 11 listas (`DIL_Compromissos` com gravação).
+
 ## [0.1.3-candidato] — 2026-10-21
 
 ### Validado

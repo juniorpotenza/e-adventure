@@ -55,6 +55,7 @@ O script:
 | 8 | `DIL_Historico` | timeline/auditoria (leitura) e **gravação** de eventos manuais | |
 | 9 | `DIL_SLA` | administração (leitura) | |
 | 10 | `DIL_Integracao_Execucao` | administração (leitura) | |
+| 11 | `DIL_Compromissos` | dossiê: leitura e **gravação** (registrar/reprogramar compromisso) | aba Compromissos do Dossiê |
 
 O nome da fonte no Studio precisa ser **exatamente** o nome da lista (ex.: `DIL_Acoes`). Se o Studio criar outro nome
 (ex.: `DIL_Acoes_1`), remova e adicione de novo, ou ajuste o gerador — não edite fórmulas à mão.

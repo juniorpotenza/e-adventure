@@ -1,0 +1,22 @@
+{
+  "_descricao": "Tipos confirmados pelo usuário em Configurações da lista (SharePoint). Têm prioridade sobre a inferência.",
+  "DIL_Compromissos": {
+    "_fonte": "print de Configurações da lista > Colunas, enviado em 21/10/2026",
+    "Chave_Compromisso": "Texto",
+    "Numero_RC": "Texto",
+    "Item_RC": "Texto",
+    "Numero_PO": "Texto",
+    "Item_PO": "Texto",
+    "Codigo_Fornecedor": "Texto",
+    "Tipo_Compromisso": "Escolha",
+    "Data_Compromisso": "DataHora",
+    "Data_Compromisso_Anterior": "DataHora",
+    "Origem_Compromisso": "Escolha",
+    "Status_Compromisso": "Escolha",
+    "Data_Registro": "DataHora",
+    "Responsavel_Registro": "Texto",
+    "Observacao": "TextoMultilinha",
+    "Ativo": "Booleano",
+    "Responsavel_Registro_Pessoa": "Pessoa"
+  }
+}

@@ -12,12 +12,14 @@ Screens:
             ClearCollect(colDosOcor, Filter(colOcor, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
             ClearCollect(colDosAcoes, Filter(colAcoes, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
             ClearCollect(colDosComun, Filter(colComun, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
+            ClearCollect(colDosComp, Filter(colComp, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
             ClearCollect(
                 colDosChaves,
                 ForAll(colDosMarcos, {Chave: Chave_Marco}),
                 ForAll(colDosOcor, {Chave: Chave_Ocorrencia}),
                 ForAll(colDosAcoes, {Chave: Chave_Acao}),
-                ForAll(colDosComun, {Chave: Chave_Comunicacao})
+                ForAll(colDosComun, {Chave: Chave_Comunicacao}),
+                ForAll(colDosComp, {Chave: Chave_Compromisso})
             );
             Clear(colDosHist);
             ForAll(colDosChaves As k, Collect(colDosHist, Filter(DIL_Historico, Chave_Entidade = k.Chave)));
@@ -72,6 +74,7 @@ Screens:
                 ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
+                ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
@@ -281,8 +284,27 @@ Screens:
     - btnAba1_Dossie:
         Control: Classic/Button
         Properties:
-          Text: ="Marcos"
+          Text: ="Compromissos"
           X: =240 + 150
+          Y: =216
+          Width: =144
+          Height: =34
+          OnSelect: '=UpdateContext({locAba: "Compromissos"})'
+          Fill: =If(locAba = "Compromissos", nfCorAzul, nfCorCartao)
+          Color: =If(locAba = "Compromissos", nfCorCartao, nfCorAzul)
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+    - btnAba2_Dossie:
+        Control: Classic/Button
+        Properties:
+          Text: ="Marcos"
+          X: =240 + 300
           Y: =216
           Width: =144
           Height: =34
@@ -297,11 +319,11 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba2_Dossie:
+    - btnAba3_Dossie:
         Control: Classic/Button
         Properties:
           Text: ="Ocorrências"
-          X: =240 + 300
+          X: =240 + 450
           Y: =216
           Width: =144
           Height: =34
@@ -316,11 +338,11 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba3_Dossie:
+    - btnAba4_Dossie:
         Control: Classic/Button
         Properties:
           Text: ="Ações"
-          X: =240 + 450
+          X: =240 + 600
           Y: =216
           Width: =144
           Height: =34
@@ -335,11 +357,11 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba4_Dossie:
+    - btnAba5_Dossie:
         Control: Classic/Button
         Properties:
           Text: ="Comunicações"
-          X: =240 + 600
+          X: =240 + 750
           Y: =216
           Width: =144
           Height: =34
@@ -354,11 +376,11 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba5_Dossie:
+    - btnAba6_Dossie:
         Control: Classic/Button
         Properties:
           Text: ="Histórico"
-          X: =240 + 750
+          X: =240 + 900
           Y: =216
           Width: =144
           Height: =34
@@ -889,3 +911,354 @@ Screens:
               Size: =9
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
+    - galComp_Dossie:
+        Control: Gallery
+        Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+        Properties:
+          Items: =Sort(colDosComp, Data_Compromisso, SortOrder.Descending)
+          X: =240
+          Y: =262
+          Width: =(Parent.Width - 260) * 0.6
+          Height: =Parent.Height - 278
+          TemplateSize: =60
+          TemplatePadding: =0
+          ShowScrollbar: =true
+          Visible: =locAba = "Compromissos"
+        Children:
+        - cpFundo_Dossie:
+            Control: Rectangle
+            Properties:
+              X: =0
+              Y: =0
+              Width: =Parent.TemplateWidth
+              Height: =Parent.TemplateHeight - 1
+              Fill: =If(ThisItem.IsSelected, nfCorFundo, nfCorCartao)
+              OnSelect: =Select(Parent)
+        - cpData_Dossie:
+            Control: Label
+            Properties:
+              Text: =If(IsBlank(ThisItem.Data_Compromisso), "—", Text(ThisItem.Data_Compromisso, "dd/mm/yyyy"))
+              X: =12
+              Y: =4
+              Width: =100
+              Height: =24
+              Size: =12
+              Color: =nfCorAzul
+              Font: =Font.'Segoe UI'
+              FontWeight: =FontWeight.Semibold
+        - cpAnt_Dossie:
+            Control: Label
+            Properties:
+              Text: =If(IsBlank(ThisItem.Data_Compromisso_Anterior), "", "antes " & Text(ThisItem.Data_Compromisso_Anterior, "dd/mm/yyyy"))
+              X: =12
+              Y: =30
+              Width: =110
+              Height: =24
+              Size: =9
+              Color: =nfCorSuave
+              Font: =Font.'Segoe UI'
+        - cpTipo_Dossie:
+            Control: Label
+            Properties:
+              Text: =Coalesce(ThisItem.Tipo_Compromisso.Value, "—") & " · " & Coalesce(ThisItem.Status_Compromisso.Value, "—") & " · origem " & Coalesce(ThisItem.Origem_Compromisso.Value, "—")
+              X: =126
+              Y: =4
+              Width: =Parent.TemplateWidth - 136
+              Height: =24
+              Size: =10
+              Color: =nfCorTexto
+              Font: =Font.'Segoe UI'
+              FontWeight: =FontWeight.Semibold
+        - cpObs_Dossie:
+            Control: Label
+            Properties:
+              Text: =Coalesce(ThisItem.Responsavel_Registro_Pessoa.DisplayName, ThisItem.Responsavel_Registro, "—") & "  —  " & Coalesce(ThisItem.Observacao, "")
+              X: =126
+              Y: =30
+              Width: =Parent.TemplateWidth - 136
+              Height: =24
+              Size: =9
+              Color: =nfCorSuave
+              Font: =Font.'Segoe UI'
+    - cpVazio_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Nenhum compromisso registrado para este item."
+          X: =240
+          Y: =270
+          Width: =(Parent.Width - 260) * 0.6
+          Height: =28
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Compromissos" && IsEmpty(galComp_Dossie.AllItems)
+    - cpPainel_Dossie:
+        Control: Rectangle
+        Properties:
+          X: =240 + (Parent.Width - 260) * 0.6 + 16
+          Y: =262
+          Width: =(Parent.Width - 260) * 0.4 - 16
+          Height: =Parent.Height - 278
+          Fill: =nfCorCartao
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Visible: =locAba = "Compromissos" && gblPodeEditar
+    - btnCompNovo_Dossie:
+        Control: Classic/Button
+        Properties:
+          Text: ="Novo compromisso"
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
+          Y: =274
+          Width: =160
+          Height: =32
+          OnSelect: '=UpdateContext({locCompModo: "novo"})'
+          Fill: =If(locCompModo = "reprogramar", nfCorCartao, nfCorAzul)
+          Color: =If(locCompModo = "reprogramar", nfCorAzul, nfCorCartao)
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =locAba = "Compromissos" && gblPodeEditar
+    - btnCompReprog_Dossie:
+        Control: Classic/Button
+        Properties:
+          Text: ="Reprogramar selecionado"
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 186
+          Y: =274
+          Width: =200
+          Height: =32
+          OnSelect: '=UpdateContext({locCompModo: "reprogramar"})'
+          Fill: =If(locCompModo = "reprogramar", nfCorAzul, nfCorCartao)
+          Color: =If(locCompModo = "reprogramar", nfCorCartao, nfCorAzul)
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =locAba = "Compromissos" && gblPodeEditar
+    - cpModo_Dossie:
+        Control: Label
+        Properties:
+          Text: '=If(locCompModo = "reprogramar", "Nova data para: " & Coalesce(galComp_Dossie.Selected.Tipo_Compromisso.Value, "") & " de " & If(IsBlank(galComp_Dossie.Selected.Data_Compromisso), "—", Text(galComp_Dossie.Selected.Data_Compromisso, "dd/mm/yyyy")), "Registrar novo compromisso do fornecedor")'
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
+          Y: =314
+          Width: =(Parent.Width - 260) * 0.4 - 16 - 32
+          Height: =28
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locAba = "Compromissos" && gblPodeEditar
+    - cpT0_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Tipo *"
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
+          Y: =350
+          Width: =90
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
+    - ddTipoComp_Dossie:
+        Control: Classic/DropDown
+        Properties:
+          Items: =Choices([@DIL_Compromissos].Tipo_Compromisso)
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
+          Y: =350
+          Width: =(Parent.Width - 260) * 0.4 - 16 - 126
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
+    - cpT1_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Origem *"
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
+          Y: =396
+          Width: =90
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
+    - ddOrigemComp_Dossie:
+        Control: Classic/DropDown
+        Properties:
+          Items: =Choices([@DIL_Compromissos].Origem_Compromisso)
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
+          Y: =396
+          Width: =(Parent.Width - 260) * 0.4 - 16 - 126
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
+    - cpT2_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Status *"
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
+          Y: =442
+          Width: =90
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Compromissos" && gblPodeEditar
+    - ddStatusComp_Dossie:
+        Control: Classic/DropDown
+        Properties:
+          Items: =Choices([@DIL_Compromissos].Status_Compromisso)
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
+          Y: =442
+          Width: =(Parent.Width - 260) * 0.4 - 16 - 126
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Default: =If(locCompModo = "reprogramar", galComp_Dossie.Selected.Status_Compromisso.Value, "Aberto")
+          Visible: =locAba = "Compromissos" && gblPodeEditar
+    - cpT3_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Data *"
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
+          Y: =488
+          Width: =90
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Compromissos" && gblPodeEditar
+    - dtComp_Dossie:
+        Control: Classic/DatePicker
+        Properties:
+          DefaultDate: =If(locCompModo = "reprogramar" && !IsBlank(galComp_Dossie.Selected), galComp_Dossie.Selected.Data_Compromisso, DateAdd(Today(), 7, TimeUnit.Days))
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locAba = "Compromissos" && gblPodeEditar
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
+          Y: =488
+          Width: =(Parent.Width - 260) * 0.4 - 16 - 126
+    - txtObsComp_Dossie:
+        Control: Classic/TextInput
+        Properties:
+          Default: =If(locCompModo = "reprogramar", galComp_Dossie.Selected.Observacao, "")
+          HintText: '="Observação (ex.: confirmado por e-mail do fornecedor)"'
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
+          Y: =534
+          Width: =(Parent.Width - 260) * 0.4 - 16 - 32
+          Height: =70
+          Size: =10
+          BorderColor: =nfCorLinha
+          Mode: =TextMode.MultiLine
+          Visible: =locAba = "Compromissos" && gblPodeEditar
+    - btnCompSalvar_Dossie:
+        Control: Classic/Button
+        Properties:
+          Text: ="Gravar compromisso"
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
+          Y: =616
+          Width: =190
+          Height: =36
+          OnSelect: |-
+            =If(
+                IsBlank(dtComp_Dossie.SelectedDate) || IsBlank(ddStatusComp_Dossie.Selected)
+                    || (!(locCompModo = "reprogramar") && (IsBlank(ddTipoComp_Dossie.Selected) || IsBlank(ddOrigemComp_Dossie.Selected))),
+                Notify("Preencha tipo, origem, status e data.", NotificationType.Error),
+                locCompModo = "reprogramar" && IsBlank(galComp_Dossie.Selected),
+                Notify("Selecione na lista o compromisso a reprogramar.", NotificationType.Error),
+                IfError(
+                    If(locCompModo = "reprogramar", Patch(
+                    DIL_Compromissos,
+                    LookUp(DIL_Compromissos, ID = galComp_Dossie.Selected.ID),
+                    {
+                        Data_Compromisso_Anterior: galComp_Dossie.Selected.Data_Compromisso,
+                        Data_Compromisso: dtComp_Dossie.SelectedDate,
+                        Status_Compromisso: ddStatusComp_Dossie.Selected,
+                        Observacao: txtObsComp_Dossie.Text
+                    }
+                ), Patch(
+                    DIL_Compromissos,
+                    Defaults(DIL_Compromissos),
+                    {
+                        Chave_Compromisso: "COMP-APP-" & Text(Now(), "yyyymmddhhmmss") & "-" & Text(RandBetween(100, 999)),
+                        Numero_RC: gblItem.Numero_RC,
+                        Item_RC: gblItem.Item_RC,
+                        Numero_PO: gblItem.Numero_PO,
+                        Item_PO: gblItem.Item_PO,
+                        Codigo_Fornecedor: gblItem.ItemPO.Codigo_Fornecedor,
+                        Tipo_Compromisso: ddTipoComp_Dossie.Selected,
+                        Data_Compromisso: dtComp_Dossie.SelectedDate,
+                        Origem_Compromisso: ddOrigemComp_Dossie.Selected,
+                        Status_Compromisso: ddStatusComp_Dossie.Selected,
+                        Data_Registro: Now(),
+                        Responsavel_Registro: User().FullName,
+                        Responsavel_Registro_Pessoa: nfPessoaAtual,
+                        Observacao: txtObsComp_Dossie.Text,
+                        Ativo: true
+                    }
+                )),
+                    Notify("Não foi possível gravar: " & FirstError.Message, NotificationType.Error),
+                    Notify("Compromisso gravado. O marco é atualizado pelo fluxo DIL_05 em instantes; use Atualizar dados.", NotificationType.Success);
+            Concurrent(
+                ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
+                ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
+                ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
+                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colMarcos, DIL_Marcos),
+                ClearCollect(colComun, DIL_Comunicacoes),
+                ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
+                ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    AddColumns(
+                        colVinc As v,
+                        ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                        QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                        QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                        QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                        QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                    ) As c,
+                    Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+                )
+            );
+            Set(gblCarregadoEm, Now());
+            ClearCollect(colDosComp, Filter(colComp, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
+            UpdateContext({locCompModo: "novo"})
+                )
+            )
+          Fill: =nfCorAzul
+          Color: =nfCorCartao
+          HoverFill: =nfCorNavy2
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =locAba = "Compromissos" && gblPodeEditar
+    - cpNota_Dossie:
+        Control: Label
+        Properties:
+          Text: ="O marco correspondente (MARCO-COMP-…) é criado/atualizado pelo fluxo DIL_05, que também registra o histórico."
+          X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
+          Y: =660
+          Width: =(Parent.Width - 260) * 0.4 - 16 - 32
+          Height: =44
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Compromissos" && gblPodeEditar
