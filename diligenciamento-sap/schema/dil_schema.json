@@ -1,0 +1,2636 @@
+{
+  "gerado_em": "2026-10-21T18:25:02Z",
+  "fonte": {
+    "arquivo": "DIL.zip",
+    "sha256": "c40f37d6566455f25d4a59c1b9b140d0298919153d5f466c326fc110a318ad5a",
+    "observacao": "CSV = nomes de exibição/ordem; fluxos = nomes internos e tipos."
+  },
+  "regras": [
+    "Coluna Chave_* é a coluna Title renomeada (fluxos gravam Title com o prefixo da chave).",
+    "Listas criadas por planilha: nome interno field_N = N-ésima coluna após Title, até a primeira coluna acrescentada depois (sufixo _Pessoa ou _N).",
+    "Power Apps referencia colunas SharePoint pelo NOME DE EXIBIÇÃO; fluxos/OData usam o nome interno."
+  ],
+  "listas": {
+    "DIL_Importacao_SAP": {
+      "estilo_nomes_internos": "nomes_reais",
+      "linhas_no_csv": 109,
+      "fluxos_que_usam": [
+        "DIL_01_Importar_SAP",
+        "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP",
+        "DIL_03_Fechar_Execucao_SAP",
+        "DIL_04_Normalizar_RC_PO"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Linha",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Marcar_Staging_Processado"
+          ]
+        },
+        {
+          "exibicao": "ID_Importacao",
+          "interno": "ID_Importacao",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Marcar_Staging_Processado",
+            "DIL_03_Fechar_Execucao_SAP:Obter_Staging_Execucao (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Data_Importacao",
+          "interno": "Data_Importacao",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Arquivo_Origem",
+          "interno": "Arquivo_Origem",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Linha_Origem",
+          "interno": "Linha_Origem",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Status_Processamento",
+          "interno": "Status_Processamento",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Marcar_Staging_Processado"
+          ],
+          "valores_observados": [
+            "Pendente",
+            "Processado"
+          ]
+        },
+        {
+          "exibicao": "Mensagem_Erro",
+          "interno": "Mensagem_Erro",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Data_Processamento",
+          "interno": "Data_Processamento",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Marcar_Staging_Processado"
+          ]
+        },
+        {
+          "exibicao": "Tip_Doc_Compra",
+          "interno": "Tip_Doc_Compra",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Descricao_Tipo_Doc",
+          "interno": "Descricao_Tipo_Doc",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Numero_RC_SAP",
+          "interno": "Numero_RC_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Item_RC_SAP",
+          "interno": "Item_RC_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Material_SAP",
+          "interno": "Material_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Descricao_Produto_SAP",
+          "interno": "Descricao_Produto_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Numero_PO_SAP",
+          "interno": "Numero_PO_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Item_PO_SAP",
+          "interno": "Item_PO_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Codigo_Fornecedor_SAP",
+          "interno": "Codigo_Fornecedor_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Nome_Fornecedor_SAP",
+          "interno": "Nome_Fornecedor_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Data_1_Remessa_Item_SAP",
+          "interno": "Data_1_Remessa_Item_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Data",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Grupo_Compradores_SAP",
+          "interno": "Grupo_Compradores_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "DIL_Importacao_SAP",
+          "interno": "DIL_Importacao_SAP",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Status_EF_SAP",
+          "interno": "Status_EF_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Enquadramento_Proc_SAP",
+          "interno": "Enquadramento_Proc_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Utilizacao_Material_SAP",
+          "interno": "Utilizacao_Material_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Tipo_Avaliacao_SAP",
+          "interno": "Tipo_Avaliacao_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Column19_SAP",
+          "interno": "Column19_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Column20_SAP",
+          "interno": "Column20_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Valor_R$_SAP",
+          "interno": "Valor_R_x0024__SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Valor_R$_1_SAP",
+          "interno": "Valor_R_x0024__1_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Descricao_Status_EF_SAP",
+          "interno": "Descricao_Status_EF_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Descricao_Status_EM_SAP",
+          "interno": "Descricao_Status_EM_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Status_EM_SAP",
+          "interno": "Status_EM_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        },
+        {
+          "exibicao": "Status_Liberacao_PO_SAP",
+          "interno": "Status_Liberacao_PO_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Criar_item"
+          ]
+        }
+      ]
+    },
+    "DIL_Requisicoes": {
+      "estilo_nomes_internos": "nomes_reais",
+      "linhas_no_csv": 6,
+      "fluxos_que_usam": [
+        "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_RC",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
+          ]
+        },
+        {
+          "exibicao": "Numero_RC",
+          "interno": "Numero_RC",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Obter_RC_Batch (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Tipo_Doc_Compra",
+          "interno": "Tipo_Doc_Compra",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
+          ]
+        },
+        {
+          "exibicao": "Descricao_Tipo_Doc",
+          "interno": "Descricao_Tipo_Doc",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
+          ]
+        },
+        {
+          "exibicao": "Status_RC",
+          "interno": "Status_RC",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Data_Criacao_RC",
+          "interno": "Data_Criacao_RC",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Grupo_Compradores",
+          "interno": "Grupo_Compradores",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
+          ]
+        },
+        {
+          "exibicao": "Responsavel_Diligencia",
+          "interno": "Responsavel_Diligencia",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Prioridade",
+          "interno": "Prioridade",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Nivel_Risco",
+          "interno": "Nivel_Risco",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Data_Ultima_Atualizacao_SAP",
+          "interno": "Data_Ultima_Atualizacao_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
+          ]
+        },
+        {
+          "exibicao": "Ativa",
+          "interno": "Ativa",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Booleano",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
+          ],
+          "valores_observados": [
+            "True"
+          ]
+        },
+        {
+          "exibicao": "Observacao",
+          "interno": "Observacao",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_Itens_Requisicao": {
+      "estilo_nomes_internos": "nomes_reais",
+      "linhas_no_csv": 8,
+      "fluxos_que_usam": [
+        "DIL_04_Normalizar_RC_PO"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Item_RC",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
+          ]
+        },
+        {
+          "exibicao": "Numero_RC",
+          "interno": "Numero_RC",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Criar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Obter_Item_RC (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Item_RC",
+          "interno": "Item_RC",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Criar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Obter_Item_RC (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Material",
+          "interno": "Material",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
+          ]
+        },
+        {
+          "exibicao": "Descricao_Produto",
+          "interno": "Descricao_Produto",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
+          ]
+        },
+        {
+          "exibicao": "Utilizacao_Material",
+          "interno": "Utilizacao_Material",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
+          ]
+        },
+        {
+          "exibicao": "Tipo_Avaliacao",
+          "interno": "Tipo_Avaliacao",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
+          ]
+        },
+        {
+          "exibicao": "Grupo_Compradores",
+          "interno": "Grupo_Compradores",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
+          ]
+        },
+        {
+          "exibicao": "Data_1_Remessa_Item_SAP",
+          "interno": "Data_1_Remessa_Item_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Data",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
+          ]
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "Ativo",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Booleano",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
+            "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
+          ],
+          "valores_observados": [
+            "True"
+          ]
+        }
+      ]
+    },
+    "DIL_Pedidos": {
+      "estilo_nomes_internos": "nomes_reais",
+      "linhas_no_csv": 8,
+      "fluxos_que_usam": [
+        "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_PO",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido"
+          ]
+        },
+        {
+          "exibicao": "Numero_PO",
+          "interno": "Numero_PO",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Obter_Pedidos_Batch (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Tipo_Doc_Compra",
+          "interno": "Tipo_Doc_Compra",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido"
+          ]
+        },
+        {
+          "exibicao": "Descricao_Tipo_Doc",
+          "interno": "Descricao_Tipo_Doc",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido"
+          ]
+        },
+        {
+          "exibicao": "Codigo_Fornecedor",
+          "interno": "Codigo_Fornecedor",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido"
+          ]
+        },
+        {
+          "exibicao": "Nome_Fornecedor",
+          "interno": "Nome_Fornecedor",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido"
+          ]
+        },
+        {
+          "exibicao": "Grupo_Compradores",
+          "interno": "Grupo_Compradores",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido"
+          ]
+        },
+        {
+          "exibicao": "Status_Liberacao_PO",
+          "interno": "Status_Liberacao_PO",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido"
+          ]
+        },
+        {
+          "exibicao": "Status_EF",
+          "interno": "Status_EF",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido"
+          ]
+        },
+        {
+          "exibicao": "Status_EM",
+          "interno": "Status_EM",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido"
+          ]
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "Ativo",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Booleano",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Pedido",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Pedido"
+          ],
+          "valores_observados": [
+            "True"
+          ]
+        },
+        {
+          "exibicao": "Observacao",
+          "interno": "Observacao",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_Itens_Pedido": {
+      "estilo_nomes_internos": "nomes_reais",
+      "linhas_no_csv": 8,
+      "fluxos_que_usam": [
+        "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Item_PO",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Numero_PO",
+          "interno": "Numero_PO",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Obter_Item_PO_Batch (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Item_PO",
+          "interno": "Item_PO",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Obter_Item_PO_Batch (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Material",
+          "interno": "Material",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Descricao_Produto",
+          "interno": "Descricao_Produto",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Codigo_Fornecedor",
+          "interno": "Codigo_Fornecedor",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Nome_Fornecedor",
+          "interno": "Nome_Fornecedor",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Data_1_Remessa_Item_SAP",
+          "interno": "Data_1_Remessa_Item_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Data",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Status_Liberacao_PO",
+          "interno": "Status_Liberacao_PO",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Status_EF",
+          "interno": "Status_EF",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Status_EM",
+          "interno": "Status_EM",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Valor_1_SAP",
+          "interno": "Valor_1_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Valor_2_SAP",
+          "interno": "Valor_2_SAP",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ]
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "Ativo",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Booleano",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Item_PO",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Item_PO"
+          ],
+          "valores_observados": [
+            "True"
+          ]
+        }
+      ]
+    },
+    "DIL_Vinculo_RC_PO": {
+      "estilo_nomes_internos": "nomes_reais",
+      "linhas_no_csv": 8,
+      "fluxos_que_usam": [
+        "DIL_04_Normalizar_RC_PO"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Vinculo",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Criar_Vinculo_RC_PO"
+          ]
+        },
+        {
+          "exibicao": "Numero_RC",
+          "interno": "Numero_RC",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Criar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Obter_Vinculo_RC_PO (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Item_RC",
+          "interno": "Item_RC",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Criar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Obter_Vinculo_RC_PO (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Numero_PO",
+          "interno": "Numero_PO",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Criar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Obter_Vinculo_RC_PO (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Item_PO",
+          "interno": "Item_PO",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Criar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Obter_Vinculo_RC_PO (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Quantidade_Vinculada",
+          "interno": "Quantidade_Vinculada",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Percentual_Vinculado",
+          "interno": "Percentual_Vinculado",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Tipo_Vinculo",
+          "interno": "Tipo_Vinculo",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Criar_Vinculo_RC_PO"
+          ],
+          "valores_observados": [
+            "Integral"
+          ]
+        },
+        {
+          "exibicao": "Origem_Vinculo",
+          "interno": "Origem_Vinculo",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Criar_Vinculo_RC_PO"
+          ],
+          "valores_observados": [
+            "SAP"
+          ]
+        },
+        {
+          "exibicao": "Data_Vinculo",
+          "interno": "Data_Vinculo",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Criar_Vinculo_RC_PO"
+          ]
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "Ativo",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Booleano",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_04_Normalizar_RC_PO:Atualizar_Vinculo_RC_PO",
+            "DIL_04_Normalizar_RC_PO:Criar_Vinculo_RC_PO"
+          ],
+          "valores_observados": [
+            "True"
+          ]
+        }
+      ]
+    },
+    "DIL_Fornecedores": {
+      "estilo_nomes_internos": "field_N",
+      "linhas_no_csv": 8,
+      "fluxos_que_usam": [
+        "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Fornecedor",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Fornecedor",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Fornecedor"
+          ]
+        },
+        {
+          "exibicao": "Codigo_Fornecedor",
+          "interno": "field_1",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Fornecedor",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Fornecedor",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Obter_Fornecedor_Batch (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Nome_Fornecedor",
+          "interno": "field_2",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Fornecedor",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Fornecedor"
+          ]
+        },
+        {
+          "exibicao": "CNPJ",
+          "interno": "field_3",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Email_Principal",
+          "interno": "field_4",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Telefone",
+          "interno": "field_5",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Contato_Principal",
+          "interno": "field_6",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Categoria_Fornecedor",
+          "interno": "field_7",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Status_Fornecedor",
+          "interno": "field_8",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Nivel_Risco_Fornecedor",
+          "interno": "field_9",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Responsavel_Fornecedor",
+          "interno": "field_10",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Observacao",
+          "interno": "field_11",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "field_12",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Booleano",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Fornecedor",
+            "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Fornecedor"
+          ],
+          "valores_observados": [
+            "True"
+          ]
+        },
+        {
+          "exibicao": "Responsavel_Fornecedor_Pessoa",
+          "interno": "Responsavel_Fornecedor_Pessoa",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Pessoa",
+          "tipo_status": "inferido (sufixo _Pessoa)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_Compromissos": {
+      "estilo_nomes_internos": "field_N",
+      "linhas_no_csv": 3,
+      "fluxos_que_usam": [
+        "DIL_05_Compromissos_Marcos_Historico"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Compromisso",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Numero_RC",
+          "interno": "field_1",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Item_RC",
+          "interno": "field_2",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Numero_PO",
+          "interno": "field_3",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Item_PO",
+          "interno": "field_4",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Codigo_Fornecedor",
+          "interno": "field_5",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Tipo_Compromisso",
+          "interno": "field_6",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Data_Compromisso",
+          "interno": "field_7",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Data",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Data_Compromisso_Anterior",
+          "interno": "field_8",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Origem_Compromisso",
+          "interno": "field_9",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Status_Compromisso",
+          "interno": "field_10",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Data_Registro",
+          "interno": "field_11",
+          "interno_status": "inferido (posição)",
+          "tipo": "Data",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Responsavel_Registro",
+          "interno": "field_12",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Observacao",
+          "interno": "field_13",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "field_14",
+          "interno_status": "inferido (posição)",
+          "tipo": "Booleano",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [],
+          "valores_observados": [
+            "Falso",
+            "True"
+          ]
+        },
+        {
+          "exibicao": "Responsavel_Registro_Pessoa",
+          "interno": "Responsavel_Registro_Pessoa",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Pessoa",
+          "tipo_status": "inferido (sufixo _Pessoa)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_Marcos": {
+      "estilo_nomes_internos": "field_N",
+      "linhas_no_csv": 4,
+      "fluxos_que_usam": [
+        "DIL_05_Compromissos_Marcos_Historico",
+        "DIL_06_Ocorrencias_Acoes_V6",
+        "DIL_07_Encerrar_Ocorrencias_Acoes_V8"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Marco",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Atualizar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Criar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Obter_Marco_Compromisso (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Numero_RC",
+          "interno": "field_1",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Atualizar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Criar_Marco_Compromisso"
+          ]
+        },
+        {
+          "exibicao": "Item_RC",
+          "interno": "field_2",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Atualizar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Criar_Marco_Compromisso"
+          ]
+        },
+        {
+          "exibicao": "Numero_PO",
+          "interno": "field_3",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Atualizar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Criar_Marco_Compromisso"
+          ]
+        },
+        {
+          "exibicao": "Item_PO",
+          "interno": "field_4",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Atualizar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Criar_Marco_Compromisso"
+          ]
+        },
+        {
+          "exibicao": "Tipo_Marco",
+          "interno": "field_5",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Atualizar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Criar_Marco_Compromisso"
+          ],
+          "valores_observados": [
+            "Entrega"
+          ]
+        },
+        {
+          "exibicao": "Descricao_Marco",
+          "interno": "field_6",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Atualizar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Criar_Marco_Compromisso"
+          ]
+        },
+        {
+          "exibicao": "Data_Planejada",
+          "interno": "field_7",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Data",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Atualizar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Criar_Marco_Compromisso"
+          ]
+        },
+        {
+          "exibicao": "Data_Realizada",
+          "interno": "field_8",
+          "interno_status": "inferido (posição)",
+          "tipo": "Data",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Status_Marco",
+          "interno": "field_9",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Atualizar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Criar_Marco_Compromisso"
+          ],
+          "valores_observados": [
+            "Concluído",
+            "Pendente"
+          ]
+        },
+        {
+          "exibicao": "Responsavel",
+          "interno": "field_10",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Observacao",
+          "interno": "field_11",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "field_12",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Ambiguo",
+          "tipo_status": "AMBÍGUO: fluxo=Booleano; CSV contém ['Sim', 'True']",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Atualizar_Marco_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Criar_Marco_Compromisso"
+          ],
+          "valores_observados": [
+            "Sim",
+            "True"
+          ]
+        },
+        {
+          "exibicao": "Responsavel_Pessoa",
+          "interno": "Responsavel_Pessoa",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Pessoa",
+          "tipo_status": "inferido (sufixo _Pessoa)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_Ocorrencias": {
+      "estilo_nomes_internos": "field_N",
+      "linhas_no_csv": 3,
+      "fluxos_que_usam": [
+        "DIL_06_Ocorrencias_Acoes_V6",
+        "DIL_07_Encerrar_Ocorrencias_Acoes_V8",
+        "DIL_08_Escalonamento_SLA_V2"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Ocorrencia",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Ocorrencia_Atraso",
+            "DIL_06_Ocorrencias_Acoes_V6:Obter_Ocorrencia_Marco (filtro)",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ]
+        },
+        {
+          "exibicao": "Numero_RC",
+          "interno": "field_1",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Ocorrencia_Atraso",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ]
+        },
+        {
+          "exibicao": "Item_RC",
+          "interno": "field_2",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Ocorrencia_Atraso",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ]
+        },
+        {
+          "exibicao": "Numero_PO",
+          "interno": "field_3",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Ocorrencia_Atraso",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ]
+        },
+        {
+          "exibicao": "Item_PO",
+          "interno": "field_4",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Ocorrencia_Atraso",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ]
+        },
+        {
+          "exibicao": "Codigo_Fornecedor",
+          "interno": "field_5",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ]
+        },
+        {
+          "exibicao": "Tipo_Ocorrencia",
+          "interno": "field_6",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ],
+          "valores_observados": [
+            "Atraso"
+          ]
+        },
+        {
+          "exibicao": "Severidade",
+          "interno": "field_7",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ],
+          "valores_observados": [
+            "Alta",
+            "Crítica"
+          ]
+        },
+        {
+          "exibicao": "Descricao",
+          "interno": "field_8",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Ocorrencia_Atraso",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ]
+        },
+        {
+          "exibicao": "Data_Ocorrencia",
+          "interno": "field_9",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Ocorrencia_Atraso",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ]
+        },
+        {
+          "exibicao": "Status_Ocorrencia",
+          "interno": "field_10",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ],
+          "valores_observados": [
+            "Aberta",
+            "Resolvida"
+          ]
+        },
+        {
+          "exibicao": "Responsavel",
+          "interno": "field_11",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Data_Resolucao",
+          "interno": "field_12",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Data",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ]
+        },
+        {
+          "exibicao": "Observacao",
+          "interno": "field_13",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "field_14",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Booleano",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Ocorrencia_Atraso",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Ocorrencia_Regularizada"
+          ],
+          "valores_observados": [
+            "True"
+          ]
+        },
+        {
+          "exibicao": "Responsavel_Pessoa",
+          "interno": "Responsavel_Pessoa",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Pessoa",
+          "tipo_status": "inferido (sufixo _Pessoa)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_Acoes": {
+      "estilo_nomes_internos": "field_N",
+      "linhas_no_csv": 5,
+      "fluxos_que_usam": [
+        "DIL_06_Ocorrencias_Acoes_V6",
+        "DIL_07_Encerrar_Ocorrencias_Acoes_V8",
+        "DIL_08_Escalonamento_SLA_V2",
+        "DIL_09_Comunicacoes_SLA_V2",
+        "DIL_10_Enviar_Comunicacoes_Outlook_V8"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Acao",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento",
+            "DIL_08_Escalonamento_SLA_V2:Obter_Acao_Escalonamento_Existente (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Numero_RC",
+          "interno": "field_1",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ]
+        },
+        {
+          "exibicao": "Item_RC",
+          "interno": "field_2",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ]
+        },
+        {
+          "exibicao": "Numero_PO",
+          "interno": "field_3",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ]
+        },
+        {
+          "exibicao": "Item_PO",
+          "interno": "field_4",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ]
+        },
+        {
+          "exibicao": "Chave_Ocorrencia",
+          "interno": "field_5",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_06_Ocorrencias_Acoes_V6:Obter_Acao_Ocorrencia (filtro)",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ]
+        },
+        {
+          "exibicao": "Tipo_Acao",
+          "interno": "field_6",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ],
+          "valores_observados": [
+            "Cobrança",
+            "Escalonamento"
+          ]
+        },
+        {
+          "exibicao": "Descricao_Acao",
+          "interno": "field_7",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ]
+        },
+        {
+          "exibicao": "Responsavel",
+          "interno": "field_8",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ]
+        },
+        {
+          "exibicao": "Prazo",
+          "interno": "field_9",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ]
+        },
+        {
+          "exibicao": "Status_Acao",
+          "interno": "field_10",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ],
+          "valores_observados": [
+            "Aberta",
+            "Concluída"
+          ]
+        },
+        {
+          "exibicao": "Data_Conclusao",
+          "interno": "field_11",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Data",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida"
+          ]
+        },
+        {
+          "exibicao": "Prioridade",
+          "interno": "field_12",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ],
+          "valores_observados": [
+            "Alta",
+            "Crítica"
+          ]
+        },
+        {
+          "exibicao": "Observacao",
+          "interno": "field_13",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "field_14",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Booleano",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ],
+          "valores_observados": [
+            "True"
+          ]
+        },
+        {
+          "exibicao": "Responsavel_Pessoa",
+          "interno": "Responsavel_Pessoa",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Pessoa",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_06_Ocorrencias_Acoes_V6:Criar_Acao_Cobranca",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Atualizar_Acao_Concluida",
+            "DIL_08_Escalonamento_SLA_V2:Criar_Acao_Escalonamento"
+          ]
+        }
+      ]
+    },
+    "DIL_Comunicacoes": {
+      "estilo_nomes_internos": "field_N",
+      "linhas_no_csv": 2,
+      "fluxos_que_usam": [
+        "DIL_09_Comunicacoes_SLA_V2",
+        "DIL_10_Enviar_Comunicacoes_Outlook_V8"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Comunicacao",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao",
+            "DIL_09_Comunicacoes_SLA_V2:Obter_Comunicacao_Existente (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Numero_RC",
+          "interno": "field_1",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ]
+        },
+        {
+          "exibicao": "Item_RC",
+          "interno": "field_2",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ]
+        },
+        {
+          "exibicao": "Numero_PO",
+          "interno": "field_3",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ]
+        },
+        {
+          "exibicao": "Item_PO",
+          "interno": "field_4",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ]
+        },
+        {
+          "exibicao": "Codigo_Fornecedor",
+          "interno": "field_5",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ]
+        },
+        {
+          "exibicao": "Tipo_Comunicacao",
+          "interno": "field_6",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ],
+          "valores_observados": [
+            "Outro"
+          ]
+        },
+        {
+          "exibicao": "Data_Comunicacao",
+          "interno": "field_7",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ]
+        },
+        {
+          "exibicao": "Sentido",
+          "interno": "field_8",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ],
+          "valores_observados": [
+            "Enviada"
+          ]
+        },
+        {
+          "exibicao": "Assunto",
+          "interno": "field_9",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ]
+        },
+        {
+          "exibicao": "Resumo",
+          "interno": "field_10",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ]
+        },
+        {
+          "exibicao": "Responsavel",
+          "interno": "field_11",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Anexo_Link",
+          "interno": "field_12",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao"
+          ]
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "field_13",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Booleano",
+          "tipo_status": "confirmado (filtro OData eq 1)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Criar_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Obter_Comunicacoes_SLA (filtro)"
+          ],
+          "valores_observados": [
+            "True"
+          ]
+        },
+        {
+          "exibicao": "Responsavel_Pessoa",
+          "interno": "Responsavel_Pessoa",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Pessoa",
+          "tipo_status": "inferido (sufixo _Pessoa)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Anexo_Link_1",
+          "interno": "Anexo_Link_1",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_Historico": {
+      "estilo_nomes_internos": "field_N",
+      "linhas_no_csv": 13,
+      "fluxos_que_usam": [
+        "DIL_05_Compromissos_Marcos_Historico",
+        "DIL_07_Encerrar_Ocorrencias_Acoes_V8",
+        "DIL_08_Escalonamento_SLA_V2",
+        "DIL_09_Comunicacoes_SLA_V2",
+        "DIL_10_Enviar_Comunicacoes_Outlook_V8"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Historico",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Alteracao_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Inclusao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Acao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Ocorrencia",
+            "DIL_08_Escalonamento_SLA_V2:Registrar_Historico_SLA",
+            "DIL_09_Comunicacoes_SLA_V2:Registrar_Historico_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Registrar_Historico_Envio"
+          ]
+        },
+        {
+          "exibicao": "Entidade",
+          "interno": "field_1",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Alteracao_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Inclusao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Acao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Ocorrencia",
+            "DIL_08_Escalonamento_SLA_V2:Registrar_Historico_SLA",
+            "DIL_09_Comunicacoes_SLA_V2:Registrar_Historico_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Registrar_Historico_Envio"
+          ],
+          "valores_observados": [
+            "Ação",
+            "Compromisso",
+            "Comunicação",
+            "Ocorrência"
+          ]
+        },
+        {
+          "exibicao": "Chave_Entidade",
+          "interno": "field_2",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Alteracao_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Inclusao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Acao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Ocorrencia",
+            "DIL_08_Escalonamento_SLA_V2:Registrar_Historico_SLA",
+            "DIL_09_Comunicacoes_SLA_V2:Registrar_Historico_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Obter_Historico_Envio_Email (filtro)",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Registrar_Historico_Envio"
+          ]
+        },
+        {
+          "exibicao": "Tipo_Evento",
+          "interno": "field_3",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Alteracao_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Inclusao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Acao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Ocorrencia",
+            "DIL_08_Escalonamento_SLA_V2:Registrar_Historico_SLA",
+            "DIL_09_Comunicacoes_SLA_V2:Registrar_Historico_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Registrar_Historico_Envio"
+          ],
+          "valores_observados": [
+            "Alteração",
+            "Envio_Email",
+            "Inclusão",
+            "SLA",
+            "Status"
+          ]
+        },
+        {
+          "exibicao": "Campo_Alterado",
+          "interno": "field_4",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Alteracao_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Inclusao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Acao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Ocorrencia",
+            "DIL_08_Escalonamento_SLA_V2:Registrar_Historico_SLA",
+            "DIL_09_Comunicacoes_SLA_V2:Registrar_Historico_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Obter_Historico_Envio_Email (filtro)",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Registrar_Historico_Envio"
+          ]
+        },
+        {
+          "exibicao": "Valor_Anterior",
+          "interno": "field_5",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Alteracao_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Inclusao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Acao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Ocorrencia",
+            "DIL_08_Escalonamento_SLA_V2:Registrar_Historico_SLA",
+            "DIL_09_Comunicacoes_SLA_V2:Registrar_Historico_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Registrar_Historico_Envio"
+          ]
+        },
+        {
+          "exibicao": "Valor_Novo",
+          "interno": "field_6",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Alteracao_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Inclusao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Acao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Ocorrencia",
+            "DIL_08_Escalonamento_SLA_V2:Registrar_Historico_SLA",
+            "DIL_09_Comunicacoes_SLA_V2:Registrar_Historico_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Registrar_Historico_Envio"
+          ]
+        },
+        {
+          "exibicao": "Data_Evento",
+          "interno": "field_7",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Alteracao_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Inclusao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Acao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Ocorrencia",
+            "DIL_08_Escalonamento_SLA_V2:Registrar_Historico_SLA",
+            "DIL_09_Comunicacoes_SLA_V2:Registrar_Historico_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Registrar_Historico_Envio"
+          ]
+        },
+        {
+          "exibicao": "Usuario_Evento",
+          "interno": "field_8",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Origem_Evento",
+          "interno": "field_9",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Alteracao_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Inclusao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Acao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Ocorrencia",
+            "DIL_08_Escalonamento_SLA_V2:Registrar_Historico_SLA",
+            "DIL_09_Comunicacoes_SLA_V2:Registrar_Historico_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Registrar_Historico_Envio"
+          ],
+          "valores_observados": [
+            "Power Automate"
+          ]
+        },
+        {
+          "exibicao": "Observacao",
+          "interno": "field_10",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Alteracao_Compromisso",
+            "DIL_05_Compromissos_Marcos_Historico:Registrar_Historico_Inclusao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Acao",
+            "DIL_07_Encerrar_Ocorrencias_Acoes_V8:Registrar_Historico_Ocorrencia",
+            "DIL_08_Escalonamento_SLA_V2:Registrar_Historico_SLA",
+            "DIL_09_Comunicacoes_SLA_V2:Registrar_Historico_Comunicacao",
+            "DIL_10_Enviar_Comunicacoes_Outlook_V8:Registrar_Historico_Envio"
+          ]
+        },
+        {
+          "exibicao": "Usuario_Evento_Pessoa",
+          "interno": "Usuario_Evento_Pessoa",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Pessoa",
+          "tipo_status": "inferido (sufixo _Pessoa)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_SLA": {
+      "estilo_nomes_internos": "field_N",
+      "linhas_no_csv": 3,
+      "fluxos_que_usam": [
+        "DIL_09_Comunicacoes_SLA_V2"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_SLA",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Nome_SLA",
+          "interno": "field_1",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Tipo_SLA",
+          "interno": "field_2",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Obter_Regra_SLA (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "field_3",
+          "interno_status": "inferido (posição)",
+          "tipo": "Booleano",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [],
+          "valores_observados": [
+            "Falso"
+          ]
+        },
+        {
+          "exibicao": "Quantidade_Horas",
+          "interno": "field_4",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Prioridade",
+          "interno": "field_5",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "evidencias": [
+            "DIL_09_Comunicacoes_SLA_V2:Obter_Regra_SLA (filtro)"
+          ]
+        },
+        {
+          "exibicao": "Nivel_Risco",
+          "interno": "field_6",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Grupo_Compradores",
+          "interno": "field_7",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Notificar_Email",
+          "interno": "field_8",
+          "interno_status": "inferido (posição)",
+          "tipo": "Booleano",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [],
+          "valores_observados": [
+            "Falso"
+          ]
+        },
+        {
+          "exibicao": "Notificar_Teams",
+          "interno": "field_9",
+          "interno_status": "inferido (posição)",
+          "tipo": "Booleano",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [],
+          "valores_observados": [
+            "Falso"
+          ]
+        },
+        {
+          "exibicao": "Observacao",
+          "interno": "field_10",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_Configuracao": {
+      "estilo_nomes_internos": "desconhecido",
+      "linhas_no_csv": 3,
+      "fluxos_que_usam": [],
+      "colunas": [
+        {
+          "exibicao": "Chave_Configuracao",
+          "interno": "Title",
+          "interno_status": "inferido",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Categoria",
+          "interno": "Categoria",
+          "interno_status": "NÃO CONFIRMADO (nenhum fluxo usa a lista)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Nome_Parametro",
+          "interno": "Nome_Parametro",
+          "interno_status": "NÃO CONFIRMADO (nenhum fluxo usa a lista)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Valor_Texto",
+          "interno": "Valor_Texto",
+          "interno_status": "NÃO CONFIRMADO (nenhum fluxo usa a lista)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Valor_Numero",
+          "interno": "Valor_Numero",
+          "interno_status": "NÃO CONFIRMADO (nenhum fluxo usa a lista)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Valor_Data",
+          "interno": "Valor_Data",
+          "interno_status": "NÃO CONFIRMADO (nenhum fluxo usa a lista)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Ativo",
+          "interno": "Ativo",
+          "interno_status": "NÃO CONFIRMADO (nenhum fluxo usa a lista)",
+          "tipo": "Booleano",
+          "tipo_status": "inferido (valores do CSV)",
+          "evidencias": [],
+          "valores_observados": [
+            "Falso"
+          ]
+        },
+        {
+          "exibicao": "Descricao",
+          "interno": "Descricao",
+          "interno_status": "NÃO CONFIRMADO (nenhum fluxo usa a lista)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_Integracao_Execucao": {
+      "estilo_nomes_internos": "field_N",
+      "linhas_no_csv": 14,
+      "fluxos_que_usam": [
+        "DIL_01_Importar_SAP",
+        "DIL_03_Fechar_Execucao_SAP",
+        "DIL_04_Normalizar_RC_PO"
+      ],
+      "colunas": [
+        {
+          "exibicao": "Chave_Execucao",
+          "interno": "Title",
+          "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
+          "tipo": "Texto",
+          "tipo_status": "confirmado (Title)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Atualizar_item",
+            "DIL_01_Importar_SAP:Criar_item_1",
+            "DIL_03_Fechar_Execucao_SAP:Atualizar_Execucao",
+            "DIL_04_Normalizar_RC_PO:Marcar_RCPO_Concluido"
+          ]
+        },
+        {
+          "exibicao": "Tipo_Integracao",
+          "interno": "field_1",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Atualizar_item",
+            "DIL_01_Importar_SAP:Criar_item_1",
+            "DIL_03_Fechar_Execucao_SAP:Atualizar_Execucao",
+            "DIL_04_Normalizar_RC_PO:Marcar_RCPO_Concluido"
+          ],
+          "valores_observados": [
+            "SAP_Importacao"
+          ]
+        },
+        {
+          "exibicao": "Data_Inicio",
+          "interno": "field_2",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Atualizar_item",
+            "DIL_01_Importar_SAP:Criar_item_1",
+            "DIL_03_Fechar_Execucao_SAP:Atualizar_Execucao",
+            "DIL_04_Normalizar_RC_PO:Marcar_RCPO_Concluido"
+          ]
+        },
+        {
+          "exibicao": "Data_Fim",
+          "interno": "field_3",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_03_Fechar_Execucao_SAP:Atualizar_Execucao",
+            "DIL_04_Normalizar_RC_PO:Marcar_RCPO_Concluido"
+          ]
+        },
+        {
+          "exibicao": "Status_Execucao",
+          "interno": "field_4",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Atualizar_item",
+            "DIL_01_Importar_SAP:Criar_item_1",
+            "DIL_03_Fechar_Execucao_SAP:Atualizar_Execucao",
+            "DIL_04_Normalizar_RC_PO:Marcar_RCPO_Concluido"
+          ],
+          "valores_observados": [
+            "Concluída",
+            "Iniciada"
+          ]
+        },
+        {
+          "exibicao": "Registros_Lidos",
+          "interno": "field_5",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Numero",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Atualizar_item",
+            "DIL_01_Importar_SAP:Criar_item_1",
+            "DIL_03_Fechar_Execucao_SAP:Atualizar_Execucao",
+            "DIL_04_Normalizar_RC_PO:Marcar_RCPO_Concluido"
+          ]
+        },
+        {
+          "exibicao": "Registros_Processados",
+          "interno": "field_6",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Numero",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Atualizar_item",
+            "DIL_01_Importar_SAP:Criar_item_1",
+            "DIL_03_Fechar_Execucao_SAP:Atualizar_Execucao",
+            "DIL_04_Normalizar_RC_PO:Marcar_RCPO_Concluido"
+          ]
+        },
+        {
+          "exibicao": "Registros_Erro",
+          "interno": "field_7",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Numero",
+          "tipo_status": "confirmado (gravação em fluxo)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Atualizar_item",
+            "DIL_01_Importar_SAP:Criar_item_1",
+            "DIL_03_Fechar_Execucao_SAP:Atualizar_Execucao",
+            "DIL_04_Normalizar_RC_PO:Marcar_RCPO_Concluido"
+          ]
+        },
+        {
+          "exibicao": "Arquivo_Origem",
+          "interno": "field_8",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_01_Importar_SAP:Atualizar_item",
+            "DIL_01_Importar_SAP:Criar_item_1",
+            "DIL_03_Fechar_Execucao_SAP:Atualizar_Execucao",
+            "DIL_04_Normalizar_RC_PO:Marcar_RCPO_Concluido"
+          ]
+        },
+        {
+          "exibicao": "Mensagem",
+          "interno": "field_9",
+          "interno_status": "confirmado (usado em fluxo)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": [
+            "DIL_03_Fechar_Execucao_SAP:Atualizar_Execucao",
+            "DIL_04_Normalizar_RC_PO:Marcar_RCPO_Concluido"
+          ]
+        },
+        {
+          "exibicao": "Executado_Por",
+          "interno": "field_10",
+          "interno_status": "inferido (posição)",
+          "tipo": "Texto",
+          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "evidencias": []
+        },
+        {
+          "exibicao": "Executado_Por_Pessoa",
+          "interno": "Executado_Por_Pessoa",
+          "interno_status": "inferido (= nome de exibição)",
+          "tipo": "Pessoa",
+          "tipo_status": "inferido (sufixo _Pessoa)",
+          "evidencias": []
+        }
+      ]
+    },
+    "DIL_Documentos": {
+      "status": "AUSENTE no pacote DIL.zip — esquema não verificado"
+    }
+  }
+}

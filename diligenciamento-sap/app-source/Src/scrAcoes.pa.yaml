@@ -1,0 +1,888 @@
+# Gerado por scripts/gerar_fontes.py — NÃO editar à mão; altere o gerador e rode de novo.
+# Formato: Power Apps Source Code (*.pa.yaml), schema v3.0.
+Screens:
+  scrAcoes:
+    Properties:
+      Fill: =nfCorFundo
+      OnVisible: '=UpdateContext({locNova: gblAbrirNova && gblPodeEditar}); Set(gblAbrirNova, false)'
+    Children:
+    - cabFundo_Acoes:
+        Control: Rectangle
+        Properties:
+          X: =0
+          Y: =0
+          Width: =Parent.Width
+          Height: =56
+          Fill: =nfCorNavy
+    - cabMarca_Acoes:
+        Control: Label
+        Properties:
+          Text: ="DIL · Diligenciamento SAP"
+          X: =20
+          Y: =0
+          Width: =300
+          Height: =56
+          Size: =14
+          Color: =nfCorCartao
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+    - cabUsuario_Acoes:
+        Control: Label
+        Properties:
+          Text: =User().FullName & "  ·  " & gblPerfil
+          X: =Parent.Width - 560
+          Y: =0
+          Width: =360
+          Height: =56
+          Size: =10
+          Color: =nfCorCartao
+          Font: =Font.'Segoe UI'
+          Align: =Align.Right
+    - cabAtualizar_Acoes:
+        Control: Button
+        Properties:
+          Text: ="Atualizar dados"
+          X: =Parent.Width - 180
+          Y: =12
+          Width: =160
+          Height: =32
+          OnSelect: |-
+            =Concurrent(
+                ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
+                ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
+                ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
+                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colMarcos, DIL_Marcos),
+                ClearCollect(colComun, DIL_Comunicacoes),
+                ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    AddColumns(
+                        colVinc As v,
+                        ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                        QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                        QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                        QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                        QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                    ) As c,
+                    Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+                )
+            );
+            Set(gblCarregadoEm, Now());
+            Notify("Dados atualizados.", NotificationType.Success)
+          Fill: =nfCorCartao
+          Color: =nfCorAzul
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+    - menuFundo_Acoes:
+        Control: Rectangle
+        Properties:
+          X: =0
+          Y: =56
+          Width: =220
+          Height: =Parent.Height - 56
+          Fill: =nfCorNavy
+    - galMenu_Acoes:
+        Control: Gallery
+        Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+        Properties:
+          Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
+          X: =0
+          Y: =68
+          Width: =220
+          Height: =Parent.Height - 116
+          TemplateSize: =44
+          TemplatePadding: =0
+          ShowScrollbar: =false
+          OnSelect: =Switch(ThisItem.Chave, "inicio", Navigate(scrInicio, ScreenTransition.None), "carteira", Navigate(scrCarteira, ScreenTransition.None), "dossie", Navigate(scrDossie, ScreenTransition.None), "ocorrencias", Navigate(scrOcorrencias, ScreenTransition.None), "acoes", Navigate(scrAcoes, ScreenTransition.None), "agenda", Navigate(scrAgenda, ScreenTransition.None), "comunicacoes", Navigate(scrComunicacoes, ScreenTransition.None), "gestao", Navigate(scrGestao, ScreenTransition.None), "admin", Navigate(scrAdmin, ScreenTransition.None))
+        Children:
+        - mnuSel_Acoes:
+            Control: Rectangle
+            Properties:
+              X: =0
+              Y: =0
+              Width: =Parent.TemplateWidth
+              Height: =Parent.TemplateHeight - 4
+              Fill: =If(ThisItem.Chave = "acoes", nfCorNavy2, nfCorNavy)
+              OnSelect: =Select(Parent)
+        - mnuRotulo_Acoes:
+            Control: Label
+            Properties:
+              Text: =ThisItem.Rotulo
+              X: =16
+              Y: =0
+              Width: =Parent.TemplateWidth - 24
+              Height: =Parent.TemplateHeight - 4
+              Size: =11
+              Color: =nfCorCartao
+              Font: =Font.'Segoe UI'
+              OnSelect: =Select(Parent)
+              FontWeight: =If(ThisItem.Chave = "acoes", FontWeight.Semibold, FontWeight.Normal)
+    - menuRodape_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Atualizado " & If(IsBlank(gblCarregadoEm), "—", Text(gblCarregadoEm, "dd/mm hh:mm"))
+          X: =16
+          Y: =Parent.Height - 40
+          Width: =196
+          Height: =28
+          Size: =9
+          Color: =nfCorLinha
+          Font: =Font.'Segoe UI'
+    - lblTitulo_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Ações"
+          X: =240
+          Y: =70
+          Width: =Parent.Width - 260
+          Height: =40
+          Size: =20
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+    - ddEscopo_Acoes:
+        Control: DropDown
+        Properties:
+          Items: =["Minhas ações", "Todas as ações"]
+          X: =240
+          Y: =120
+          Width: =170
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Default: =If(gblPerfil = "Diligenciador", "Minhas ações", "Todas as ações")
+    - ddStatus_Acoes:
+        Control: DropDown
+        Properties:
+          Items: '=Ungroup(Table({o: ["(Todos)"]}, {o: ShowColumns(Choices([@DIL_Acoes].Status_Acao), Value)}), o)'
+          X: =422
+          Y: =120
+          Width: =160
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+    - ddPrio_Acoes:
+        Control: DropDown
+        Properties:
+          Items: '=Ungroup(Table({o: ["(Todos)"]}, {o: ShowColumns(Choices([@DIL_Acoes].Prioridade), Value)}), o)'
+          X: =594
+          Y: =120
+          Width: =150
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+    - ddPrazo_Acoes:
+        Control: DropDown
+        Properties:
+          Items: =["(Todos os prazos)", "Vencidas", "Vencem em 7 dias"]
+          X: =756
+          Y: =120
+          Width: =180
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+    - btnNova_Acoes:
+        Control: Button
+        Properties:
+          Text: ="+ Nova ação"
+          X: =240 + Parent.Width - 260 - 160
+          Y: =120
+          Width: =160
+          Height: =36
+          OnSelect: '=Set(gblOcorSel, Blank()); UpdateContext({locNova: true})'
+          Fill: =nfCorAzul
+          Color: =nfCorCartao
+          HoverFill: =nfCorNavy2
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =gblPodeEditar
+    - galAcoes_Acoes:
+        Control: Gallery
+        Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+        Properties:
+          Items: |-
+            =Sort(
+                Filter(
+                    colAcoes,
+                    ddEscopo_Acoes.Selected.Value = "Todas as ações" || Lower(Responsavel_Pessoa.Email) = nfEmailUsuario,
+                    ddStatus_Acoes.Selected.Value = "(Todos)" || Status_Acao.Value = ddStatus_Acoes.Selected.Value,
+                    ddPrio_Acoes.Selected.Value = "(Todos)" || Prioridade.Value = ddPrio_Acoes.Selected.Value,
+                    ddPrazo_Acoes.Selected.Value = "(Todos os prazos)"
+                        || (ddPrazo_Acoes.Selected.Value = "Vencidas" && Prazo < Now() && !(Status_Acao.Value in nfAcaoFechadas))
+                        || (ddPrazo_Acoes.Selected.Value = "Vencem em 7 dias" && Prazo >= Now() && Prazo <= DateAdd(Now(), 7, TimeUnit.Days) && !(Status_Acao.Value in nfAcaoFechadas))
+                ),
+                Prazo
+            )
+          X: =240
+          Y: =172
+          Width: =(Parent.Width - 260) * 0.58
+          Height: =Parent.Height - 188
+          TemplateSize: =64
+          TemplatePadding: =0
+          ShowScrollbar: =true
+        Children:
+        - aFundo_Acoes:
+            Control: Rectangle
+            Properties:
+              X: =0
+              Y: =0
+              Width: =Parent.TemplateWidth
+              Height: =Parent.TemplateHeight - 1
+              Fill: =If(ThisItem.IsSelected, nfCorFundo, nfCorCartao)
+              OnSelect: =Select(Parent)
+        - aFaixa_Acoes:
+            Control: Rectangle
+            Properties:
+              X: =0
+              Y: =0
+              Width: =4
+              Height: =Parent.TemplateHeight - 1
+              Fill: =If(ThisItem.Prazo < Now() && !(ThisItem.Status_Acao.Value in nfAcaoFechadas), nfCorVermelho, nfCorAzul)
+        - aTit_Acoes:
+            Control: Label
+            Properties:
+              Text: =Coalesce(ThisItem.Tipo_Acao.Value, "—") & "  ·  PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO
+              X: =14
+              Y: =4
+              Width: =Parent.TemplateWidth - 150
+              Height: =24
+              Size: =10
+              Color: =nfCorTexto
+              Font: =Font.'Segoe UI'
+              FontWeight: =FontWeight.Semibold
+        - aDesc_Acoes:
+            Control: Label
+            Properties:
+              Text: =Coalesce(ThisItem.Descricao_Acao, "") & "  —  " & Coalesce(ThisItem.Responsavel_Pessoa.DisplayName, ThisItem.Responsavel, "sem responsável")
+              X: =14
+              Y: =28
+              Width: =Parent.TemplateWidth - 150
+              Height: =30
+              Size: =9
+              Color: =nfCorSuave
+              Font: =Font.'Segoe UI'
+        - aPrazo_Acoes:
+            Control: Label
+            Properties:
+              Text: ="Prazo " & If(IsBlank(ThisItem.Prazo), "—", Text(ThisItem.Prazo, "dd/mm/yyyy"))
+              X: =Parent.TemplateWidth - 140
+              Y: =4
+              Width: =130
+              Height: =24
+              Size: =10
+              Color: =If(ThisItem.Prazo < Now() && !(ThisItem.Status_Acao.Value in nfAcaoFechadas), nfCorVermelho, nfCorTexto)
+              Font: =Font.'Segoe UI'
+              FontWeight: =FontWeight.Semibold
+              Align: =Align.Right
+        - aStatus_Acoes:
+            Control: Label
+            Properties:
+              Text: =Coalesce(ThisItem.Status_Acao.Value, "—") & " · " & Coalesce(ThisItem.Prioridade.Value, "—")
+              X: =Parent.TemplateWidth - 160
+              Y: =30
+              Width: =150
+              Height: =24
+              Size: =9
+              Color: =nfCorSuave
+              Font: =Font.'Segoe UI'
+              Align: =Align.Right
+    - detFundo_Acoes:
+        Control: Rectangle
+        Properties:
+          X: =240 + (Parent.Width - 260) * 0.58 + 16
+          Y: =172
+          Width: =(Parent.Width - 260) * 0.42 - 16
+          Height: =Parent.Height - 188
+          Fill: =nfCorCartao
+          BorderColor: =nfCorLinha
+          BorderThickness: =1
+          Visible: =!locNova
+    - detVazio_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Selecione uma ação na lista."
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =188
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 32
+          Height: =30
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =!locNova && IsBlank(galAcoes_Acoes.Selected)
+    - detT0_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Chave"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =184
+          Width: =120
+          Height: =38
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detV0_Acoes:
+        Control: Label
+        Properties:
+          Text: =galAcoes_Acoes.Selected.Chave_Acao
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 140
+          Y: =184
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 156
+          Height: =38
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detT1_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Ocorrência"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =226
+          Width: =120
+          Height: =38
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detV1_Acoes:
+        Control: Label
+        Properties:
+          Text: =Coalesce(galAcoes_Acoes.Selected.Chave_Ocorrencia, "—")
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 140
+          Y: =226
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 156
+          Height: =38
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detT2_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Responsável"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =268
+          Width: =120
+          Height: =38
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detV2_Acoes:
+        Control: Label
+        Properties:
+          Text: =Coalesce(galAcoes_Acoes.Selected.Responsavel_Pessoa.DisplayName, galAcoes_Acoes.Selected.Responsavel, "—")
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 140
+          Y: =268
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 156
+          Height: =38
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detT3_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Prazo"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =310
+          Width: =120
+          Height: =38
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detV3_Acoes:
+        Control: Label
+        Properties:
+          Text: =If(IsBlank(galAcoes_Acoes.Selected.Prazo), "—", Text(galAcoes_Acoes.Selected.Prazo, "dd/mm/yyyy hh:mm"))
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 140
+          Y: =310
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 156
+          Height: =38
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detT4_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Concluída em"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =352
+          Width: =120
+          Height: =38
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detV4_Acoes:
+        Control: Label
+        Properties:
+          Text: =If(IsBlank(galAcoes_Acoes.Selected.Data_Conclusao), "—", Text(galAcoes_Acoes.Selected.Data_Conclusao, "dd/mm/yyyy"))
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 140
+          Y: =352
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 156
+          Height: =38
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detT5_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Descrição"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =394
+          Width: =120
+          Height: =38
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - detV5_Acoes:
+        Control: Label
+        Properties:
+          Text: =Coalesce(galAcoes_Acoes.Selected.Descricao_Acao, "")
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 140
+          Y: =394
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 156
+          Height: =38
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected)
+    - lblAndamento_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Atualizar andamento"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =444
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 32
+          Height: =28
+          Size: =11
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
+    - ddNovoStatus_Acoes:
+        Control: DropDown
+        Properties:
+          Items: =Choices([@DIL_Acoes].Status_Acao)
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =476
+          Width: =200
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Default: =galAcoes_Acoes.Selected.Status_Acao.Value
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
+    - txtObs_Acoes:
+        Control: TextInput
+        Properties:
+          Default: =galAcoes_Acoes.Selected.Observacao
+          HintText: ="Observação / andamento"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =520
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 32
+          Height: =80
+          Size: =10
+          BorderColor: =nfCorLinha
+          Mode: =TextMode.MultiLine
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
+    - btnSalvarAnd_Acoes:
+        Control: Button
+        Properties:
+          Text: ="Salvar andamento"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =610
+          Width: =180
+          Height: =36
+          OnSelect: |-
+            =IfError(
+                Patch(
+                    DIL_Acoes,
+                    LookUp(DIL_Acoes, ID = galAcoes_Acoes.Selected.ID),
+                    {
+                        Status_Acao: ddNovoStatus_Acoes.Selected,
+                        Observacao: txtObs_Acoes.Text,
+                        Data_Conclusao: If(ddNovoStatus_Acoes.Selected.Value = "Concluída", Today(), galAcoes_Acoes.Selected.Data_Conclusao)
+                    }
+                ),
+                Notify("Não foi possível gravar: " & FirstError.Message, NotificationType.Error),
+                Patch(
+                    DIL_Historico,
+                    Defaults(DIL_Historico),
+                    {
+                        Chave_Historico: "HIST-APP-" & Text(Now(), "yyyymmddhhmmss") & "-" & Text(RandBetween(100, 999)),
+                        Entidade: {Value: "Ação"},
+                        Chave_Entidade: galAcoes_Acoes.Selected.Chave_Acao,
+                        Tipo_Evento: {Value: "Status"},
+                        Campo_Alterado: "Status_Acao",
+                        Valor_Anterior: galAcoes_Acoes.Selected.Status_Acao.Value,
+                        Valor_Novo: ddNovoStatus_Acoes.Selected.Value,
+                        Data_Evento: Now(),
+                        Usuario_Evento: User().FullName,
+                        Usuario_Evento_Pessoa: nfPessoaAtual,
+                        Origem_Evento: {Value: nfOrigemApp},
+                        Observacao: "Andamento: " & txtObs_Acoes.Text
+                    }
+                ),
+                Notify("Registro gravado, mas o histórico falhou: " & FirstError.Message, NotificationType.Warning),
+                Notify("Ação atualizada.", NotificationType.Success);
+                Concurrent(
+                ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
+                ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
+                ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
+                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colMarcos, DIL_Marcos),
+                ClearCollect(colComun, DIL_Comunicacoes),
+                ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    AddColumns(
+                        colVinc As v,
+                        ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                        QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                        QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                        QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                        QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                    ) As c,
+                    Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+                )
+            );
+            Set(gblCarregadoEm, Now())
+            )
+          Fill: =nfCorAzul
+          Color: =nfCorCartao
+          HoverFill: =nfCorNavy2
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
+    - lblSemPermissao_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Somente o responsável ou coordenação pode alterar esta ação."
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =444
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 32
+          Height: =40
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && !(gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"]))
+    - novaFundo_Acoes:
+        Control: Rectangle
+        Properties:
+          X: =240 + (Parent.Width - 260) * 0.58 + 16
+          Y: =172
+          Width: =(Parent.Width - 260) * 0.42 - 16
+          Height: =Parent.Height - 188
+          Fill: =nfCorCartao
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Visible: =locNova
+    - novaTitulo_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Nova ação"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =180
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 32
+          Height: =32
+          Size: =13
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locNova
+    - novaT0_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Ocorrência *"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =220
+          Width: =130
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locNova
+    - ddOcor_Acoes:
+        Control: DropDown
+        Properties:
+          Items: '=ForAll(Filter(colOcor, !(Status_Ocorrencia.Value in nfOcorFechadas)), {Value: Chave_Ocorrencia & " · PO " & Numero_PO & "/" & Item_PO, Chave: Chave_Ocorrencia, Numero_RC: Numero_RC, Item_RC: Item_RC, Numero_PO: Numero_PO, Item_PO: Item_PO})'
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
+          Y: =220
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 166
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Default: =If(IsBlank(gblOcorSel), Blank(), gblOcorSel.Chave_Ocorrencia & " · PO " & gblOcorSel.Numero_PO & "/" & gblOcorSel.Item_PO)
+          AllowEmptySelection: =true
+          Visible: =locNova
+    - novaT1_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Tipo *"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =266
+          Width: =130
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locNova
+    - ddTipo_Acoes:
+        Control: DropDown
+        Properties:
+          Items: =Filter(Choices([@DIL_Acoes].Tipo_Acao), Value <> "Escalonamento")
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
+          Y: =266
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 166
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locNova
+    - novaT2_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Prioridade"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =312
+          Width: =130
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locNova
+    - ddPrioNova_Acoes:
+        Control: DropDown
+        Properties:
+          Items: =Choices([@DIL_Acoes].Prioridade)
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
+          Y: =312
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 166
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locNova
+    - novaT3_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Responsável *"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =358
+          Width: =130
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locNova
+    - cmbResp_Acoes:
+        Control: ComboBox
+        Properties:
+          Items: =Choices([@DIL_Acoes].Responsavel_Pessoa)
+          DisplayFields: =["DisplayName"]
+          SearchFields: =["DisplayName", "Email"]
+          SelectMultiple: =false
+          IsSearchable: =true
+          InputTextPlaceholder: ="Buscar pessoa"
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locNova
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
+          Y: =358
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 166
+    - novaT4_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Prazo *"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =404
+          Width: =130
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locNova
+    - dtPrazo_Acoes:
+        Control: DatePicker
+        Properties:
+          DefaultDate: =DateAdd(Today(), 2, TimeUnit.Days)
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locNova
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
+          Y: =404
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 166
+    - novaTDesc_Acoes:
+        Control: Label
+        Properties:
+          Text: ="Descrição *"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =450
+          Width: =130
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locNova
+    - txtDesc_Acoes:
+        Control: TextInput
+        Properties:
+          Default: =""
+          HintText: ="O que deve ser feito e o resultado esperado"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
+          Y: =450
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 166
+          Height: =80
+          Size: =10
+          BorderColor: =nfCorLinha
+          Mode: =TextMode.MultiLine
+          Visible: =locNova
+    - btnSalvarNova_Acoes:
+        Control: Button
+        Properties:
+          Text: ="Registrar"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
+          Y: =542
+          Width: =140
+          Height: =36
+          OnSelect: |-
+            =If(
+                IsBlank(ddOcor_Acoes.Selected) || IsBlank(ddTipo_Acoes.Selected) || IsBlank(cmbResp_Acoes.Selected)
+                    || IsBlank(dtPrazo_Acoes.SelectedDate) || IsBlank(Trim(txtDesc_Acoes.Text)),
+                Notify("Preencha ocorrência, tipo, responsável, prazo e descrição.", NotificationType.Error),
+                ddTipo_Acoes.Selected.Value = "Escalonamento",
+                Notify("Escalonamento é criado somente pelo fluxo DIL_08.", NotificationType.Error),
+                UpdateContext({locChave: "ACAO-APP-" & Text(Now(), "yyyymmddhhmmss") & "-" & Text(RandBetween(100, 999))});
+                IfError(
+                Patch(
+                    DIL_Acoes,
+                    Defaults(DIL_Acoes),
+                    {
+                        Chave_Acao: locChave,
+                        Numero_RC: ddOcor_Acoes.Selected.Numero_RC,
+                        Item_RC: ddOcor_Acoes.Selected.Item_RC,
+                        Numero_PO: ddOcor_Acoes.Selected.Numero_PO,
+                        Item_PO: ddOcor_Acoes.Selected.Item_PO,
+                        Chave_Ocorrencia: ddOcor_Acoes.Selected.Chave,
+                        Tipo_Acao: ddTipo_Acoes.Selected,
+                        Descricao_Acao: Trim(txtDesc_Acoes.Text),
+                        Responsavel: cmbResp_Acoes.Selected.DisplayName,
+                        Responsavel_Pessoa: cmbResp_Acoes.Selected,
+                        Prazo: dtPrazo_Acoes.SelectedDate,
+                        Status_Acao: {Value: "Aberta"},
+                        Prioridade: ddPrioNova_Acoes.Selected,
+                        Ativo: true
+                    }
+                ),
+                Notify("Não foi possível gravar: " & FirstError.Message, NotificationType.Error),
+                Patch(
+                    DIL_Historico,
+                    Defaults(DIL_Historico),
+                    {
+                        Chave_Historico: "HIST-APP-" & Text(Now(), "yyyymmddhhmmss") & "-" & Text(RandBetween(100, 999)),
+                        Entidade: {Value: "Ação"},
+                        Chave_Entidade: locChave,
+                        Tipo_Evento: {Value: "Inclusão"},
+                        Campo_Alterado: "Ação",
+                        Valor_Anterior: "",
+                        Valor_Novo: "Responsável=" & cmbResp_Acoes.Selected.DisplayName & "; Prazo=" & Text(dtPrazo_Acoes.SelectedDate, "dd/mm/yyyy"),
+                        Data_Evento: Now(),
+                        Usuario_Evento: User().FullName,
+                        Usuario_Evento_Pessoa: nfPessoaAtual,
+                        Origem_Evento: {Value: nfOrigemApp},
+                        Observacao: "Ação registrada pelo aplicativo."
+                    }
+                ),
+                Notify("Registro gravado, mas o histórico falhou: " & FirstError.Message, NotificationType.Warning),
+                Notify("Ação registrada.", NotificationType.Success);
+                Reset(txtDesc_Acoes); UpdateContext({locNova: false}); Set(gblOcorSel, Blank());
+            Concurrent(
+                ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
+                ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
+                ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
+                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colMarcos, DIL_Marcos),
+                ClearCollect(colComun, DIL_Comunicacoes),
+                ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    AddColumns(
+                        colVinc As v,
+                        ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                        QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                        QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                        QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                        QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                    ) As c,
+                    Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+                )
+            );
+            Set(gblCarregadoEm, Now())
+            )
+            )
+          Fill: =nfCorAzul
+          Color: =nfCorCartao
+          HoverFill: =nfCorNavy2
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =locNova
+    - btnCancelarNova_Acoes:
+        Control: Button
+        Properties:
+          Text: ="Cancelar"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + 168
+          Y: =542
+          Width: =120
+          Height: =36
+          OnSelect: '=UpdateContext({locNova: false}); Set(gblOcorSel, Blank())'
+          Fill: =nfCorCartao
+          Color: =nfCorAzul
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =locNova

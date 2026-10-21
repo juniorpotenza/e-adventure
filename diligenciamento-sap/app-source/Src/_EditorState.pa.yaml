@@ -1,0 +1,13 @@
+# Gerado por scripts/gerar_fontes.py — NÃO editar à mão; altere o gerador e rode de novo.
+# Formato: Power Apps Source Code (*.pa.yaml), schema v3.0.
+EditorState:
+  ScreensOrder:
+  - scrInicio
+  - scrCarteira
+  - scrDossie
+  - scrOcorrencias
+  - scrAcoes
+  - scrAgenda
+  - scrComunicacoes
+  - scrGestao
+  - scrAdmin

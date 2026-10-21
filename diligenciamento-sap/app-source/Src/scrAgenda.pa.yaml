@@ -1,0 +1,461 @@
+# Gerado por scripts/gerar_fontes.py — NÃO editar à mão; altere o gerador e rode de novo.
+# Formato: Power Apps Source Code (*.pa.yaml), schema v3.0.
+Screens:
+  scrAgenda:
+    Properties:
+      Fill: =nfCorFundo
+      OnVisible: '=If(IsBlank(locMes), UpdateContext({locMes: Date(Year(Today()), Month(Today()), 1)}))'
+    Children:
+    - cabFundo_Agenda:
+        Control: Rectangle
+        Properties:
+          X: =0
+          Y: =0
+          Width: =Parent.Width
+          Height: =56
+          Fill: =nfCorNavy
+    - cabMarca_Agenda:
+        Control: Label
+        Properties:
+          Text: ="DIL · Diligenciamento SAP"
+          X: =20
+          Y: =0
+          Width: =300
+          Height: =56
+          Size: =14
+          Color: =nfCorCartao
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+    - cabUsuario_Agenda:
+        Control: Label
+        Properties:
+          Text: =User().FullName & "  ·  " & gblPerfil
+          X: =Parent.Width - 560
+          Y: =0
+          Width: =360
+          Height: =56
+          Size: =10
+          Color: =nfCorCartao
+          Font: =Font.'Segoe UI'
+          Align: =Align.Right
+    - cabAtualizar_Agenda:
+        Control: Button
+        Properties:
+          Text: ="Atualizar dados"
+          X: =Parent.Width - 180
+          Y: =12
+          Width: =160
+          Height: =32
+          OnSelect: |-
+            =Concurrent(
+                ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
+                ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
+                ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
+                ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+                ClearCollect(colMarcos, DIL_Marcos),
+                ClearCollect(colComun, DIL_Comunicacoes),
+                ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    AddColumns(
+                        colVinc As v,
+                        ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                        QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                        QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                        QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                        QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                    ) As c,
+                    Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+                )
+            );
+            Set(gblCarregadoEm, Now());
+            Notify("Dados atualizados.", NotificationType.Success)
+          Fill: =nfCorCartao
+          Color: =nfCorAzul
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+    - menuFundo_Agenda:
+        Control: Rectangle
+        Properties:
+          X: =0
+          Y: =56
+          Width: =220
+          Height: =Parent.Height - 56
+          Fill: =nfCorNavy
+    - galMenu_Agenda:
+        Control: Gallery
+        Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+        Properties:
+          Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
+          X: =0
+          Y: =68
+          Width: =220
+          Height: =Parent.Height - 116
+          TemplateSize: =44
+          TemplatePadding: =0
+          ShowScrollbar: =false
+          OnSelect: =Switch(ThisItem.Chave, "inicio", Navigate(scrInicio, ScreenTransition.None), "carteira", Navigate(scrCarteira, ScreenTransition.None), "dossie", Navigate(scrDossie, ScreenTransition.None), "ocorrencias", Navigate(scrOcorrencias, ScreenTransition.None), "acoes", Navigate(scrAcoes, ScreenTransition.None), "agenda", Navigate(scrAgenda, ScreenTransition.None), "comunicacoes", Navigate(scrComunicacoes, ScreenTransition.None), "gestao", Navigate(scrGestao, ScreenTransition.None), "admin", Navigate(scrAdmin, ScreenTransition.None))
+        Children:
+        - mnuSel_Agenda:
+            Control: Rectangle
+            Properties:
+              X: =0
+              Y: =0
+              Width: =Parent.TemplateWidth
+              Height: =Parent.TemplateHeight - 4
+              Fill: =If(ThisItem.Chave = "agenda", nfCorNavy2, nfCorNavy)
+              OnSelect: =Select(Parent)
+        - mnuRotulo_Agenda:
+            Control: Label
+            Properties:
+              Text: =ThisItem.Rotulo
+              X: =16
+              Y: =0
+              Width: =Parent.TemplateWidth - 24
+              Height: =Parent.TemplateHeight - 4
+              Size: =11
+              Color: =nfCorCartao
+              Font: =Font.'Segoe UI'
+              OnSelect: =Select(Parent)
+              FontWeight: =If(ThisItem.Chave = "agenda", FontWeight.Semibold, FontWeight.Normal)
+    - menuRodape_Agenda:
+        Control: Label
+        Properties:
+          Text: ="Atualizado " & If(IsBlank(gblCarregadoEm), "—", Text(gblCarregadoEm, "dd/mm hh:mm"))
+          X: =16
+          Y: =Parent.Height - 40
+          Width: =196
+          Height: =28
+          Size: =9
+          Color: =nfCorLinha
+          Font: =Font.'Segoe UI'
+    - lblTitulo_Agenda:
+        Control: Label
+        Properties:
+          Text: ="Agenda / Marcos"
+          X: =240
+          Y: =70
+          Width: =Parent.Width - 260
+          Height: =40
+          Size: =20
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+    - btnMesAnt_Agenda:
+        Control: Button
+        Properties:
+          Text: ="‹"
+          X: =240
+          Y: =120
+          Width: =44
+          Height: =36
+          OnSelect: '=UpdateContext({locMes: DateAdd(locMes, -1, TimeUnit.Months), locDia: Blank()})'
+          Fill: =nfCorCartao
+          Color: =nfCorAzul
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+    - lblMes_Agenda:
+        Control: Label
+        Properties:
+          Text: =Switch(Month(locMes), 1, "Janeiro", 2, "Fevereiro", 3, "Março", 4, "Abril", 5, "Maio", 6, "Junho", 7, "Julho", 8, "Agosto", 9, "Setembro", 10, "Outubro", 11, "Novembro", "Dezembro") & " de " & Year(locMes)
+          X: =292
+          Y: =120
+          Width: =260
+          Height: =36
+          Size: =14
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Align: =Align.Center
+    - btnMesProx_Agenda:
+        Control: Button
+        Properties:
+          Text: ="›"
+          X: =560
+          Y: =120
+          Width: =44
+          Height: =36
+          OnSelect: '=UpdateContext({locMes: DateAdd(locMes, 1, TimeUnit.Months), locDia: Blank()})'
+          Fill: =nfCorCartao
+          Color: =nfCorAzul
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+    - btnHoje_Agenda:
+        Control: Button
+        Properties:
+          Text: ="Hoje"
+          X: =616
+          Y: =120
+          Width: =80
+          Height: =36
+          OnSelect: '=UpdateContext({locMes: Date(Year(Today()), Month(Today()), 1), locDia: Today()})'
+          Fill: =nfCorCartao
+          Color: =nfCorAzul
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+    - lblDia0_Agenda:
+        Control: Label
+        Properties:
+          Text: ="Dom"
+          X: =240 + 0 * ((Parent.Width - 260) * 0.58) / 7
+          Y: =168
+          Width: =((Parent.Width - 260) * 0.58) / 7
+          Height: =24
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Align: =Align.Center
+    - lblDia1_Agenda:
+        Control: Label
+        Properties:
+          Text: ="Seg"
+          X: =240 + 1 * ((Parent.Width - 260) * 0.58) / 7
+          Y: =168
+          Width: =((Parent.Width - 260) * 0.58) / 7
+          Height: =24
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Align: =Align.Center
+    - lblDia2_Agenda:
+        Control: Label
+        Properties:
+          Text: ="Ter"
+          X: =240 + 2 * ((Parent.Width - 260) * 0.58) / 7
+          Y: =168
+          Width: =((Parent.Width - 260) * 0.58) / 7
+          Height: =24
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Align: =Align.Center
+    - lblDia3_Agenda:
+        Control: Label
+        Properties:
+          Text: ="Qua"
+          X: =240 + 3 * ((Parent.Width - 260) * 0.58) / 7
+          Y: =168
+          Width: =((Parent.Width - 260) * 0.58) / 7
+          Height: =24
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Align: =Align.Center
+    - lblDia4_Agenda:
+        Control: Label
+        Properties:
+          Text: ="Qui"
+          X: =240 + 4 * ((Parent.Width - 260) * 0.58) / 7
+          Y: =168
+          Width: =((Parent.Width - 260) * 0.58) / 7
+          Height: =24
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Align: =Align.Center
+    - lblDia5_Agenda:
+        Control: Label
+        Properties:
+          Text: ="Sex"
+          X: =240 + 5 * ((Parent.Width - 260) * 0.58) / 7
+          Y: =168
+          Width: =((Parent.Width - 260) * 0.58) / 7
+          Height: =24
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Align: =Align.Center
+    - lblDia6_Agenda:
+        Control: Label
+        Properties:
+          Text: ="Sáb"
+          X: =240 + 6 * ((Parent.Width - 260) * 0.58) / 7
+          Y: =168
+          Width: =((Parent.Width - 260) * 0.58) / 7
+          Height: =24
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Align: =Align.Center
+    - galCalendario_Agenda:
+        Control: Gallery
+        Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+        Properties:
+          Items: '=With({ini: DateAdd(locMes, 1 - Weekday(locMes), TimeUnit.Days)}, ForAll(Sequence(42, 0), {Dia: DateAdd(ini, Value, TimeUnit.Days)}))'
+          X: =240
+          Y: =196
+          Width: =(Parent.Width - 260) * 0.58
+          Height: =Parent.Height - 212
+          WrapCount: =7
+          TemplateSize: =(Parent.Height - 212) / 6
+          TemplatePadding: =0
+          ShowScrollbar: =false
+          OnSelect: '=UpdateContext({locDia: ThisItem.Dia})'
+        Children:
+        - calFundo_Agenda:
+            Control: Rectangle
+            Properties:
+              X: =1
+              Y: =1
+              Width: =Parent.TemplateWidth - 2
+              Height: =Parent.TemplateHeight - 2
+              Fill: =If(!IsBlank(locDia) && ThisItem.Dia = locDia, RGBA(209, 224, 250, 1), nfCorCartao)
+              OnSelect: =Select(Parent)
+        - calNum_Agenda:
+            Control: Label
+            Properties:
+              Text: =Day(ThisItem.Dia)
+              X: =6
+              Y: =2
+              Width: =40
+              Height: =24
+              Size: =10
+              Color: =If(Month(ThisItem.Dia) <> Month(locMes), nfCorLinha, ThisItem.Dia = Today(), nfCorAzul, nfCorTexto)
+              Font: =Font.'Segoe UI'
+              FontWeight: =FontWeight.Semibold
+              OnSelect: =Select(Parent)
+        - calQtd_Agenda:
+            Control: Label
+            Properties:
+              Text: '=With({q: CountRows(Filter(colMarcos, Text(Data_Planejada, "yyyymmdd") = Text(ThisItem.Dia, "yyyymmdd")))}, If(q = 0, "", q & If(q = 1, " marco", " marcos")))'
+              X: =6
+              Y: =Parent.TemplateHeight - 28
+              Width: =Parent.TemplateWidth - 12
+              Height: =24
+              Size: =9
+              Color: =If(CountRows(Filter(colMarcos, Text(Data_Planejada, "yyyymmdd") = Text(ThisItem.Dia, "yyyymmdd") && IsBlank(Data_Realizada) && Data_Planejada < Today())) > 0, nfCorVermelho, nfCorAzul)
+              Font: =Font.'Segoe UI'
+              FontWeight: =FontWeight.Semibold
+              OnSelect: =Select(Parent)
+    - lblLista_Agenda:
+        Control: Label
+        Properties:
+          Text: =If(IsBlank(locDia), "Próximos 30 dias", "Marcos em " & Text(locDia, "dd/mm/yyyy"))
+          X: =240 + (Parent.Width - 260) * 0.58 + 16
+          Y: =120
+          Width: =(Parent.Width - 260) * 0.42 - 16 - 120
+          Height: =36
+          Size: =13
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+    - btnLimpar_Agenda:
+        Control: Button
+        Properties:
+          Text: ="Limpar dia"
+          X: =240 + (Parent.Width - 260) * 0.58 + 16 + (Parent.Width - 260) * 0.42 - 16 - 110
+          Y: =120
+          Width: =110
+          Height: =36
+          OnSelect: '=UpdateContext({locDia: Blank()})'
+          Fill: =nfCorCartao
+          Color: =nfCorAzul
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =!IsBlank(locDia)
+    - galLista_Agenda:
+        Control: Gallery
+        Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+        Properties:
+          Items: |-
+            =Sort(
+                Filter(
+                    colMarcos,
+                    If(
+                        IsBlank(locDia),
+                        Data_Planejada >= Today() && Data_Planejada <= DateAdd(Today(), 30, TimeUnit.Days),
+                        Text(Data_Planejada, "yyyymmdd") = Text(locDia, "yyyymmdd")
+                    )
+                ),
+                Data_Planejada
+            )
+          X: =240 + (Parent.Width - 260) * 0.58 + 16
+          Y: =168
+          Width: =(Parent.Width - 260) * 0.42 - 16
+          Height: =Parent.Height - 184
+          TemplateSize: =52
+          TemplatePadding: =0
+          ShowScrollbar: =true
+        Children:
+        - agFundo_Agenda:
+            Control: Rectangle
+            Properties:
+              X: =0
+              Y: =0
+              Width: =Parent.TemplateWidth
+              Height: =Parent.TemplateHeight - 1
+              Fill: =nfCorCartao
+        - agData_Agenda:
+            Control: Label
+            Properties:
+              Text: =If(IsBlank(ThisItem.Data_Planejada), "—", Text(ThisItem.Data_Planejada, "dd/mm"))
+              X: =10
+              Y: =0
+              Width: =56
+              Height: =Parent.TemplateHeight
+              Size: =12
+              Color: =If(IsBlank(ThisItem.Data_Realizada) && ThisItem.Data_Planejada < Today(), nfCorVermelho, nfCorAzul)
+              Font: =Font.'Segoe UI'
+              FontWeight: =FontWeight.Semibold
+        - agDesc_Agenda:
+            Control: Label
+            Properties:
+              Text: =Coalesce(ThisItem.Descricao_Marco, "Marco") & Char(10) & "PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO & " · " & Coalesce(ThisItem.Status_Marco.Value, "—")
+              X: =70
+              Y: =0
+              Width: =Parent.TemplateWidth - 80
+              Height: =Parent.TemplateHeight
+              Size: =9
+              Color: =nfCorTexto
+              Font: =Font.'Segoe UI'
+    - lblVazio_Agenda:
+        Control: Label
+        Properties:
+          Text: ="Nenhum marco no período."
+          X: =240 + (Parent.Width - 260) * 0.58 + 16
+          Y: =176
+          Width: =(Parent.Width - 260) * 0.42 - 16
+          Height: =28
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =IsEmpty(galLista_Agenda.AllItems)

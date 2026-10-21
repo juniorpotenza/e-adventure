@@ -1,0 +1,7 @@
+# Dados do tenant e insumos com dados pessoais: NUNCA versionar (repositório público).
+local/
+# Pacotes .msapp (contêm referências de conexão do ambiente) e fontes extraídas do original.
+artifacts/**/*.msapp
+artifacts/candidate/*__Src_original/
+artifacts/candidate/*.json
+__pycache__/

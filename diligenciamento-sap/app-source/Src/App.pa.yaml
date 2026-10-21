@@ -1,0 +1,77 @@
+# Gerado por scripts/gerar_fontes.py — NÃO editar à mão; altere o gerador e rode de novo.
+# Formato: Power Apps Source Code (*.pa.yaml), schema v3.0.
+App:
+  Properties:
+    Formulas: |
+      =nfCorNavy = RGBA(18, 48, 74, 1);
+      nfCorNavy2 = RGBA(28, 69, 100, 1);
+      nfCorFundo = RGBA(243, 246, 250, 1);
+      nfCorCartao = RGBA(255, 255, 255, 1);
+      nfCorLinha = RGBA(220, 228, 236, 1);
+      nfCorTexto = RGBA(24, 43, 58, 1);
+      nfCorSuave = RGBA(101, 119, 137, 1);
+      nfCorAzul = RGBA(23, 92, 211, 1);
+      nfCorVerde = RGBA(6, 118, 71, 1);
+      nfCorLaranja = RGBA(181, 71, 8, 1);
+      nfCorVermelho = RGBA(180, 35, 24, 1);
+      nfEmailUsuario = Lower(User().Email);
+      nfPessoaAtual = {
+          '@odata.type': "#Microsoft.Azure.Connectors.SharePoint.SPListExpandedUser",
+          Claims: "i:0#.f|membership|" & Lower(User().Email),
+          DisplayName: User().FullName,
+          Email: Lower(User().Email),
+          Department: "",
+          JobTitle: "",
+          Picture: ""
+      };
+      nfOcorFechadas = ["Resolvida", "Cancelada"];
+      nfAcaoFechadas = ["Concluída", "Cancelada"];
+      nfMarcoFechados = ["Concluído", "Cancelado"];
+      nfOrigemApp = "Power Apps";
+      nfMenu = Table(
+          {Chave: "inicio", Rotulo: "Início", Perfis: "*"},
+          {Chave: "carteira", Rotulo: "Minha carteira", Perfis: "*"},
+          {Chave: "dossie", Rotulo: "Dossiê do processo", Perfis: "*"},
+          {Chave: "ocorrencias", Rotulo: "Ocorrências", Perfis: "*"},
+          {Chave: "acoes", Rotulo: "Ações", Perfis: "*"},
+          {Chave: "agenda", Rotulo: "Agenda / Marcos", Perfis: "*"},
+          {Chave: "comunicacoes", Rotulo: "Comunicações", Perfis: "*"},
+          {Chave: "gestao", Rotulo: "Visão da gestão", Perfis: "Coordenador,Gestor,Auditor,Administrador"},
+          {Chave: "admin", Rotulo: "Administração", Perfis: "Gestor,Administrador"}
+      );
+    OnStart: |-
+      =Set(
+          gblPerfil,
+          Coalesce(
+              LookUp(DIL_Configuracao, Categoria = "Perfil_Usuario" && Nome_Parametro = nfEmailUsuario, Valor_Texto),
+              "Diligenciador"
+          )
+      );
+      Set(gblPodeEditar, gblPerfil in ["Diligenciador", "Coordenador", "Gestor", "Administrador"]);
+      Set(gblPodeGestao, gblPerfil in ["Coordenador", "Gestor", "Auditor", "Administrador"]);
+      Set(gblPodeAdmin, gblPerfil in ["Gestor", "Administrador"]);
+      Concurrent(
+          ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
+          ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
+          ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
+          ClearCollect(colAcoes, Filter(DIL_Acoes, Ativo = true)),
+          ClearCollect(colMarcos, DIL_Marcos),
+          ClearCollect(colComun, DIL_Comunicacoes),
+          ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
+      );
+      ClearCollect(
+          colCarteira,
+          AddColumns(
+              AddColumns(
+                  colVinc As v,
+                  ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                  QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                  QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                  QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                  QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+              ) As c,
+              Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+          )
+      );
+      Set(gblCarregadoEm, Now())
+    StartScreen: =scrInicio
