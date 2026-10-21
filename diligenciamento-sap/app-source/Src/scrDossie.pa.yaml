@@ -57,7 +57,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Dossie:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -221,7 +221,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - btnNovaOcor_Dossie:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Registrar ocorrência"
           X: =240 + Parent.Width - 260 - 270
@@ -241,7 +241,7 @@ Screens:
           RadiusBottomRight: =4
           Visible: =gblPodeEditar
     - btnVoltar_Dossie:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="‹ Voltar à carteira"
           X: =240 + Parent.Width - 260 - 270
@@ -260,7 +260,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba0_Dossie:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Resumo"
           X: =240 + 0
@@ -279,7 +279,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba1_Dossie:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Marcos"
           X: =240 + 150
@@ -298,7 +298,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba2_Dossie:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Ocorrências"
           X: =240 + 300
@@ -317,7 +317,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba3_Dossie:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Ações"
           X: =240 + 450
@@ -336,7 +336,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba4_Dossie:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Comunicações"
           X: =240 + 600
@@ -355,7 +355,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba5_Dossie:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Histórico"
           X: =240 + 750

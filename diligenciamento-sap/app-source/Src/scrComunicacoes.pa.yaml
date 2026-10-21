@@ -38,7 +38,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Comunicacoes:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -170,7 +170,7 @@ Screens:
           Color: =nfCorLaranja
           Font: =Font.'Segoe UI'
     - txtBusca_Comun:
-        Control: TextInput
+        Control: Classic/TextInput
         Properties:
           Default: =""
           HintText: ="Buscar assunto, PO ou RC"
@@ -181,7 +181,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddEnvio_Comun:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =["(Todas)", "Enviada pelo DIL_10", "Aguardando DIL_10", "Fora do escopo do DIL_10", "Inativa"]
           X: =552
@@ -439,7 +439,7 @@ Screens:
           Visible: =!IsBlank(galComun_Comun.Selected)
           VerticalAlign: =VerticalAlign.Top
     - btnAnexo_Comun:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Abrir anexo"
           X: =240 + (Parent.Width - 260) * 0.55 + 16 + 16

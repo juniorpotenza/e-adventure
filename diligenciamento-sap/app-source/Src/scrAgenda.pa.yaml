@@ -39,7 +39,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Agenda:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -150,7 +150,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - btnMesAnt_Agenda:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="‹"
           X: =240
@@ -182,7 +182,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Align: =Align.Center
     - btnMesProx_Agenda:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="›"
           X: =560
@@ -201,7 +201,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnHoje_Agenda:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Hoje"
           X: =616
@@ -373,7 +373,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - btnLimpar_Agenda:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Limpar dia"
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + (Parent.Width - 260) * 0.42 - 16 - 110

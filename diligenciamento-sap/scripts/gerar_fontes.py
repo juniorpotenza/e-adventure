@@ -10,6 +10,11 @@ Regras de segurança aplicadas na geração:
   * o app nunca grava o evento "Envio_Email" no histórico (chave de idempotência do DIL_10);
   * ações criadas no app não podem ser do tipo "Escalonamento" (gatilho do DIL_09/DIL_10).
 
+Controles clássicos cujo nome colide com um controle moderno levam o prefixo
+"Classic/" (Button, TextInput, DropDown, ComboBox, DatePicker): sem o prefixo o
+Studio carrega o controle MODERNO e rejeita Fill, Size, Default, HintText etc.
+(erro PA2108 observado no Studio em 21/10/2026).
+
 Fórmulas usam a sintaxe invariante do arquivo-fonte ("," entre argumentos e ";"
 para encadear). O Studio em pt-BR exibe ";" e ";;" automaticamente.
 
@@ -183,7 +188,7 @@ def botao(nome, texto, x, y, w, h, on_select, primario=True, **extra):
          "BorderColor": "nfCorAzul", "BorderThickness": 1, "Size": 10,
          "RadiusTopLeft": 4, "RadiusTopRight": 4, "RadiusBottomLeft": 4, "RadiusBottomRight": 4}
     p.update(extra)
-    return ctl(nome, "Button", p)
+    return ctl(nome, "Classic/Button", p)
 
 
 def entrada(nome, dica, x, y, w, h=36, multilinha=False, padrao='""', **extra):
@@ -192,14 +197,14 @@ def entrada(nome, dica, x, y, w, h=36, multilinha=False, padrao='""', **extra):
     if multilinha:
         p["Mode"] = "TextMode.MultiLine"
     p.update(extra)
-    return ctl(nome, "TextInput", p)
+    return ctl(nome, "Classic/TextInput", p)
 
 
 def lista_suspensa(nome, itens, x, y, w, h=36, **extra):
     p = {"Items": itens, "X": x, "Y": y, "Width": w, "Height": h, "Size": 10,
          "BorderColor": "nfCorLinha"}
     p.update(extra)
-    return ctl(nome, "DropDown", p)
+    return ctl(nome, "Classic/DropDown", p)
 
 
 def galeria(nome, itens, x, y, w, h, alt_modelo, filhos, **extra):
@@ -832,12 +837,12 @@ def tela_acoes():
         ("Tipo *", lista_suspensa(f"ddTipo_{s}", 'Filter(Choices([@DIL_Acoes].Tipo_Acao), Value <> "Escalonamento")',
                                   0, 0, 0, Visible=vis_n)),
         ("Prioridade", lista_suspensa(f"ddPrioNova_{s}", "Choices([@DIL_Acoes].Prioridade)", 0, 0, 0, Visible=vis_n)),
-        ("Responsável *", ctl(f"cmbResp_{s}", "ComboBox", {
+        ("Responsável *", ctl(f"cmbResp_{s}", "Classic/ComboBox", {
             "Items": "Choices([@DIL_Acoes].Responsavel_Pessoa)", "DisplayFields": '["DisplayName"]',
             "SearchFields": '["DisplayName", "Email"]', "SelectMultiple": False, "IsSearchable": True,
             "InputTextPlaceholder": txt("Buscar pessoa"), "Height": 36, "Size": 10, "BorderColor": "nfCorLinha",
             "Visible": vis_n})),
-        ("Prazo *", ctl(f"dtPrazo_{s}", "DatePicker", {
+        ("Prazo *", ctl(f"dtPrazo_{s}", "Classic/DatePicker", {
             "DefaultDate": "DateAdd(Today(), 2, TimeUnit.Days)", "Height": 36, "Size": 10,
             "BorderColor": "nfCorLinha", "Visible": vis_n})),
     ]

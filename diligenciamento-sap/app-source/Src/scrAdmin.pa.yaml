@@ -50,7 +50,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Admin:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -161,7 +161,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - btnAba0_Admin:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Integrações"
           X: =240 + 0
@@ -180,7 +180,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba1_Admin:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Parâmetros e perfis"
           X: =240 + 180
@@ -199,7 +199,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba2_Admin:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Regras SLA"
           X: =240 + 360
@@ -218,7 +218,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba3_Admin:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Modelos de e-mail"
           X: =240 + 540
@@ -237,7 +237,7 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
     - btnAba4_Admin:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Auditoria"
           X: =240 + 720

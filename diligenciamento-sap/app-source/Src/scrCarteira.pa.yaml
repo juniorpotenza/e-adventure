@@ -38,7 +38,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Carteira:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -149,7 +149,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - txtBusca_Carteira:
-        Control: TextInput
+        Control: Classic/TextInput
         Properties:
           Default: =""
           HintText: ="Buscar RC, PO, material, descrição ou fornecedor"
@@ -160,7 +160,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddSituacao_Carteira:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =["(Todos)", "Crítico", "Em risco", "Normal"]
           X: =612
@@ -170,7 +170,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddFornecedor_Carteira:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: '=Ungroup(Table({o: ["(Todos)"]}, {o: Sort(Distinct(colCarteira, ItemPO.Nome_Fornecedor), Value)}), o)'
           X: =774
@@ -180,7 +180,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddEscopo_Carteira:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =["Todos os itens", "Com ações sob minha responsabilidade"]
           X: =1046

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.2-candidato] — 2026-10-21
+
+### Corrigido
+- Abertura no Studio falhou com PA2108 ("Unknown property 'Fill' for control type 'Button'" etc.): no pa.yaml,
+  `Button`, `TextInput`, `DropDown`, `ComboBox` e `DatePicker` sem prefixo são os controles **modernos**.
+  O gerador passou a usar `Classic/Button`, `Classic/TextInput`, `Classic/DropDown`, `Classic/ComboBox` e
+  `Classic/DatePicker`. O validador agora reprova esses nomes sem prefixo.
+- Novo candidato: `Sistema_de_Diligenciamento__candidato__20261021-195717.msapp`.
+
 ## [0.1.1-candidato] — 2026-10-21
 
 - Recebido o `.msapp` original (sha256 `f81cb237…`; app em branco com `scrInicio` vazia).

@@ -39,7 +39,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Acoes:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -150,7 +150,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - ddEscopo_Acoes:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =["Minhas ações", "Todas as ações"]
           X: =240
@@ -161,7 +161,7 @@ Screens:
           BorderColor: =nfCorLinha
           Default: =If(gblPerfil = "Diligenciador", "Minhas ações", "Todas as ações")
     - ddStatus_Acoes:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: '=Ungroup(Table({o: ["(Todos)"]}, {o: ShowColumns(Choices([@DIL_Acoes].Status_Acao), Value)}), o)'
           X: =422
@@ -171,7 +171,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddPrio_Acoes:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: '=Ungroup(Table({o: ["(Todos)"]}, {o: ShowColumns(Choices([@DIL_Acoes].Prioridade), Value)}), o)'
           X: =594
@@ -181,7 +181,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddPrazo_Acoes:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =["(Todos os prazos)", "Vencidas", "Vencem em 7 dias"]
           X: =756
@@ -191,7 +191,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - btnNova_Acoes:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="+ Nova ação"
           X: =240 + Parent.Width - 260 - 160
@@ -487,7 +487,7 @@ Screens:
           FontWeight: =FontWeight.Semibold
           Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
     - ddNovoStatus_Acoes:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =Choices([@DIL_Acoes].Status_Acao)
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
@@ -499,7 +499,7 @@ Screens:
           Default: =galAcoes_Acoes.Selected.Status_Acao.Value
           Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
     - txtObs_Acoes:
-        Control: TextInput
+        Control: Classic/TextInput
         Properties:
           Default: =galAcoes_Acoes.Selected.Observacao
           HintText: ="Observação / andamento"
@@ -512,7 +512,7 @@ Screens:
           Mode: =TextMode.MultiLine
           Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
     - btnSalvarAnd_Acoes:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Salvar andamento"
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
@@ -636,7 +636,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - ddOcor_Acoes:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: '=ForAll(Filter(colOcor, !(Status_Ocorrencia.Value in nfOcorFechadas)), {Value: Chave_Ocorrencia & " · PO " & Numero_PO & "/" & Item_PO, Chave: Chave_Ocorrencia, Numero_RC: Numero_RC, Item_RC: Item_RC, Numero_PO: Numero_PO, Item_PO: Item_PO})'
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
@@ -661,7 +661,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - ddTipo_Acoes:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =Filter(Choices([@DIL_Acoes].Tipo_Acao), Value <> "Escalonamento")
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
@@ -684,7 +684,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - ddPrioNova_Acoes:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =Choices([@DIL_Acoes].Prioridade)
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
@@ -707,7 +707,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - cmbResp_Acoes:
-        Control: ComboBox
+        Control: Classic/ComboBox
         Properties:
           Items: =Choices([@DIL_Acoes].Responsavel_Pessoa)
           DisplayFields: =["DisplayName"]
@@ -735,7 +735,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - dtPrazo_Acoes:
-        Control: DatePicker
+        Control: Classic/DatePicker
         Properties:
           DefaultDate: =DateAdd(Today(), 2, TimeUnit.Days)
           Height: =36
@@ -758,7 +758,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - txtDesc_Acoes:
-        Control: TextInput
+        Control: Classic/TextInput
         Properties:
           Default: =""
           HintText: ="O que deve ser feito e o resultado esperado"
@@ -771,7 +771,7 @@ Screens:
           Mode: =TextMode.MultiLine
           Visible: =locNova
     - btnSalvarNova_Acoes:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Registrar"
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
@@ -867,7 +867,7 @@ Screens:
           RadiusBottomRight: =4
           Visible: =locNova
     - btnCancelarNova_Acoes:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Cancelar"
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 168

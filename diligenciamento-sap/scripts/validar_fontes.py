@@ -32,6 +32,11 @@ SCHEMA = yaml.safe_load((RAIZ / "schema" / "microsoft" / "pa.schema.yaml").read_
 VALIDADOR = jsonschema.Draft7Validator(SCHEMA)
 ENUM = set(yaml.safe_load((RAIZ / "schema" / "microsoft" / "ControlTypeId-1P-controls-enum.schema.yaml").read_text())["enum"])
 
+# Nomes sem prefixo que o Studio resolve para o controle MODERNO (PA2108 ao usar propriedades
+# clássicas como Fill/Size/Default). Os clássicos equivalentes usam o prefixo "Classic/".
+AMBIGUOS = {"Button", "TextInput", "DropDown", "ComboBox", "DatePicker", "CheckBox", "Toggle", "Radio", "Slider"}
+CLASSICOS = {f"Classic/{t}" for t in AMBIGUOS} | {"Classic/Icon"}
+
 erros, avisos = [], []
 
 
@@ -103,7 +108,9 @@ def main():
                 erros.append(f"nome de controle duplicado: {nome} ({'/'.join(cam)} e {nomes.get(nome)})")
             nomes[nome] = "/".join(cam)
             tipo = c["Control"].split("@")[0]
-            if tipo not in ENUM and tipo not in ("CanvasComponent", "CodeComponent"):
+            if tipo in AMBIGUOS:
+                erros.append(f"{nome}: '{tipo}' sem prefixo é o controle MODERNO no Studio; use 'Classic/{tipo}'")
+            elif tipo not in ENUM and tipo not in CLASSICOS and tipo not in ("CanvasComponent", "CodeComponent"):
                 erros.append(f"{nome}: tipo de controle fora do enum oficial: {c['Control']}")
 
     listas = set(ESQ["listas"])

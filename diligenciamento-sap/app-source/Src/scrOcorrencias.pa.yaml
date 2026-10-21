@@ -39,7 +39,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Align: =Align.Right
     - cabAtualizar_Ocorrencias:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Atualizar dados"
           X: =Parent.Width - 180
@@ -150,7 +150,7 @@ Screens:
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - txtBusca_Ocor:
-        Control: TextInput
+        Control: Classic/TextInput
         Properties:
           Default: =""
           HintText: ="Buscar por PO, RC ou descrição"
@@ -161,7 +161,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddStatus_Ocor:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: '=Ungroup(Table({o: ["(Todos)"]}, {o: ShowColumns(Choices([@DIL_Ocorrencias].Status_Ocorrencia), Value)}), o)'
           X: =552
@@ -171,7 +171,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - ddSev_Ocor:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: '=Ungroup(Table({o: ["(Todos)"]}, {o: ShowColumns(Choices([@DIL_Ocorrencias].Severidade), Value)}), o)'
           X: =734
@@ -181,7 +181,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
     - btnNova_Ocor:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="+ Nova ocorrência"
           X: =240 + Parent.Width - 260 - 200
@@ -512,7 +512,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && gblPodeEditar
     - ddNovoStatus_Ocor:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =Choices([@DIL_Ocorrencias].Status_Ocorrencia)
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 160
@@ -524,7 +524,7 @@ Screens:
           Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && gblPodeEditar
           Default: =galOcor_Ocor.Selected.Status_Ocorrencia.Value
     - btnSalvarStatus_Ocor:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Salvar"
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 340
@@ -600,7 +600,7 @@ Screens:
           Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && gblPodeEditar
           DisplayMode: =If(ddNovoStatus_Ocor.Selected.Value = galOcor_Ocor.Selected.Status_Ocorrencia.Value, DisplayMode.Disabled, DisplayMode.Edit)
     - btnNovaAcao_Ocor:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="+ Nova ação para esta ocorrência"
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
@@ -656,7 +656,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - ddItem_Ocor:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: '=ForAll(colCarteira, {Value: "PO " & Numero_PO & "/" & Item_PO & " · RC " & Numero_RC & "/" & Item_RC, Numero_RC: Numero_RC, Item_RC: Item_RC, Numero_PO: Numero_PO, Item_PO: Item_PO, Codigo_Fornecedor: ItemPO.Codigo_Fornecedor})'
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
@@ -681,7 +681,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - ddTipo_Ocor:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =Choices([@DIL_Ocorrencias].Tipo_Ocorrencia)
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
@@ -704,7 +704,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - ddSevNova_Ocor:
-        Control: DropDown
+        Control: Classic/DropDown
         Properties:
           Items: =Choices([@DIL_Ocorrencias].Severidade)
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
@@ -727,7 +727,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - txtDesc_Ocor:
-        Control: TextInput
+        Control: Classic/TextInput
         Properties:
           Default: =""
           HintText: ="Descreva o fato, impacto e próxima providência"
@@ -752,7 +752,7 @@ Screens:
           Font: =Font.'Segoe UI'
           Visible: =locNova
     - btnSalvarNova_Ocor:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Registrar"
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 16
@@ -845,7 +845,7 @@ Screens:
           RadiusBottomRight: =4
           Visible: =locNova
     - btnCancelarNova_Ocor:
-        Control: Button
+        Control: Classic/Button
         Properties:
           Text: ="Cancelar"
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 168
