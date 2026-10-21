@@ -70,6 +70,7 @@ Legenda: ✅ confirmado com evidência · 🟡 inferido · ⏳ pendente · ⛔ i
 |---|---|---|
 | P1 | ~~Anexar o `.msapp` original~~ → recebido; candidato `Sistema_de_Diligenciamento__candidato__20261021-190639.msapp` gerado (`LoadFromYaml=true`, round-trip idêntico) | ✅ |
 | P2a | 1ª abertura no Studio (candidato 190639) **falhou** com PA2108: controles clássicos sem prefixo `Classic/`. Corrigido no gerador → candidato 195717 | ✅ corrigido; ⏳ reabrir |
+| P2b | Candidato **v3 abre no Studio** ✅ (relato do usuário, 21/10/2026) | ✅ |
 | P2 | Abrir o candidato no Power Apps Studio, adicionar as 10 listas SharePoint e zerar erros de fórmula | ⏳ PENDENTE — requer execução no ambiente do usuário |
 | P3 | Conferir no SharePoint as colunas de `docs/Checklist_Colunas_Inferidas.md` | ⏳ ambiente do usuário |
 | P4 | Confirmar se a escolha `Power Apps` existe em `DIL_Historico.Origem_Evento` (o app grava esse valor) | ⏳ ambiente do usuário |

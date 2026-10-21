@@ -34,7 +34,6 @@ RAIZ = Path(__file__).resolve().parent.parent
 GERADO = RAIZ / "app-source" / "Src"
 ORIG_DIR = RAIZ / "artifacts" / "original"
 CAND_DIR = RAIZ / "artifacts" / "candidate"
-AVISO_TOPO = "# Mesclado por scripts/montar_msapp.py a partir do original + app-source/Src.\n"
 
 
 def sha256(p):
@@ -54,7 +53,9 @@ def carregar(p):
 
 
 class _Dumper(yaml.SafeDumper):
-    pass
+    def increase_indent(self, flow=False, indentless=False):
+        # Listas indentadas sob a chave-mãe, como o Studio grava (formato aceito na abertura).
+        return super().increase_indent(flow, False)
 
 
 _Dumper.add_representer(str, lambda d, s: d.represent_scalar(
@@ -62,7 +63,8 @@ _Dumper.add_representer(str, lambda d, s: d.represent_scalar(
 
 
 def salvar(p, obj):
-    p.write_text(AVISO_TOPO + yaml.dump(obj, Dumper=_Dumper, sort_keys=False, allow_unicode=True, width=10_000),
+    """Grava sem comentário extra no topo; formato idêntico ao candidato v3 validado no Studio."""
+    p.write_text(yaml.dump(obj, Dumper=_Dumper, sort_keys=False, allow_unicode=True, width=10_000),
                  encoding="utf-8")
 
 

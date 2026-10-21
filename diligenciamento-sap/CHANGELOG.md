@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.3-candidato] — 2026-10-21
+
+### Validado
+- **Candidato v3 abriu no Power Apps Studio** (relato do usuário). Diagnóstico por bissecção com 13 pacotes
+  de teste (A–M): todas as partes abriam isoladas; o candidato 195717 não abria.
+- Única diferença do pacote que falhava: arquivos mesclados com comentário extra no topo e lista
+  `ScreensOrder` sem indentação. `montar_msapp.py` passou a gravar no formato da v3 (sem comentário,
+  listas indentadas); o build novo é idêntico à v3, exceto a data em `packed.json`.
+  A causa exata não foi isolada: as duas formas são YAML válido, e pode ter sido falha no download.
+
 ## [0.1.2-candidato] — 2026-10-21
 
 ### Corrigido
