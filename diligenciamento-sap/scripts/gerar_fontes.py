@@ -45,12 +45,12 @@ ALT_CONTEUDO = f"Parent.Height - {Y0 + 16}"
 
 TELAS = [
     # chave, nome da tela, rótulo do menu, perfis que veem o item (* = todos)
-    ("inicio", "scrInicio", "Início", "*"),
+    ("inicio", "scrInicio", "Minha fila", "*"),
     ("carteira", "scrCarteira", "Minha carteira", "*"),
-    ("dossie", "scrDossie", "Dossiê do processo", "*"),
+    ("dossie", "scrDossie", "Diligenciar item", "*"),
     ("ocorrencias", "scrOcorrencias", "Ocorrências", "*"),
     ("acoes", "scrAcoes", "Ações", "*"),
-    ("agenda", "scrAgenda", "Agenda / Marcos", "*"),
+    ("agenda", "scrAgenda", "Agenda de entregas", "*"),
     ("comunicacoes", "scrComunicacoes", "Comunicações", "*"),
     ("gestao", "scrGestao", "Visão da gestão", "Coordenador,Gestor,Auditor,Administrador"),
     ("admin", "scrAdmin", "Administração", "Gestor,Administrador"),
@@ -82,6 +82,12 @@ nfOcorFechadas = ["Resolvida", "Cancelada"];
 nfAcaoFechadas = ["Concluída", "Cancelada"];
 nfMarcoFechados = ["Concluído", "Cancelado"];
 nfOrigemApp = "Power Apps";
+nfPrioridadesAltas = ["Crítica", "Urgente", "Alta"];
+nfMarcaContato = "[Contato]";
+nfMarcaNovaData = "[Nova data]";
+nfMarcaEntregue = "[Entregue]";
+nfMarcaDivergencia = "[Recebido c/ divergência NF]";
+nfMarcaNF = "[NF emitida]";
 nfMenu = Table(
 """ + ",\n".join(
     f'    {{Chave: "{k}", Rotulo: "{r}", Perfis: "{p}"}}' for k, _, r, p in TELAS) + "\n);\n"
@@ -102,19 +108,71 @@ Concurrent(
     ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
 );
 ClearCollect(
-    colCarteira,
+    colCarteiraBase,
     AddColumns(
         AddColumns(
-            colVinc As v,
-            ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
-            RC, LookUp(colReq, Numero_RC = v.Numero_RC),
-            ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-            QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-            QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-            QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
-            QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
-        ) As c,
-        Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+            AddColumns(
+                colVinc As v,
+                ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
+                UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
+                UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), Data_Comunicacao, SortOrder.Descending)).Assunto,
+                QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
+                QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+            ) As a,
+            DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
+            DataNegociada, a.CompEntrega.Data_Compromisso,
+            Entregue, a.CompEntrega.Status_Compromisso.Value = "Cumprido",
+            PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
+            LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
+            DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
+            SituacaoFisica, If(
+                StartsWith(a.UltimaMarca, nfMarcaDivergencia), "Recebido — NF com divergência",
+                StartsWith(a.UltimaMarca, nfMarcaNF), "NF emitida — em trânsito",
+                a.CompEntrega.Status_Compromisso.Value = "Cumprido", "Entregue",
+                ""
+            )
+        ) As b,
+        DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
+        GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days)),
+        Situacao, If(
+            b.Entregue, "Entregue",
+            IsBlank(Coalesce(b.DataNegociada, b.DataSAP)), "Sem data",
+            Coalesce(b.DataNegociada, b.DataSAP) < Today(), "Atrasado",
+            Coalesce(b.DataNegociada, b.DataSAP) <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
+            "Em dia"
+        )
+    )
+);
+ClearCollect(
+    colCarteira,
+    AddColumns(
+        colCarteiraBase As c,
+        Urgencia, If(
+            c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", 100,
+            c.Entregue, 0,
+            c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+            c.Situacao = "Vence em 7 dias", 700 - DateDiff(Today(), c.DataVigente, TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+            c.QtdAcoesVencidas > 0, 500,
+            c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, 400,
+            c.DiasSemContato > c.LimiteContato, 300 + Min(c.DiasSemContato, 99),
+            0
+        ),
+        Motivo, If(
+            c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", "Recebido: acompanhar regularização da NF",
+            c.Entregue, "Entregue",
+            c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): cobrar nova data",
+            c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar com o fornecedor",
+            c.QtdAcoesVencidas > 0, c.QtdAcoesVencidas & " ação(ões) vencida(s)",
+            c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, "Prioridade " & c.RC.Prioridade.Value & ": buscar antecipação",
+            c.DiasSemContato > c.LimiteContato, If(c.DiasSemContato = 999, "Nenhum contato registrado", "Sem contato há " & c.DiasSemContato & " dias"),
+            "Em dia"
+        )
     )
 );
 Set(gblCarregadoEm, Now())"""
@@ -134,7 +192,8 @@ Set(gblPodeAdmin, gblPerfil in ["Gestor", "Administrador"]);
 
 
 def cor_situacao(expr):
-    return f'Switch({expr}, "Crítico", nfCorVermelho, "Em risco", nfCorLaranja, nfCorVerde)'
+    return (f'Switch({expr}, "Atrasado", nfCorVermelho, "Vence em 7 dias", nfCorLaranja, "Em dia", nfCorVerde, '
+            f'"Entregue", nfCorAzul, nfCorSuave)')
 
 
 def cor_severidade(expr):
@@ -334,61 +393,53 @@ def linha_cab(sufixo, colunas, y, x0=X0):
 # Telas
 # ---------------------------------------------------------------------------
 def tela_inicio():
+    """Fila de trabalho do diligenciador: o que fazer hoje, ordenado por urgência."""
     s = "Inicio"
-    abertas = '!(Status_Acao.Value in nfAcaoFechadas)'
+    minha = "Minha carteira"
+    escopo = f"""Filter(
+    colCarteira,
+    ddEscopo_{s}.Selected.Value = "Toda a carteira" || Lower(RC.Responsavel_Diligencia.Email) = nfEmailUsuario
+)"""
+    filhos = [
+        rotulo(f"lblSaudacao_{s}", '"Olá, " & First(Split(User().FullName, " ")).Value & ". Esta é a sua fila de hoje (" & Text(Today(), "dd/mm/yyyy") & ")."',
+               X0, Y0, f"{LARG_CONTEUDO} - 260", 28, 11, "nfCorSuave"),
+        lista_suspensa(f"ddEscopo_{s}", f'["{minha}", "Toda a carteira"]', f"{X0} + {LARG_CONTEUDO} - 240", Y0 - 4, 240,
+                       Default=f'If(CountRows(Filter(colCarteira, Lower(RC.Responsavel_Diligencia.Email) = nfEmailUsuario)) > 0, "{minha}", "Toda a carteira")'),
+    ]
     kpis = [
-        ("Itens na carteira", "CountRows(colCarteira)", "nfCorAzul"),
-        ("Críticos", 'CountRows(Filter(colCarteira, Situacao = "Crítico"))', "nfCorVermelho"),
-        ("Em risco", 'CountRows(Filter(colCarteira, Situacao = "Em risco"))', "nfCorLaranja"),
-        ("Marcos atrasados", "CountRows(Filter(colMarcos, IsBlank(Data_Realizada) && Data_Planejada < Today()"
-                             " && !(Status_Marco.Value in nfMarcoFechados)))", "nfCorLaranja"),
-        ("Ações pendentes", f"CountRows(Filter(colAcoes, {abertas}))", "nfCorAzul"),
-        ("Minhas ações vencidas", f"CountRows(Filter(colAcoes, Lower(Responsavel_Pessoa.Email) = nfEmailUsuario"
-                                  f" && PrazoData < Now() && {abertas}))", "nfCorVermelho"),
+        ("Atrasados", f'CountRows(Filter({escopo}, Situacao = "Atrasado"))', "nfCorVermelho"),
+        ("Entregas em 7 dias", f'CountRows(Filter({escopo}, Situacao = "Vence em 7 dias"))', "nfCorLaranja"),
+        ("Prioritários a antecipar", f'CountRows(Filter({escopo}, !Entregue && PrioridadeAlta && Coalesce(GanhoDias, 0) <= 0))', "nfCorAzul"),
+        ("Sem contato no prazo", f'CountRows(Filter({escopo}, !Entregue && DiasSemContato > LimiteContato))', "nfCorLaranja"),
+        ("Ganho negociado (dias)", f'Sum(Filter({escopo}, GanhoDias > 0), GanhoDias)', "nfCorVerde"),
     ]
-    filhos = [rotulo(f"lblSaudacao_{s}", '"Olá, " & First(Split(User().FullName, " ")).Value & ". Situação em " & Text(Today(), "dd/mm/yyyy") & "."',
-                     X0, Y0, LARG_CONTEUDO, 28, 11, "nfCorSuave")]
     for i, (t, v, c) in enumerate(kpis):
-        filhos += cartao_kpi(s, i, t, v, c)
+        filhos += cartao_kpi(s, i, t, v, c, n=5)
     y = Y0 + 150
-    larg_esq = f"({LARG_CONTEUDO}) * 0.62"
-    x_dir = f"{X0} + ({LARG_CONTEUDO}) * 0.62 + 16"
-    larg_dir = f"({LARG_CONTEUDO}) * 0.38 - 16"
-    alt = f"Parent.Height - {y + 16}"
-    linha_prior = [
-        retangulo(f"pFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1", "nfCorCartao",
+    linha = [
+        retangulo(f"fFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 2", "nfCorCartao",
                   OnSelect="Select(Parent)"),
-        retangulo(f"pFaixa_{s}", 0, 0, 4, "Parent.TemplateHeight - 1", cor_situacao("ThisItem.Situacao")),
-        rotulo(f"pChave_{s}", '"RC " & ThisItem.Numero_RC & "/" & ThisItem.Item_RC & "  ·  PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO',
-               16, 6, "Parent.TemplateWidth - 140", 24, 11, "nfCorTexto", True),
-        rotulo(f"pDesc_{s}", 'Coalesce(ThisItem.ItemPO.Descricao_Produto, "—") & "  ·  " & Coalesce(ThisItem.ItemPO.Nome_Fornecedor, "—")',
-               16, 30, "Parent.TemplateWidth - 140", 22, 9, "nfCorSuave"),
-        rotulo(f"pSit_{s}", "ThisItem.Situacao", "Parent.TemplateWidth - 120", 6, 110, 24, 10,
-               cor_situacao("ThisItem.Situacao"), True, Align="Align.Right"),
-        rotulo(f"pQtd_{s}", 'ThisItem.QtdOcorrAbertas & " ocorr. · " & ThisItem.QtdAcoesPend & " ações"',
-               "Parent.TemplateWidth - 160", 30, 150, 22, 9, "nfCorSuave", Align="Align.Right"),
-    ]
-    linha_marco = [
-        retangulo(f"mFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1", "nfCorCartao"),
-        rotulo(f"mData_{s}", data("ThisItem.Data_Planejada", "dd/mm"), 12, 0, 60, "Parent.TemplateHeight - 1",
-               12, "nfCorAzul", True),
-        rotulo(f"mDesc_{s}", 'Coalesce(ThisItem.Descricao_Marco, "Marco") & Char(10) & "PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO',
-               76, 0, "Parent.TemplateWidth - 84", "Parent.TemplateHeight - 1", 9, "nfCorTexto"),
+        retangulo(f"fFaixa_{s}", 0, 0, 5, "Parent.TemplateHeight - 2", cor_situacao("ThisItem.Situacao")),
+        rotulo(f"fMotivo_{s}", "ThisItem.Motivo", 16, 4, "Parent.TemplateWidth - 360", 24, 11,
+               cor_situacao("ThisItem.Situacao"), True, OnSelect="Select(Parent)"),
+        rotulo(f"fItem_{s}", '"PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO & "  ·  " & Coalesce(ThisItem.ItemPO.Nome_Fornecedor, "—") & "  ·  " & Coalesce(ThisItem.ItemPO.Descricao_Produto, "—")',
+               16, 28, "Parent.TemplateWidth - 360", 22, 9, "nfCorTexto", OnSelect="Select(Parent)"),
+        rotulo(f"fDatas_{s}", '"Remessa SAP " & ' + data("ThisItem.DataSAP", "dd/mm") + ' & "  →  negociada " & ' + data("ThisItem.DataNegociada", "dd/mm")
+               + ' & If(Coalesce(ThisItem.GanhoDias, 0) > 0, "  (+" & ThisItem.GanhoDias & " d)", "") & Char(10) & "Prioridade " & Coalesce(ThisItem.RC.Prioridade.Value, "—") & "  ·  último contato " & If(ThisItem.DiasSemContato = 999, "—", ' + data("ThisItem.UltimoContato", "dd/mm") + ')',
+               "Parent.TemplateWidth - 340", 4, 210, 46, 9, "nfCorSuave", OnSelect="Select(Parent)"),
+        botao(f"fBtn_{s}", txt("Diligenciar ›"), "Parent.TemplateWidth - 120", 12, 108, 32,
+              "Set(gblItem, ThisItem); Navigate(scrDossie, ScreenTransition.None)"),
     ]
     filhos += [
-        rotulo(f"lblPrior_{s}", txt("Prioridades que exigem atenção"), X0, y, larg_esq, 28, 13, "nfCorTexto", True),
-        galeria(f"galPrioridades_{s}",
-                'FirstN(Sort(Filter(colCarteira, Situacao <> "Normal"), QtdCriticas * 1000 + QtdMarcosAtrasados * 10 + QtdOcorrAbertas, SortOrder.Descending), 50)',
-                X0, y + 32, larg_esq, f"{alt} - 32", 58, linha_prior,
+        rotulo(f"lblFila_{s}", f'"Fila de trabalho (" & CountRows(galFila_{s}.AllItems) & ")  —  ordenada por urgência"',
+               X0, y, LARG_CONTEUDO, 28, 13, "nfCorTexto", True),
+        galeria(f"galFila_{s}", f"Sort(Filter({escopo}, Urgencia > 0), Urgencia, SortOrder.Descending)",
+                X0, y + 32, LARG_CONTEUDO, f"Parent.Height - {y + 48}", 58, linha,
                 OnSelect="Set(gblItem, ThisItem); Navigate(scrDossie, ScreenTransition.None)"),
-        rotulo(f"lblPriorVazio_{s}", txt("Nenhum item crítico ou em risco."), X0, y + 40, larg_esq, 28, 10,
-               "nfCorSuave", Visible=f"IsEmpty(galPrioridades_{s}.AllItems)"),
-        rotulo(f"lblMarcos_{s}", txt("Próximos marcos (15 dias)"), x_dir, y, larg_dir, 28, 13, "nfCorTexto", True),
-        galeria(f"galMarcos_{s}",
-                "Sort(Filter(colMarcos, IsBlank(Data_Realizada) && Data_Planejada >= Today() && Data_Planejada <= DateAdd(Today(), 15, TimeUnit.Days)), Data_Planejada)",
-                x_dir, y + 32, larg_dir, f"{alt} - 32", 48, linha_marco),
+        rotulo(f"lblFilaVazia_{s}", txt("Nada pendente na fila. Bom trabalho!"), X0, y + 40, LARG_CONTEUDO, 28, 10,
+               "nfCorSuave", Visible=f"IsEmpty(galFila_{s}.AllItems)"),
     ]
-    return tela("inicio", "scrInicio", "Central do Diligenciador", filhos)
+    return tela("inicio", "scrInicio", "Minha fila de hoje", filhos)
 
 
 def tela_carteira():
@@ -396,7 +447,7 @@ def tela_carteira():
     yf = Y0
     filhos = [
         entrada(f"txtBusca_{s}", "Buscar RC, PO, material, descrição ou fornecedor", X0, yf, 360),
-        lista_suspensa(f"ddSituacao_{s}", '["(Todos)", "Crítico", "Em risco", "Normal"]', X0 + 372, yf, 150),
+        lista_suspensa(f"ddSituacao_{s}", '["(Em aberto)", "(Todos)", "Atrasado", "Vence em 7 dias", "Em dia", "Sem data", "Entregue"]', X0 + 372, yf, 150),
         lista_suspensa(f"ddFornecedor_{s}",
                        'Ungroup(Table({o: ["(Todos)"]}, {o: Sort(Distinct(colCarteira, ItemPO.Nome_Fornecedor), Value)}), o)',
                        X0 + 534, yf, 260),
@@ -404,23 +455,26 @@ def tela_carteira():
                        X0 + 806, yf, 300,
                        Default='If(CountRows(Filter(colCarteira, Lower(RC.Responsavel_Diligencia.Email) = nfEmailUsuario)) > 0, "Minha carteira (responsável pela RC)", "Todos os itens")'),
     ]
-    cols = [("RC / item · responsável", 16, 130), ("PO / item", 150, 130), ("Material · descrição", 284, 330),
-            ("Fornecedor", 620, 240), ("1ª remessa", 864, 90), ("Pendências", 958, 170), ("Situação · prioridade", 1132, 100)]
+    cols = [("RC / item · responsável", 16, 120), ("PO / item", 140, 110), ("Material · descrição", 254, 270),
+            ("Fornecedor", 528, 170), ("Remessa SAP → negociada", 702, 150), ("Ganho · contato", 856, 120),
+            ("Situação · prioridade", 980, 120)]
     filhos += linha_cab(s, cols, yf + 48)
+    alt = "Parent.TemplateHeight"
     linha = [
         retangulo(f"cFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1", "nfCorCartao",
                   OnSelect="Select(Parent)"),
         retangulo(f"cFaixa_{s}", 0, 0, 4, "Parent.TemplateHeight - 1", cor_situacao("ThisItem.Situacao")),
         rotulo(f"cRC_{s}", 'ThisItem.Numero_RC & " / " & ThisItem.Item_RC & Char(10) & Coalesce(ThisItem.RC.Responsavel_Diligencia.DisplayName, "sem responsável")',
-               16, 0, 130, "Parent.TemplateHeight", 9, "nfCorTexto", True),
-        rotulo(f"cPO_{s}", 'ThisItem.Numero_PO & " / " & ThisItem.Item_PO', 150, 0, 130, "Parent.TemplateHeight", 10, "nfCorTexto", True),
+               16, 0, 120, alt, 9, "nfCorTexto", True),
+        rotulo(f"cPO_{s}", 'ThisItem.Numero_PO & " / " & ThisItem.Item_PO', 140, 0, 110, alt, 10, "nfCorTexto", True),
         rotulo(f"cDesc_{s}", 'Coalesce(ThisItem.ItemPO.Material, "—") & " · " & Coalesce(ThisItem.ItemPO.Descricao_Produto, "—")',
-               284, 0, 330, "Parent.TemplateHeight", 9, "nfCorTexto"),
-        rotulo(f"cForn_{s}", 'Coalesce(ThisItem.ItemPO.Nome_Fornecedor, "—")', 620, 0, 240, "Parent.TemplateHeight", 9, "nfCorTexto"),
-        rotulo(f"cRem_{s}", data("ThisItem.ItemPO.Data_1_Remessa_Item_SAP"), 864, 0, 90, "Parent.TemplateHeight", 9, "nfCorTexto"),
-        rotulo(f"cPend_{s}", 'ThisItem.QtdOcorrAbertas & " ocorr. · " & ThisItem.QtdAcoesPend & " ações · " & ThisItem.QtdMarcosAtrasados & " marcos atras."',
-               958, 0, 170, "Parent.TemplateHeight", 9, "nfCorSuave"),
-        rotulo(f"cSit_{s}", 'ThisItem.Situacao & Char(10) & Coalesce(ThisItem.RC.Prioridade.Value, "—")', 1132, 0, 100, "Parent.TemplateHeight", 10,
+               254, 0, 270, alt, 9, "nfCorTexto"),
+        rotulo(f"cForn_{s}", 'Coalesce(ThisItem.ItemPO.Nome_Fornecedor, "—")', 528, 0, 170, alt, 9, "nfCorTexto"),
+        rotulo(f"cDatas_{s}", data("ThisItem.DataSAP") + ' & Char(10) & "→ " & ' + data("ThisItem.DataNegociada"),
+               702, 0, 150, alt, 9, "nfCorTexto"),
+        rotulo(f"cGanho_{s}", 'If(IsBlank(ThisItem.GanhoDias), "—", If(ThisItem.GanhoDias > 0, "+", "") & ThisItem.GanhoDias & " d") & Char(10) & If(ThisItem.DiasSemContato = 999, "sem contato", "há " & ThisItem.DiasSemContato & " d")',
+               856, 0, 120, alt, 9, 'If(Coalesce(ThisItem.GanhoDias, 0) > 0, nfCorVerde, nfCorTexto)'),
+        rotulo(f"cSit_{s}", 'ThisItem.Situacao & Char(10) & Coalesce(ThisItem.RC.Prioridade.Value, "—")', 980, 0, 120, alt, 10,
                cor_situacao("ThisItem.Situacao"), True),
     ]
     itens = f"""Filter(
@@ -428,7 +482,7 @@ def tela_carteira():
     IsBlank(txtBusca_{s}.Text) || txtBusca_{s}.Text in c.Numero_RC || txtBusca_{s}.Text in c.Numero_PO
         || txtBusca_{s}.Text in c.ItemPO.Material || txtBusca_{s}.Text in c.ItemPO.Descricao_Produto
         || txtBusca_{s}.Text in c.ItemPO.Nome_Fornecedor || txtBusca_{s}.Text in c.RC.Responsavel_Diligencia.DisplayName,
-    ddSituacao_{s}.Selected.Value = "(Todos)" || c.Situacao = ddSituacao_{s}.Selected.Value,
+    Switch(ddSituacao_{s}.Selected.Value, "(Todos)", true, "(Em aberto)", c.Situacao <> "Entregue", c.Situacao = ddSituacao_{s}.Selected.Value),
     ddFornecedor_{s}.Selected.Value = "(Todos)" || c.ItemPO.Nome_Fornecedor = ddFornecedor_{s}.Selected.Value,
     Switch(
         ddEscopo_{s}.Selected.Value,
@@ -446,13 +500,9 @@ def tela_carteira():
     return tela("carteira", "scrCarteira", "Minha carteira", filhos)
 
 
-def tela_dossie():
-    s = "Dossie"
-    filtro_item = "Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO"
-    on_visible = f"""If(
-    IsBlank(gblItem),
-    false,
-    UpdateContext({{locForn: LookUp(colForn, Codigo_Fornecedor = gblItem.ItemPO.Codigo_Fornecedor)}});
+def carga_dossie(filtro_item):
+    """Coleções do item aberto (também usada após gravar um contato)."""
+    return f"""UpdateContext({{locForn: LookUp(colForn, Codigo_Fornecedor = gblItem.ItemPO.Codigo_Fornecedor)}});
     ClearCollect(colDosMarcos, Filter(colMarcos, {filtro_item}));
     ClearCollect(colDosOcor, Filter(colOcor, {filtro_item}));
     ClearCollect(colDosAcoes, Filter(colAcoes, {filtro_item}));
@@ -467,26 +517,45 @@ def tela_dossie():
         ForAll(colDosComp, {{Chave: Chave_Compromisso}})
     );
     Clear(colDosHist);
-    ForAll(colDosChaves As k, Collect(colDosHist, Filter(DIL_Historico, Chave_Entidade = k.Chave)));
-    UpdateContext({{locAba: Coalesce(locAba, "Resumo")}})
+    ForAll(colDosChaves As k, Collect(colDosHist, Filter(DIL_Historico, Chave_Entidade = k.Chave)))"""
+
+
+def tela_dossie():
+    s = "Dossie"
+    filtro_item = "Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO"
+    on_visible = f"""If(
+    IsBlank(gblItem),
+    false,
+    {carga_dossie(filtro_item)};
+    UpdateContext({{locAba: Coalesce(locAba, "Contatos"), locContato: false}})
 )"""
-    yc = Y0 + 96
+    yc = Y0 + 172
+    ganho = ('If(IsBlank(gblItem.GanhoDias), "—", If(gblItem.GanhoDias > 0, "+" & gblItem.GanhoDias & " dia(s) antecipado(s)", '
+             'gblItem.GanhoDias = 0, "0 dia", gblItem.GanhoDias & " dia(s) (postergado)"))')
     filhos = [
-        retangulo(f"dCab_{s}", X0, Y0, LARG_CONTEUDO, 84, BorderColor="nfCorLinha", BorderThickness=1),
-        retangulo(f"dCabFaixa_{s}", X0, Y0, 4, 84, cor_situacao("gblItem.Situacao")),
-        rotulo(f"dIdent_{s}", '"RC " & gblItem.Numero_RC & " / " & gblItem.Item_RC & "   ·   PO " & gblItem.Numero_PO & " / " & gblItem.Item_PO',
-               X0 + 16, Y0 + 8, f"{LARG_CONTEUDO} - 420", 30, 15, "nfCorTexto", True),
-        rotulo(f"dDesc_{s}", 'Coalesce(gblItem.ItemPO.Material, "—") & " · " & Coalesce(gblItem.ItemPO.Descricao_Produto, "—") & "  ·  " & Coalesce(gblItem.ItemPO.Nome_Fornecedor, "—")',
-               X0 + 16, Y0 + 44, f"{LARG_CONTEUDO} - 420", 28, 10, "nfCorSuave"),
-        rotulo(f"dSit_{s}", "gblItem.Situacao", f"{X0} + {LARG_CONTEUDO} - 400", Y0 + 8, 120, 30, 13,
-               cor_situacao("gblItem.Situacao"), True),
-        botao(f"btnNovaOcor_{s}", txt("Registrar ocorrência"), f"{X0} + {LARG_CONTEUDO} - 270", Y0 + 8, 250, 32,
+        retangulo(f"dCab_{s}", X0, Y0, LARG_CONTEUDO, 112, BorderColor="nfCorLinha", BorderThickness=1),
+        retangulo(f"dCabFaixa_{s}", X0, Y0, 5, 112, cor_situacao("gblItem.Situacao")),
+        rotulo(f"dIdent_{s}", '"PO " & gblItem.Numero_PO & " / " & gblItem.Item_PO & "   ·   RC " & gblItem.Numero_RC & " / " & gblItem.Item_RC & "   ·   " & Coalesce(gblItem.ItemPO.Nome_Fornecedor, "—")',
+               X0 + 16, Y0 + 6, f"{LARG_CONTEUDO} - 200", 30, 14, "nfCorTexto", True),
+        rotulo(f"dDesc_{s}", 'Coalesce(gblItem.ItemPO.Material, "—") & " · " & Coalesce(gblItem.ItemPO.Descricao_Produto, "—") & "   ·   prioridade " & Coalesce(gblItem.RC.Prioridade.Value, "—") & "   ·   contato fornecedor: " & Coalesce(locForn.Contato_Principal, "—") & " " & Coalesce(locForn.Telefone, "") & " " & Coalesce(locForn.Email_Principal, "")',
+               X0 + 16, Y0 + 36, f"{LARG_CONTEUDO} - 32", 26, 9, "nfCorSuave"),
+        rotulo(f"dDatas_{s}", '"Remessa SAP: " & ' + data("gblItem.DataSAP") + ' & "     Data negociada: " & ' + data("gblItem.DataNegociada")
+               + ' & "     Ganho: " & ' + ganho + ' & "     Último contato: " & If(gblItem.DiasSemContato = 999, "nenhum", '
+               + data("gblItem.UltimoContato") + ' & " (há " & gblItem.DiasSemContato & " d)")',
+               X0 + 16, Y0 + 62, f"{LARG_CONTEUDO} - 200", 24, 10, "nfCorTexto", True),
+        rotulo(f"dSitFis_{s}", 'If(IsBlank(gblItem.SituacaoFisica), "", "Situação física: " & gblItem.SituacaoFisica)',
+               X0 + 16, Y0 + 86, f"{LARG_CONTEUDO} - 200", 22, 9, "nfCorAzul", True),
+        rotulo(f"dSit_{s}", 'gblItem.Situacao & Char(10) & gblItem.Motivo', f"{X0} + {LARG_CONTEUDO} - 190", Y0 + 6, 180, 100, 10,
+               cor_situacao("gblItem.Situacao"), True, Align="Align.Right", VerticalAlign="VerticalAlign.Top"),
+        botao(f"btnContato_{s}", txt("Registrar contato / resultado"), X0, Y0 + 122, 260, 40,
+              'UpdateContext({locContato: true})', Visible="gblPodeEditar"),
+        botao(f"btnNovaOcor_{s}", txt("Registrar problema"), X0 + 272, Y0 + 122, 190, 40,
               'Set(gblPrefill, gblItem); Set(gblAbrirNova, true); Navigate(scrOcorrencias, ScreenTransition.None)',
-              Visible="gblPodeEditar"),
-        botao(f"btnVoltar_{s}", txt("‹ Voltar à carteira"), f"{X0} + {LARG_CONTEUDO} - 270", Y0 + 46, 250, 30,
-              "Navigate(scrCarteira, ScreenTransition.None)", primario=False),
+              Visible="gblPodeEditar", primario=False),
+        botao(f"btnVoltar_{s}", txt("‹ Voltar à fila"), f"{X0} + {LARG_CONTEUDO} - 190", Y0 + 122, 190, 40,
+              "Navigate(scrInicio, ScreenTransition.None)", primario=False),
     ]
-    abas = ["Resumo", "Compromissos", "Marcos", "Ocorrências", "Ações", "Comunicações", "Histórico"]
+    abas = ["Contatos", "Resumo", "Compromissos", "Marcos", "Ocorrências", "Ações", "Histórico"]
     for i, a in enumerate(abas):
         filhos.append(botao(f"btnAba{i}_{s}", txt(a), f"{X0} + {i * 150}", yc, 144, 34,
                             f'UpdateContext({{locAba: "{a}"}})', primario=False,
@@ -564,14 +633,15 @@ def tela_dossie():
             rotulo(f"daStatus_{s}", 'Coalesce(ThisItem.Status_Acao.Value, "—") & " · " & Coalesce(ThisItem.Prioridade.Value, "—")',
                    "Parent.TemplateWidth - 150", 0, 140, "Parent.TemplateHeight", 10, "nfCorAzul", True),
         ]),
-        grade("Comun", "Sort(colDosComun, Data_Comunicacao, SortOrder.Descending)", "Comunicações", [
+        grade("Comun", "Sort(colDosComun, Data_Comunicacao, SortOrder.Descending)", "Contatos", [
             fundo("dc"),
-            rotulo(f"dcData_{s}", data("ThisItem.Data_Comunicacao", "dd/mm/yyyy hh:mm"), 12, 0, 120, "Parent.TemplateHeight", 9, "nfCorTexto"),
-            rotulo(f"dcAssunto_{s}", 'Coalesce(ThisItem.Assunto, "—")', 136, 0, "Parent.TemplateWidth - 400",
-                   "Parent.TemplateHeight", 10, "nfCorTexto", True),
-            rotulo(f"dcEnvio_{s}", 'If(IsBlank(LookUp(colEnvios, Chave_Entidade = ThisItem.Chave_Comunicacao)), "Sem registro de envio", "E-mail enviado (DIL_10)")',
-                   "Parent.TemplateWidth - 250", 0, 240, "Parent.TemplateHeight", 9, "nfCorSuave"),
-        ]),
+            rotulo(f"dcData_{s}", data("ThisItem.Data_Comunicacao"), 12, 4, 90, 24, 10, "nfCorAzul", True),
+            rotulo(f"dcAssunto_{s}", 'Coalesce(ThisItem.Assunto, "—") & "  ·  " & Coalesce(ThisItem.Tipo_Comunicacao.Value, "—") & " / " & Coalesce(ThisItem.Sentido.Value, "—")',
+                   106, 4, "Parent.TemplateWidth - 330", 24, 10, "nfCorTexto", True),
+            rotulo(f"dcResumo_{s}", 'Coalesce(ThisItem.Resumo, "")', 106, 30, "Parent.TemplateWidth - 330", 30, 9, "nfCorTexto"),
+            rotulo(f"dcQuem_{s}", 'If(StartsWith(ThisItem.Chave_Comunicacao, "COM-SLA-"), If(IsBlank(LookUp(colEnvios, Chave_Entidade = ThisItem.Chave_Comunicacao)), "Escalonamento automático (aguardando DIL_10)", "E-mail automático enviado (DIL_10)"), "Registrado por " & Coalesce(ThisItem.Responsavel_Pessoa.DisplayName, ThisItem.Responsavel, "—"))',
+                   "Parent.TemplateWidth - 220", 4, 210, 56, 9, "nfCorSuave", Align="Align.Right"),
+        ], 66),
         grade("Hist", "Sort(colDosHist, Data_Evento, SortOrder.Descending)", "Histórico", [
             fundo("dh"),
             rotulo(f"dhData_{s}", data("ThisItem.Data_Evento", "dd/mm/yyyy hh:mm"), 12, 0, 120, "Parent.TemplateHeight", 9, "nfCorTexto"),
@@ -582,9 +652,139 @@ def tela_dossie():
         ], 60),
     ]
     filhos += aba_compromissos(s, yg, filtro_item)
+    filhos += painel_contato(s, yc, filtro_item)
     filhos += bloqueio(s, "IsBlank(gblItem)", "Nenhum processo selecionado. Escolha um item na carteira.",
                        "Ir para a carteira", "scrCarteira")
-    return tela("dossie", "scrDossie", "Dossiê do processo", filhos, on_visible)
+    return tela("dossie", "scrDossie", "Diligenciar item", filhos, on_visible)
+
+
+RESULTADOS = ["Somente contato (sem mudança)", "Nova data negociada", "Material entregue",
+              "Chegou com divergência na NF", "NF emitida — material em trânsito"]
+
+
+def painel_contato(s, y, filtro_item):
+    """Registrar contato com o fornecedor e o resultado. Grava em DIL_Comunicacoes (chave COM-APP-*, que o
+    DIL_10 ignora) e, conforme o resultado, cria/atualiza o compromisso de Entrega (o DIL_05 cuida do marco;
+    'Cumprido' encerra a cobrança e o DIL_07 encerra a ocorrência de atraso)."""
+    vis = "locContato"
+    x = f"{X0} + ({LARG_CONTEUDO}) * 0.42"
+    w = f"({LARG_CONTEUDO}) * 0.58"
+    res = f"ddResultado_{s}.Selected.Value"
+    com_data = f'{res} <> "{RESULTADOS[0]}"'
+    rotulo_data = (f'Switch({res}, "{RESULTADOS[1]}", "Nova data *", "{RESULTADOS[2]}", "Data da chegada *", '
+                   f'"{RESULTADOS[3]}", "Data da chegada *", "{RESULTADOS[4]}", "Data da NF *", "")')
+    marca = (f'Switch({res}, "{RESULTADOS[1]}", nfMarcaNovaData, "{RESULTADOS[2]}", nfMarcaEntregue, '
+             f'"{RESULTADOS[3]}", nfMarcaDivergencia, "{RESULTADOS[4]}", nfMarcaNF, nfMarcaContato)')
+    assunto = (f'{marca} & If({com_data}, " " & Text(dtResultado_{s}.SelectedDate, "dd/mm/yyyy"), "") '
+               f'& " — " & ddMeio_{s}.Selected.Value')
+    comp = "gblItem.CompEntrega"
+    novo_comp = lambda status: f"""Patch(
+            DIL_Compromissos,
+            Defaults(DIL_Compromissos),
+            {{
+                Chave_Compromisso: "COMP-APP-" & Text(Now(), "yyyymmddhhmmss") & "-" & Text(RandBetween(100, 999)),
+                Numero_RC: gblItem.Numero_RC, Item_RC: gblItem.Item_RC,
+                Numero_PO: gblItem.Numero_PO, Item_PO: gblItem.Item_PO,
+                Codigo_Fornecedor: gblItem.ItemPO.Codigo_Fornecedor,
+                Tipo_Compromisso: {{Value: "Entrega"}},
+                Data_Compromisso: dtResultado_{s}.SelectedDate,
+                Origem_Compromisso: {{Value: "Fornecedor"}},
+                Status_Compromisso: {{Value: "{status}"}},
+                Data_Registro: Now(),
+                Responsavel_Registro: User().FullName,
+                Responsavel_Registro_Pessoa: nfPessoaAtual,
+                Observacao: {assunto},
+                Ativo: true
+            }}
+        )"""
+    passo_comp = f"""If(
+        {res} = "{RESULTADOS[1]}" && IsBlank({comp}), {novo_comp("Aberto")},
+        {res} = "{RESULTADOS[1]}",
+        Patch(
+            DIL_Compromissos,
+            LookUp(DIL_Compromissos, ID = {comp}.ID),
+            {{
+                Data_Compromisso_Anterior: {comp}.Data_Compromisso,
+                Data_Compromisso: dtResultado_{s}.SelectedDate,
+                Status_Compromisso: {{Value: "Aberto"}},
+                Observacao: {assunto}
+            }}
+        ),
+        {res} in ["{RESULTADOS[2]}", "{RESULTADOS[3]}"] && IsBlank({comp}), {novo_comp("Cumprido")},
+        {res} in ["{RESULTADOS[2]}", "{RESULTADOS[3]}"],
+        Patch(
+            DIL_Compromissos,
+            LookUp(DIL_Compromissos, ID = {comp}.ID),
+            {{Status_Compromisso: {{Value: "Cumprido"}}, Observacao: {assunto}}}
+        )
+    )"""
+    contato = f"""Patch(
+        DIL_Comunicacoes,
+        Defaults(DIL_Comunicacoes),
+        {{
+            Chave_Comunicacao: "COM-APP-" & Text(Now(), "yyyymmddhhmmss") & "-" & Text(RandBetween(100, 999)),
+            Numero_RC: gblItem.Numero_RC, Item_RC: gblItem.Item_RC,
+            Numero_PO: gblItem.Numero_PO, Item_PO: gblItem.Item_PO,
+            Codigo_Fornecedor: gblItem.ItemPO.Codigo_Fornecedor,
+            Tipo_Comunicacao: ddMeio_{s}.Selected,
+            Data_Comunicacao: Today(),
+            Sentido: ddSentido_{s}.Selected,
+            Assunto: {assunto},
+            Resumo: Trim(txtResumo_{s}.Text),
+            Responsavel: User().FullName,
+            Responsavel_Pessoa: nfPessoaAtual,
+            Ativo: true
+        }}
+    )"""
+    depois = (CARGA + ";\nSet(gblItem, LookUp(colCarteira, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));\n"
+              + carga_dossie(filtro_item) + f";\nReset(txtResumo_{s}); UpdateContext({{locContato: false, locAba: \"Contatos\"}})")
+    salvar = f"""If(
+    IsBlank(Trim(txtResumo_{s}.Text)) || IsBlank(ddMeio_{s}.Selected) || IsBlank(ddSentido_{s}.Selected),
+    Notify("Informe meio, sentido e o resumo do contato.", NotificationType.Error),
+    {com_data} && IsBlank(dtResultado_{s}.SelectedDate),
+    Notify("Informe a data do resultado.", NotificationType.Error),
+    IfError(
+        {contato},
+        Notify("Não foi possível gravar o contato: " & FirstError.Message, NotificationType.Error),
+        {passo_comp},
+        Notify("Contato gravado, mas o compromisso não foi atualizado: " & FirstError.Message, NotificationType.Warning),
+        Notify(If({com_data} && {res} <> "{RESULTADOS[4]}", "Contato e compromisso gravados. O marco é atualizado pelo DIL_05 em instantes.", "Contato registrado."), NotificationType.Success);
+        {depois}
+    )
+)"""
+    filhos = [
+        retangulo(f"ctFundo_{s}", x, y, w, f"Parent.Height - {y + 16}", BorderColor="nfCorAzul", BorderThickness=2, Visible=vis),
+        rotulo(f"ctTitulo_{s}", txt("Registrar contato com o fornecedor"), f"{x} + 16", y + 8, f"{w} - 32", 30, 13,
+               "nfCorTexto", True, Visible=vis),
+    ]
+    campos = [
+        ("Resultado *", lista_suspensa(f"ddResultado_{s}", "[" + ", ".join(f'"{r}"' for r in RESULTADOS) + "]", 0, 0, 0, Visible=vis)),
+        ("Meio *", lista_suspensa(f"ddMeio_{s}", "Choices([@DIL_Comunicacoes].Tipo_Comunicacao)", 0, 0, 0, Visible=vis)),
+        ("Sentido *", lista_suspensa(f"ddSentido_{s}", "Choices([@DIL_Comunicacoes].Sentido)", 0, 0, 0, Visible=vis)),
+        ("Data", ctl(f"dtResultado_{s}", "Classic/DatePicker", {
+            "DefaultDate": f'If({res} = "{RESULTADOS[1]}" && !IsBlank(gblItem.DataVigente), gblItem.DataVigente, Today())',
+            "Height": 36, "Size": 10, "BorderColor": "nfCorLinha", "Visible": f"{vis} && {com_data}"})),
+    ]
+    for i, (t, c) in enumerate(campos):
+        yy = y + 46 + i * 44
+        pr = c[next(iter(c))]["Properties"]
+        pr["X"], pr["Y"], pr["Width"] = f(f"{x} + 140"), f(yy), f(f"{w} - 156")
+        texto = rotulo_data if t == "Data" else txt(t)
+        filhos += [rotulo(f"ctT{i}_{s}", texto, f"{x} + 16", yy, 120, 36, 9, "nfCorSuave", Visible=pr["Visible"][1:]), c]
+    yr = y + 46 + len(campos) * 44
+    filhos += [
+        entrada(f"txtResumo_{s}", "O que foi tratado (ex.: fornecedor confirmou embarque; pedida antecipação por criticidade)",
+                f"{x} + 16", yr, f"{w} - 32", 80, multilinha=True, Visible=vis),
+        rotulo(f"ctAjuda_{s}", f'Switch({res}, "{RESULTADOS[1]}", "Atualiza a data do compromisso de entrega; o ganho é calculado contra a remessa SAP.", '
+               f'"{RESULTADOS[2]}", "Marca o compromisso como Cumprido: a cobrança para e a ocorrência de atraso é encerrada pelo fluxo.", '
+               f'"{RESULTADOS[3]}", "Material recebido fisicamente; fica sinalizado até registrar ""Material entregue"" após a regularização da NF.", '
+               f'"{RESULTADOS[4]}", "Registra a NF; a cobrança continua até a chegada do material.", "Registra apenas o contato.")',
+               f"{x} + 16", yr + 86, f"{w} - 32", 36, 9, "nfCorSuave", Visible=vis),
+        botao(f"btnCtSalvar_{s}", txt("Gravar"), f"{x} + 16", yr + 128, 140, 38, salvar, Visible=vis),
+        botao(f"btnCtCancelar_{s}", txt("Cancelar"), f"{x} + 168", yr + 128, 120, 38,
+              "UpdateContext({locContato: false})", primario=False, Visible=vis),
+    ]
+    return filhos
 
 
 def aba_compromissos(s, yg, filtro_item):
@@ -998,7 +1198,6 @@ def tela_acoes():
         ("Responsável *", ctl(f"cmbResp_{s}", "Classic/ComboBox", {
             "Items": "Choices([@DIL_Acoes].Responsavel_Pessoa)", "DisplayFields": '["DisplayName"]',
             "SearchFields": '["DisplayName", "Email"]', "SelectMultiple": False,
-            "SearchItems": f"Search(Choices([@DIL_Acoes].Responsavel_Pessoa), cmbResp_{s}.SearchText, DisplayName)",
             "InputTextPlaceholder": txt("Buscar pessoa"), "Height": 36, "Size": 10, "BorderColor": "nfCorLinha",
             "Visible": vis_n})),
         ("Prazo *", ctl(f"dtPrazo_{s}", "Classic/DatePicker", {
@@ -1051,7 +1250,7 @@ def tela_agenda():
         filhos.append(rotulo(f"lblDia{i}_{s}", txt(d), f"{X0} + {i} * ({larg_cal}) / 7", yf + 48, f"({larg_cal}) / 7", 24,
                              9, "nfCorSuave", True, Align="Align.Center"))
     yc = yf + 76
-    mesmo_dia = 'Text(Data_Planejada, "yyyymmdd") = Text(ThisItem.Dia, "yyyymmdd")'
+    mesmo_dia = '!Entregue && Text(DataVigente, "yyyymmdd") = Text(ThisItem.Dia, "yyyymmdd")'
     celula = [
         retangulo(f"calFundo_{s}", 1, 1, "Parent.TemplateWidth - 2", "Parent.TemplateHeight - 2",
                   'If(!IsBlank(locDia) && ThisItem.Dia = locDia, RGBA(209, 224, 250, 1), nfCorCartao)',
@@ -1059,9 +1258,9 @@ def tela_agenda():
         rotulo(f"calNum_{s}", "Day(ThisItem.Dia)", 6, 2, 40, 24, 10,
                'If(Month(ThisItem.Dia) <> Month(locMes), nfCorLinha, ThisItem.Dia = Today(), nfCorAzul, nfCorTexto)',
                True, OnSelect="Select(Parent)"),
-        rotulo(f"calQtd_{s}", f'With({{q: CountRows(Filter(colMarcos, {mesmo_dia}))}}, If(q = 0, "", q & If(q = 1, " marco", " marcos")))',
+        rotulo(f"calQtd_{s}", f'With({{q: CountRows(Filter(colCarteira, {mesmo_dia}))}}, If(q = 0, "", q & If(q = 1, " entrega", " entregas")))',
                6, "Parent.TemplateHeight - 28", "Parent.TemplateWidth - 12", 24, 9,
-               f'If(CountRows(Filter(colMarcos, {mesmo_dia} && IsBlank(Data_Realizada) && Data_Planejada < Today())) > 0, nfCorVermelho, nfCorAzul)',
+               f'If(ThisItem.Dia < Today(), nfCorVermelho, nfCorAzul)',
                True, OnSelect="Select(Parent)"),
     ]
     filhos.append(ctl(f"galCalendario_{s}", "Gallery", {
@@ -1071,33 +1270,34 @@ def tela_agenda():
         "OnSelect": "UpdateContext({locDia: ThisItem.Dia})"}, celula, variante="BrowseLayout_Vertical_OneTextVariant_ver5.0"))
     itens = """Sort(
     Filter(
-        colMarcos,
+        colCarteira,
         If(
             IsBlank(locDia),
-            Data_Planejada >= Today() && Data_Planejada <= DateAdd(Today(), 30, TimeUnit.Days),
-            Text(Data_Planejada, "yyyymmdd") = Text(locDia, "yyyymmdd")
+            !Entregue && DataVigente <= DateAdd(Today(), 30, TimeUnit.Days),
+            !Entregue && Text(DataVigente, "yyyymmdd") = Text(locDia, "yyyymmdd")
         )
     ),
-    Data_Planejada
+    DataVigente
 )"""
     linha = [
         retangulo(f"agFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1", "nfCorCartao"),
-        rotulo(f"agData_{s}", data("ThisItem.Data_Planejada", "dd/mm"), 10, 0, 56, "Parent.TemplateHeight", 12,
-               'If(IsBlank(ThisItem.Data_Realizada) && ThisItem.Data_Planejada < Today(), nfCorVermelho, nfCorAzul)', True),
-        rotulo(f"agDesc_{s}", 'Coalesce(ThisItem.Descricao_Marco, "Marco") & Char(10) & "PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO & " · " & Coalesce(ThisItem.Status_Marco.Value, "—")',
+        rotulo(f"agData_{s}", data("ThisItem.DataVigente", "dd/mm"), 10, 0, 56, "Parent.TemplateHeight", 12,
+               cor_situacao("ThisItem.Situacao"), True),
+        rotulo(f"agDesc_{s}", '"PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO & " · " & Coalesce(ThisItem.ItemPO.Nome_Fornecedor, "—") & Char(10) & ThisItem.Motivo & If(IsBlank(ThisItem.DataNegociada), "  (data SAP)", "  (negociada)")',
                70, 0, "Parent.TemplateWidth - 80", "Parent.TemplateHeight", 9, "nfCorTexto"),
     ]
     filhos += [
-        rotulo(f"lblLista_{s}", 'If(IsBlank(locDia), "Próximos 30 dias", "Marcos em " & Text(locDia, "dd/mm/yyyy"))',
+        rotulo(f"lblLista_{s}", 'If(IsBlank(locDia), "Atrasados e próximos 30 dias", "Entregas previstas em " & Text(locDia, "dd/mm/yyyy"))',
                xd, yf, f"{wd} - 120", 36, 13, "nfCorTexto", True),
         botao(f"btnLimpar_{s}", txt("Limpar dia"), f"{xd} + {wd} - 110", yf, 110, 36, "UpdateContext({locDia: Blank()})",
               primario=False, Visible="!IsBlank(locDia)"),
-        galeria(f"galLista_{s}", itens, xd, yf + 48, wd, f"Parent.Height - {yf + 64}", 52, linha),
-        rotulo(f"lblVazio_{s}", txt("Nenhum marco no período."), xd, yf + 56, wd, 28, 10, "nfCorSuave",
+        galeria(f"galLista_{s}", itens, xd, yf + 48, wd, f"Parent.Height - {yf + 64}", 52, linha,
+                OnSelect="Set(gblItem, ThisItem); Navigate(scrDossie, ScreenTransition.None)"),
+        rotulo(f"lblVazio_{s}", txt("Nenhuma entrega prevista no período."), xd, yf + 56, wd, 28, 10, "nfCorSuave",
                Visible=f"IsEmpty(galLista_{s}.AllItems)"),
     ]
     on_visible = "If(IsBlank(locMes), UpdateContext({locMes: Date(Year(Today()), Month(Today()), 1)}))"
-    return tela("agenda", "scrAgenda", "Agenda / Marcos", filhos, on_visible)
+    return tela("agenda", "scrAgenda", "Agenda de entregas", filhos, on_visible)
 
 
 def tela_comunicacoes():
@@ -1195,21 +1395,22 @@ def barras(s, n, titulo, itens, x, y, w, h):
     ]
 
 
-def agrupar(origem, expr_rotulo):
-    return (f'With({{t: AddColumns(GroupBy(AddColumns({origem}, Rotulo, {expr_rotulo}), Rotulo, Itens), Qtd, CountRows(Itens))}}, '
+def agrupar(origem, expr_rotulo, soma=None):
+    medida = f"Sum(Itens, {soma})" if soma else "CountRows(Itens)"
+    return (f'With({{t: AddColumns(GroupBy(AddColumns({origem}, Rotulo, {expr_rotulo}), Rotulo, Itens), Qtd, {medida})}}, '
             f'Sort(AddColumns(t, Max, Max(t, Qtd)), Qtd, SortOrder.Descending))')
 
 
 def tela_gestao():
+    """Painel do gestor: atrasos, antecipações negociadas (ganho em dias) e carga por diligenciador."""
     s = "Gestao"
-    abertas_oc = "Filter(colOcor, !(Status_Ocorrencia.Value in nfOcorFechadas))"
-    abertas_ac = "Filter(colAcoes, !(Status_Acao.Value in nfAcaoFechadas))"
+    aberto = 'Filter(colCarteira, Situacao <> "Entregue")'
     kpis = [
-        ("Itens na carteira", "CountRows(colCarteira)", "nfCorAzul"),
-        ("Ocorrências abertas", f"CountRows({abertas_oc})", "nfCorLaranja"),
-        ("Ações vencidas", f"CountRows(Filter({abertas_ac}, PrazoData < Now()))", "nfCorVermelho"),
-        ("Escalonamentos SLA abertos", f'CountRows(Filter({abertas_ac}, Tipo_Acao.Value = "Escalonamento"))', "nfCorVermelho"),
-        ("E-mails enviados (DIL_10)", "CountRows(colEnvios)", "nfCorVerde"),
+        ("Itens em aberto", f"CountRows({aberto})", "nfCorAzul"),
+        ("Atrasados", 'CountRows(Filter(colCarteira, Situacao = "Atrasado"))', "nfCorVermelho"),
+        ("Entregas em 7 dias", 'CountRows(Filter(colCarteira, Situacao = "Vence em 7 dias"))', "nfCorLaranja"),
+        ("Itens antecipados", "CountRows(Filter(colCarteira, GanhoDias > 0))", "nfCorVerde"),
+        ("Ganho negociado (dias)", "Sum(Filter(colCarteira, GanhoDias > 0), GanhoDias)", "nfCorVerde"),
     ]
     filhos = []
     for i, (t, v, c) in enumerate(kpis):
@@ -1217,18 +1418,19 @@ def tela_gestao():
     y = Y0 + 108
     w = f"({LARG_CONTEUDO} - 32) / 3"
     h = f"Parent.Height - {y + 70}"
-    filhos += barras(s, 1, "Carteira por situação", agrupar("colCarteira", "Situacao"), X0, y, w, h)
-    filhos += barras(s, 2, "Ocorrências abertas por severidade",
-                     agrupar(abertas_oc, 'Coalesce(Severidade.Value, "(sem severidade)")'), f"{X0} + {w} + 16", y, w, h)
-    filhos += barras(s, 3, "Ações pendentes por responsável",
-                     agrupar(abertas_ac, 'Coalesce(Responsavel_Pessoa.DisplayName, Responsavel, "(sem responsável)")'),
+    resp = 'Coalesce(RC.Responsavel_Diligencia.DisplayName, "(sem responsável)")'
+    filhos += barras(s, 1, "Carteira por situação de entrega", agrupar("colCarteira", "Situacao"), X0, y, w, h)
+    filhos += barras(s, 2, "Atrasados por fornecedor",
+                     agrupar('Filter(colCarteira, Situacao = "Atrasado")', 'Coalesce(ItemPO.Nome_Fornecedor, "(sem fornecedor)")'),
+                     f"{X0} + {w} + 16", y, w, h)
+    filhos += barras(s, 3, "Ganho negociado (dias) por diligenciador",
+                     agrupar("Filter(colCarteira, GanhoDias > 0)", resp, soma="GanhoDias"),
                      f"{X0} + 2 * ({w} + 16)", y, w, h)
-    filhos.append(rotulo(f"lblBI_{s}", txt("Escopo: registros ativos carregados no app (limite de delegação). "
-                                           "Tendências e indicadores executivos: relatório Power BI (pendente de publicação)."),
+    filhos.append(rotulo(f"lblBI_{s}", txt("Ganho = remessa SAP − data negociada (dias antecipados). Escopo: registros ativos "
+                                           "carregados no app. Tendências históricas: Power BI (pendente)."),
                          X0, "Parent.Height - 56", LARG_CONTEUDO, 40, 9, "nfCorSuave"))
     filhos += bloqueio(s, "!gblPodeGestao", "Acesso restrito aos perfis Coordenador, Gestor, Auditor e Administrador.")
-    on_visible = None
-    return tela("gestao", "scrGestao", "Visão da gestão", filhos, on_visible)
+    return tela("gestao", "scrGestao", "Visão da gestão", filhos, None)
 
 
 def tela_admin():

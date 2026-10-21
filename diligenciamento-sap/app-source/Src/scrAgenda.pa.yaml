@@ -61,19 +61,71 @@ Screens:
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
-                colCarteira,
+                colCarteiraBase,
                 AddColumns(
                     AddColumns(
-                        colVinc As v,
-                        ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
-                        RC, LookUp(colReq, Numero_RC = v.Numero_RC),
-                        ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                        QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                        QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
-                        QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
-                    ) As c,
-                    Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+                        AddColumns(
+                            colVinc As v,
+                            ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                            RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                            ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                            CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
+                            UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
+                            UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), Data_Comunicacao, SortOrder.Descending)).Assunto,
+                            QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                        ) As a,
+                        DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
+                        DataNegociada, a.CompEntrega.Data_Compromisso,
+                        Entregue, a.CompEntrega.Status_Compromisso.Value = "Cumprido",
+                        PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
+                        LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
+                        DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
+                        SituacaoFisica, If(
+                            StartsWith(a.UltimaMarca, nfMarcaDivergencia), "Recebido — NF com divergência",
+                            StartsWith(a.UltimaMarca, nfMarcaNF), "NF emitida — em trânsito",
+                            a.CompEntrega.Status_Compromisso.Value = "Cumprido", "Entregue",
+                            ""
+                        )
+                    ) As b,
+                    DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
+                    GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days)),
+                    Situacao, If(
+                        b.Entregue, "Entregue",
+                        IsBlank(Coalesce(b.DataNegociada, b.DataSAP)), "Sem data",
+                        Coalesce(b.DataNegociada, b.DataSAP) < Today(), "Atrasado",
+                        Coalesce(b.DataNegociada, b.DataSAP) <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
+                        "Em dia"
+                    )
+                )
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    colCarteiraBase As c,
+                    Urgencia, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", 100,
+                        c.Entregue, 0,
+                        c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.Situacao = "Vence em 7 dias", 700 - DateDiff(Today(), c.DataVigente, TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.QtdAcoesVencidas > 0, 500,
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, 400,
+                        c.DiasSemContato > c.LimiteContato, 300 + Min(c.DiasSemContato, 99),
+                        0
+                    ),
+                    Motivo, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", "Recebido: acompanhar regularização da NF",
+                        c.Entregue, "Entregue",
+                        c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): cobrar nova data",
+                        c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar com o fornecedor",
+                        c.QtdAcoesVencidas > 0, c.QtdAcoesVencidas & " ação(ões) vencida(s)",
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, "Prioridade " & c.RC.Prioridade.Value & ": buscar antecipação",
+                        c.DiasSemContato > c.LimiteContato, If(c.DiasSemContato = 999, "Nenhum contato registrado", "Sem contato há " & c.DiasSemContato & " dias"),
+                        "Em dia"
+                    )
                 )
             );
             Set(gblCarregadoEm, Now());
@@ -146,7 +198,7 @@ Screens:
     - lblTitulo_Agenda:
         Control: Label@2.5.1
         Properties:
-          Text: ="Agenda / Marcos"
+          Text: ="Agenda de entregas"
           X: =240
           Y: =70
           Width: =Parent.Width - 260
@@ -356,20 +408,20 @@ Screens:
         - calQtd_Agenda:
             Control: Label@2.5.1
             Properties:
-              Text: '=With({q: CountRows(Filter(colMarcos, Text(Data_Planejada, "yyyymmdd") = Text(ThisItem.Dia, "yyyymmdd")))}, If(q = 0, "", q & If(q = 1, " marco", " marcos")))'
+              Text: '=With({q: CountRows(Filter(colCarteira, !Entregue && Text(DataVigente, "yyyymmdd") = Text(ThisItem.Dia, "yyyymmdd")))}, If(q = 0, "", q & If(q = 1, " entrega", " entregas")))'
               X: =6
               Y: =Parent.TemplateHeight - 28
               Width: =Parent.TemplateWidth - 12
               Height: =24
               Size: =9
-              Color: =If(CountRows(Filter(colMarcos, Text(Data_Planejada, "yyyymmdd") = Text(ThisItem.Dia, "yyyymmdd") && IsBlank(Data_Realizada) && Data_Planejada < Today())) > 0, nfCorVermelho, nfCorAzul)
+              Color: =If(ThisItem.Dia < Today(), nfCorVermelho, nfCorAzul)
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
               OnSelect: =Select(Parent)
     - lblLista_Agenda:
         Control: Label@2.5.1
         Properties:
-          Text: =If(IsBlank(locDia), "Próximos 30 dias", "Marcos em " & Text(locDia, "dd/mm/yyyy"))
+          Text: =If(IsBlank(locDia), "Atrasados e próximos 30 dias", "Entregas previstas em " & Text(locDia, "dd/mm/yyyy"))
           X: =240 + (Parent.Width - 260) * 0.58 + 16
           Y: =120
           Width: =(Parent.Width - 260) * 0.42 - 16 - 120
@@ -405,14 +457,14 @@ Screens:
           Items: |-
             =Sort(
                 Filter(
-                    colMarcos,
+                    colCarteira,
                     If(
                         IsBlank(locDia),
-                        Data_Planejada >= Today() && Data_Planejada <= DateAdd(Today(), 30, TimeUnit.Days),
-                        Text(Data_Planejada, "yyyymmdd") = Text(locDia, "yyyymmdd")
+                        !Entregue && DataVigente <= DateAdd(Today(), 30, TimeUnit.Days),
+                        !Entregue && Text(DataVigente, "yyyymmdd") = Text(locDia, "yyyymmdd")
                     )
                 ),
-                Data_Planejada
+                DataVigente
             )
           X: =240 + (Parent.Width - 260) * 0.58 + 16
           Y: =168
@@ -421,6 +473,7 @@ Screens:
           TemplateSize: =52
           TemplatePadding: =0
           ShowScrollbar: =true
+          OnSelect: =Set(gblItem, ThisItem); Navigate(scrDossie, ScreenTransition.None)
         Children:
         - agFundo_Agenda:
             Control: Rectangle@2.3.0
@@ -433,19 +486,19 @@ Screens:
         - agData_Agenda:
             Control: Label@2.5.1
             Properties:
-              Text: =If(IsBlank(ThisItem.Data_Planejada), "—", Text(ThisItem.Data_Planejada, "dd/mm"))
+              Text: =If(IsBlank(ThisItem.DataVigente), "—", Text(ThisItem.DataVigente, "dd/mm"))
               X: =10
               Y: =0
               Width: =56
               Height: =Parent.TemplateHeight
               Size: =12
-              Color: =If(IsBlank(ThisItem.Data_Realizada) && ThisItem.Data_Planejada < Today(), nfCorVermelho, nfCorAzul)
+              Color: =Switch(ThisItem.Situacao, "Atrasado", nfCorVermelho, "Vence em 7 dias", nfCorLaranja, "Em dia", nfCorVerde, "Entregue", nfCorAzul, nfCorSuave)
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
         - agDesc_Agenda:
             Control: Label@2.5.1
             Properties:
-              Text: =Coalesce(ThisItem.Descricao_Marco, "Marco") & Char(10) & "PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO & " · " & Coalesce(ThisItem.Status_Marco.Value, "—")
+              Text: ="PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO & " · " & Coalesce(ThisItem.ItemPO.Nome_Fornecedor, "—") & Char(10) & ThisItem.Motivo & If(IsBlank(ThisItem.DataNegociada), "  (data SAP)", "  (negociada)")
               X: =70
               Y: =0
               Width: =Parent.TemplateWidth - 80
@@ -456,7 +509,7 @@ Screens:
     - lblVazio_Agenda:
         Control: Label@2.5.1
         Properties:
-          Text: ="Nenhum marco no período."
+          Text: ="Nenhuma entrega prevista no período."
           X: =240 + (Parent.Width - 260) * 0.58 + 16
           Y: =176
           Width: =(Parent.Width - 260) * 0.42 - 16

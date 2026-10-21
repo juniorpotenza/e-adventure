@@ -40,6 +40,12 @@ Limite destes testes: não resolvem nomes de fontes de dados, tipos reais das co
 | F-07 | Registrar ação vinculada à ocorrência | 1 item em `DIL_Acoes` (`ACAO-APP-…`, Aberta) + histórico; tipo "Escalonamento" não aparece | ⏳ |
 | F-07b | Dossiê > Compromissos > Novo compromisso (Entrega, data D+7) | 1 item em `DIL_Compromissos` (`COMP-APP-…`, Ativo Sim); em até ~2 min o DIL_05 cria `MARCO-COMP-COMP-APP-…` em `DIL_Marcos` e registra Inclusão no histórico; após **Atualizar dados** o marco aparece na Agenda | ⏳ |
 | F-07c | Reprogramar o compromisso para outra data | `Data_Compromisso_Anterior` = data antiga; DIL_05 atualiza a data do marco (sem criar outro) e registra Alteração no histórico | ⏳ |
+| F-20 | Minha fila: conferir motivos e ordem (atrasado > vence em 7 d > ação vencida > prioritário > sem contato) | Itens e motivos corretos | ⏳ |
+| F-21 | Registrar contato "Somente contato" | 1 item em `DIL_Comunicacoes` `COM-APP-…` com Assunto `[Contato] — <meio>`; nenhum e-mail enviado; "último contato" atualiza | ⏳ |
+| F-22 | "Nova data negociada" (antes da remessa SAP) | compromisso de Entrega criado/atualizado com data anterior; ganho = SAP − nova (dias) aparece na fila, carteira e gestão; DIL_05 atualiza o marco | ⏳ |
+| F-23 | "Material entregue" em item atrasado | compromisso `Cumprido`; item sai da fila; DIL_05 conclui o marco e DIL_07 encerra a ocorrência de atraso e suas ações | ⏳ |
+| F-24 | "Chegou com divergência na NF" e depois "Material entregue" | entre os dois, item aparece na fila como "Recebido: acompanhar regularização da NF"; depois sai | ⏳ |
+| F-25 | "NF emitida — material em trânsito" | situação física "NF emitida — em trânsito"; cobrança continua | ⏳ |
 | F-08 | Atualizar andamento sendo/não sendo o responsável | Responsável e coordenação podem; outro diligenciador vê aviso e não edita pelo app | ⏳ |
 | F-09 | Agenda: navegar meses, clicar em dia com marco | Lista filtra o dia; atrasados em vermelho | ⏳ |
 | F-10 | Comunicações: comparar "Enviada pelo DIL_10" com `DIL_Historico` (`Envio_Email`) | Coincidem; não existe botão de envio | ⏳ |

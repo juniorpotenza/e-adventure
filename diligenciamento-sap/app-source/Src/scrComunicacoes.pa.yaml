@@ -60,19 +60,71 @@ Screens:
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
-                colCarteira,
+                colCarteiraBase,
                 AddColumns(
                     AddColumns(
-                        colVinc As v,
-                        ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
-                        RC, LookUp(colReq, Numero_RC = v.Numero_RC),
-                        ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                        QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                        QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
-                        QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
-                    ) As c,
-                    Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+                        AddColumns(
+                            colVinc As v,
+                            ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                            RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                            ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                            CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
+                            UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
+                            UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), Data_Comunicacao, SortOrder.Descending)).Assunto,
+                            QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                        ) As a,
+                        DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
+                        DataNegociada, a.CompEntrega.Data_Compromisso,
+                        Entregue, a.CompEntrega.Status_Compromisso.Value = "Cumprido",
+                        PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
+                        LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
+                        DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
+                        SituacaoFisica, If(
+                            StartsWith(a.UltimaMarca, nfMarcaDivergencia), "Recebido — NF com divergência",
+                            StartsWith(a.UltimaMarca, nfMarcaNF), "NF emitida — em trânsito",
+                            a.CompEntrega.Status_Compromisso.Value = "Cumprido", "Entregue",
+                            ""
+                        )
+                    ) As b,
+                    DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
+                    GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days)),
+                    Situacao, If(
+                        b.Entregue, "Entregue",
+                        IsBlank(Coalesce(b.DataNegociada, b.DataSAP)), "Sem data",
+                        Coalesce(b.DataNegociada, b.DataSAP) < Today(), "Atrasado",
+                        Coalesce(b.DataNegociada, b.DataSAP) <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
+                        "Em dia"
+                    )
+                )
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    colCarteiraBase As c,
+                    Urgencia, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", 100,
+                        c.Entregue, 0,
+                        c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.Situacao = "Vence em 7 dias", 700 - DateDiff(Today(), c.DataVigente, TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.QtdAcoesVencidas > 0, 500,
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, 400,
+                        c.DiasSemContato > c.LimiteContato, 300 + Min(c.DiasSemContato, 99),
+                        0
+                    ),
+                    Motivo, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", "Recebido: acompanhar regularização da NF",
+                        c.Entregue, "Entregue",
+                        c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): cobrar nova data",
+                        c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar com o fornecedor",
+                        c.QtdAcoesVencidas > 0, c.QtdAcoesVencidas & " ação(ões) vencida(s)",
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, "Prioridade " & c.RC.Prioridade.Value & ": buscar antecipação",
+                        c.DiasSemContato > c.LimiteContato, If(c.DiasSemContato = 999, "Nenhum contato registrado", "Sem contato há " & c.DiasSemContato & " dias"),
+                        "Em dia"
+                    )
                 )
             );
             Set(gblCarregadoEm, Now());

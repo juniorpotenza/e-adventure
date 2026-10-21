@@ -24,7 +24,7 @@ Screens:
             );
             Clear(colDosHist);
             ForAll(colDosChaves As k, Collect(colDosHist, Filter(DIL_Historico, Chave_Entidade = k.Chave)));
-            UpdateContext({locAba: Coalesce(locAba, "Resumo")})
+            UpdateContext({locAba: Coalesce(locAba, "Contatos"), locContato: false})
         )
     Children:
     - cabFundo_Dossie:
@@ -82,19 +82,71 @@ Screens:
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
-                colCarteira,
+                colCarteiraBase,
                 AddColumns(
                     AddColumns(
-                        colVinc As v,
-                        ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
-                        RC, LookUp(colReq, Numero_RC = v.Numero_RC),
-                        ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                        QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                        QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
-                        QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
-                    ) As c,
-                    Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+                        AddColumns(
+                            colVinc As v,
+                            ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                            RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                            ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                            CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
+                            UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
+                            UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), Data_Comunicacao, SortOrder.Descending)).Assunto,
+                            QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                        ) As a,
+                        DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
+                        DataNegociada, a.CompEntrega.Data_Compromisso,
+                        Entregue, a.CompEntrega.Status_Compromisso.Value = "Cumprido",
+                        PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
+                        LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
+                        DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
+                        SituacaoFisica, If(
+                            StartsWith(a.UltimaMarca, nfMarcaDivergencia), "Recebido — NF com divergência",
+                            StartsWith(a.UltimaMarca, nfMarcaNF), "NF emitida — em trânsito",
+                            a.CompEntrega.Status_Compromisso.Value = "Cumprido", "Entregue",
+                            ""
+                        )
+                    ) As b,
+                    DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
+                    GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days)),
+                    Situacao, If(
+                        b.Entregue, "Entregue",
+                        IsBlank(Coalesce(b.DataNegociada, b.DataSAP)), "Sem data",
+                        Coalesce(b.DataNegociada, b.DataSAP) < Today(), "Atrasado",
+                        Coalesce(b.DataNegociada, b.DataSAP) <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
+                        "Em dia"
+                    )
+                )
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    colCarteiraBase As c,
+                    Urgencia, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", 100,
+                        c.Entregue, 0,
+                        c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.Situacao = "Vence em 7 dias", 700 - DateDiff(Today(), c.DataVigente, TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.QtdAcoesVencidas > 0, 500,
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, 400,
+                        c.DiasSemContato > c.LimiteContato, 300 + Min(c.DiasSemContato, 99),
+                        0
+                    ),
+                    Motivo, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", "Recebido: acompanhar regularização da NF",
+                        c.Entregue, "Entregue",
+                        c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): cobrar nova data",
+                        c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar com o fornecedor",
+                        c.QtdAcoesVencidas > 0, c.QtdAcoesVencidas & " ação(ões) vencida(s)",
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, "Prioridade " & c.RC.Prioridade.Value & ": buscar antecipação",
+                        c.DiasSemContato > c.LimiteContato, If(c.DiasSemContato = 999, "Nenhum contato registrado", "Sem contato há " & c.DiasSemContato & " dias"),
+                        "Em dia"
+                    )
                 )
             );
             Set(gblCarregadoEm, Now());
@@ -167,7 +219,7 @@ Screens:
     - lblTitulo_Dossie:
         Control: Label@2.5.1
         Properties:
-          Text: ="Dossiê do processo"
+          Text: ="Diligenciar item"
           X: =240
           Y: =70
           Width: =Parent.Width - 260
@@ -182,7 +234,7 @@ Screens:
           X: =240
           Y: =120
           Width: =Parent.Width - 260
-          Height: =84
+          Height: =112
           Fill: =nfCorCartao
           BorderColor: =nfCorLinha
           BorderThickness: =1
@@ -191,53 +243,79 @@ Screens:
         Properties:
           X: =240
           Y: =120
-          Width: =4
-          Height: =84
-          Fill: =Switch(gblItem.Situacao, "Crítico", nfCorVermelho, "Em risco", nfCorLaranja, nfCorVerde)
+          Width: =5
+          Height: =112
+          Fill: =Switch(gblItem.Situacao, "Atrasado", nfCorVermelho, "Vence em 7 dias", nfCorLaranja, "Em dia", nfCorVerde, "Entregue", nfCorAzul, nfCorSuave)
     - dIdent_Dossie:
         Control: Label@2.5.1
         Properties:
-          Text: ="RC " & gblItem.Numero_RC & " / " & gblItem.Item_RC & "   ·   PO " & gblItem.Numero_PO & " / " & gblItem.Item_PO
+          Text: ="PO " & gblItem.Numero_PO & " / " & gblItem.Item_PO & "   ·   RC " & gblItem.Numero_RC & " / " & gblItem.Item_RC & "   ·   " & Coalesce(gblItem.ItemPO.Nome_Fornecedor, "—")
           X: =256
-          Y: =128
-          Width: =Parent.Width - 260 - 420
+          Y: =126
+          Width: =Parent.Width - 260 - 200
           Height: =30
-          Size: =15
+          Size: =14
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - dDesc_Dossie:
         Control: Label@2.5.1
         Properties:
-          Text: =Coalesce(gblItem.ItemPO.Material, "—") & " · " & Coalesce(gblItem.ItemPO.Descricao_Produto, "—") & "  ·  " & Coalesce(gblItem.ItemPO.Nome_Fornecedor, "—")
+          Text: '=Coalesce(gblItem.ItemPO.Material, "—") & " · " & Coalesce(gblItem.ItemPO.Descricao_Produto, "—") & "   ·   prioridade " & Coalesce(gblItem.RC.Prioridade.Value, "—") & "   ·   contato fornecedor: " & Coalesce(locForn.Contato_Principal, "—") & " " & Coalesce(locForn.Telefone, "") & " " & Coalesce(locForn.Email_Principal, "")'
           X: =256
-          Y: =164
-          Width: =Parent.Width - 260 - 420
-          Height: =28
-          Size: =10
+          Y: =156
+          Width: =Parent.Width - 260 - 32
+          Height: =26
+          Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
+    - dDatas_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: '="Remessa SAP: " & If(IsBlank(gblItem.DataSAP), "—", Text(gblItem.DataSAP, "dd/mm/yyyy")) & "     Data negociada: " & If(IsBlank(gblItem.DataNegociada), "—", Text(gblItem.DataNegociada, "dd/mm/yyyy")) & "     Ganho: " & If(IsBlank(gblItem.GanhoDias), "—", If(gblItem.GanhoDias > 0, "+" & gblItem.GanhoDias & " dia(s) antecipado(s)", gblItem.GanhoDias = 0, "0 dia", gblItem.GanhoDias & " dia(s) (postergado)")) & "     Último contato: " & If(gblItem.DiasSemContato = 999, "nenhum", If(IsBlank(gblItem.UltimoContato), "—", Text(gblItem.UltimoContato, "dd/mm/yyyy")) & " (há " & gblItem.DiasSemContato & " d)")'
+          X: =256
+          Y: =182
+          Width: =Parent.Width - 260 - 200
+          Height: =24
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+    - dSitFis_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: '=If(IsBlank(gblItem.SituacaoFisica), "", "Situação física: " & gblItem.SituacaoFisica)'
+          X: =256
+          Y: =206
+          Width: =Parent.Width - 260 - 200
+          Height: =22
+          Size: =9
+          Color: =nfCorAzul
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
     - dSit_Dossie:
         Control: Label@2.5.1
         Properties:
-          Text: =gblItem.Situacao
-          X: =240 + Parent.Width - 260 - 400
-          Y: =128
-          Width: =120
-          Height: =30
-          Size: =13
-          Color: =Switch(gblItem.Situacao, "Crítico", nfCorVermelho, "Em risco", nfCorLaranja, nfCorVerde)
+          Text: =gblItem.Situacao & Char(10) & gblItem.Motivo
+          X: =240 + Parent.Width - 260 - 190
+          Y: =126
+          Width: =180
+          Height: =100
+          Size: =10
+          Color: =Switch(gblItem.Situacao, "Atrasado", nfCorVermelho, "Vence em 7 dias", nfCorLaranja, "Em dia", nfCorVerde, "Entregue", nfCorAzul, nfCorSuave)
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
-    - btnNovaOcor_Dossie:
+          Align: =Align.Right
+          VerticalAlign: =VerticalAlign.Top
+    - btnContato_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
-          Text: ="Registrar ocorrência"
-          X: =240 + Parent.Width - 260 - 270
-          Y: =128
-          Width: =250
-          Height: =32
-          OnSelect: =Set(gblPrefill, gblItem); Set(gblAbrirNova, true); Navigate(scrOcorrencias, ScreenTransition.None)
+          Text: ="Registrar contato / resultado"
+          X: =240
+          Y: =242
+          Width: =260
+          Height: =40
+          OnSelect: '=UpdateContext({locContato: true})'
           Fill: =nfCorAzul
           Color: =nfCorCartao
           HoverFill: =nfCorNavy2
@@ -249,15 +327,35 @@ Screens:
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
           Visible: =gblPodeEditar
+    - btnNovaOcor_Dossie:
+        Control: Classic/Button@2.2.0
+        Properties:
+          Text: ="Registrar problema"
+          X: =512
+          Y: =242
+          Width: =190
+          Height: =40
+          OnSelect: =Set(gblPrefill, gblItem); Set(gblAbrirNova, true); Navigate(scrOcorrencias, ScreenTransition.None)
+          Fill: =nfCorCartao
+          Color: =nfCorAzul
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =gblPodeEditar
     - btnVoltar_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
-          Text: ="‹ Voltar à carteira"
-          X: =240 + Parent.Width - 260 - 270
-          Y: =166
-          Width: =250
-          Height: =30
-          OnSelect: =Navigate(scrCarteira, ScreenTransition.None)
+          Text: ="‹ Voltar à fila"
+          X: =240 + Parent.Width - 260 - 190
+          Y: =242
+          Width: =190
+          Height: =40
+          OnSelect: =Navigate(scrInicio, ScreenTransition.None)
           Fill: =nfCorCartao
           Color: =nfCorAzul
           HoverFill: =nfCorFundo
@@ -271,9 +369,28 @@ Screens:
     - btnAba0_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
-          Text: ="Resumo"
+          Text: ="Contatos"
           X: =240 + 0
-          Y: =216
+          Y: =292
+          Width: =144
+          Height: =34
+          OnSelect: '=UpdateContext({locAba: "Contatos"})'
+          Fill: =If(locAba = "Contatos", nfCorAzul, nfCorCartao)
+          Color: =If(locAba = "Contatos", nfCorCartao, nfCorAzul)
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+    - btnAba1_Dossie:
+        Control: Classic/Button@2.2.0
+        Properties:
+          Text: ="Resumo"
+          X: =240 + 150
+          Y: =292
           Width: =144
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Resumo"})'
@@ -287,12 +404,12 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba1_Dossie:
+    - btnAba2_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Compromissos"
-          X: =240 + 150
-          Y: =216
+          X: =240 + 300
+          Y: =292
           Width: =144
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Compromissos"})'
@@ -306,12 +423,12 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba2_Dossie:
+    - btnAba3_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Marcos"
-          X: =240 + 300
-          Y: =216
+          X: =240 + 450
+          Y: =292
           Width: =144
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Marcos"})'
@@ -325,12 +442,12 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba3_Dossie:
+    - btnAba4_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Ocorrências"
-          X: =240 + 450
-          Y: =216
+          X: =240 + 600
+          Y: =292
           Width: =144
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Ocorrências"})'
@@ -344,12 +461,12 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba4_Dossie:
+    - btnAba5_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Ações"
-          X: =240 + 600
-          Y: =216
+          X: =240 + 750
+          Y: =292
           Width: =144
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Ações"})'
@@ -363,31 +480,12 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba5_Dossie:
-        Control: Classic/Button@2.2.0
-        Properties:
-          Text: ="Comunicações"
-          X: =240 + 750
-          Y: =216
-          Width: =144
-          Height: =34
-          OnSelect: '=UpdateContext({locAba: "Comunicações"})'
-          Fill: =If(locAba = "Comunicações", nfCorAzul, nfCorCartao)
-          Color: =If(locAba = "Comunicações", nfCorCartao, nfCorAzul)
-          HoverFill: =nfCorFundo
-          BorderColor: =nfCorAzul
-          BorderThickness: =1
-          Size: =10
-          RadiusTopLeft: =4
-          RadiusTopRight: =4
-          RadiusBottomLeft: =4
-          RadiusBottomRight: =4
     - btnAba6_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Histórico"
           X: =240 + 900
-          Y: =216
+          Y: =292
           Width: =144
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Histórico"})'
@@ -406,7 +504,7 @@ Screens:
         Properties:
           Text: ="Status de liberação do PO"
           X: =240
-          Y: =262
+          Y: =338
           Width: =220
           Height: =40
           Size: =10
@@ -418,7 +516,7 @@ Screens:
         Properties:
           Text: =Coalesce(gblItem.ItemPO.Status_Liberacao_PO, "—")
           X: =470
-          Y: =262
+          Y: =338
           Width: =340
           Height: =40
           Size: =10
@@ -431,7 +529,7 @@ Screens:
         Properties:
           Text: ="Status EF / EM (SAP)"
           X: =240
-          Y: =306
+          Y: =382
           Width: =220
           Height: =40
           Size: =10
@@ -443,7 +541,7 @@ Screens:
         Properties:
           Text: =Coalesce(gblItem.ItemPO.Status_EF, "—") & " / " & Coalesce(gblItem.ItemPO.Status_EM, "—")
           X: =470
-          Y: =306
+          Y: =382
           Width: =340
           Height: =40
           Size: =10
@@ -456,7 +554,7 @@ Screens:
         Properties:
           Text: ="Data 1ª remessa (SAP)"
           X: =240
-          Y: =350
+          Y: =426
           Width: =220
           Height: =40
           Size: =10
@@ -468,7 +566,7 @@ Screens:
         Properties:
           Text: =If(IsBlank(gblItem.ItemPO.Data_1_Remessa_Item_SAP), "—", Text(gblItem.ItemPO.Data_1_Remessa_Item_SAP, "dd/mm/yyyy"))
           X: =470
-          Y: =350
+          Y: =426
           Width: =340
           Height: =40
           Size: =10
@@ -481,7 +579,7 @@ Screens:
         Properties:
           Text: ="Código do fornecedor"
           X: =240
-          Y: =394
+          Y: =470
           Width: =220
           Height: =40
           Size: =10
@@ -493,7 +591,7 @@ Screens:
         Properties:
           Text: =Coalesce(gblItem.ItemPO.Codigo_Fornecedor, "—")
           X: =470
-          Y: =394
+          Y: =470
           Width: =340
           Height: =40
           Size: =10
@@ -506,7 +604,7 @@ Screens:
         Properties:
           Text: ="Ocorrências abertas"
           X: =240
-          Y: =438
+          Y: =514
           Width: =220
           Height: =40
           Size: =10
@@ -518,7 +616,7 @@ Screens:
         Properties:
           Text: =gblItem.QtdOcorrAbertas
           X: =470
-          Y: =438
+          Y: =514
           Width: =340
           Height: =40
           Size: =10
@@ -531,7 +629,7 @@ Screens:
         Properties:
           Text: ="Ações pendentes"
           X: =240
-          Y: =482
+          Y: =558
           Width: =220
           Height: =40
           Size: =10
@@ -543,7 +641,7 @@ Screens:
         Properties:
           Text: =gblItem.QtdAcoesPend
           X: =470
-          Y: =482
+          Y: =558
           Width: =340
           Height: =40
           Size: =10
@@ -556,7 +654,7 @@ Screens:
         Properties:
           Text: ="Marcos atrasados"
           X: =240
-          Y: =526
+          Y: =602
           Width: =220
           Height: =40
           Size: =10
@@ -568,7 +666,7 @@ Screens:
         Properties:
           Text: =gblItem.QtdMarcosAtrasados
           X: =470
-          Y: =526
+          Y: =602
           Width: =340
           Height: =40
           Size: =10
@@ -581,7 +679,7 @@ Screens:
         Properties:
           Text: ="Tipo / origem do vínculo RC×PO"
           X: =240
-          Y: =570
+          Y: =646
           Width: =220
           Height: =40
           Size: =10
@@ -593,7 +691,7 @@ Screens:
         Properties:
           Text: =Coalesce(gblItem.Tipo_Vinculo.Value, "—") & " / " & Coalesce(gblItem.Origem_Vinculo.Value, "—")
           X: =470
-          Y: =570
+          Y: =646
           Width: =340
           Height: =40
           Size: =10
@@ -606,7 +704,7 @@ Screens:
         Properties:
           Text: ="Responsável pela diligência"
           X: =840
-          Y: =262
+          Y: =338
           Width: =220
           Height: =40
           Size: =10
@@ -618,7 +716,7 @@ Screens:
         Properties:
           Text: =Coalesce(gblItem.RC.Responsavel_Diligencia.DisplayName, "—")
           X: =1070
-          Y: =262
+          Y: =338
           Width: =Parent.Width - 260 - 830
           Height: =40
           Size: =10
@@ -631,7 +729,7 @@ Screens:
         Properties:
           Text: ="Prioridade / risco (RC)"
           X: =840
-          Y: =306
+          Y: =382
           Width: =220
           Height: =40
           Size: =10
@@ -643,7 +741,7 @@ Screens:
         Properties:
           Text: =Coalesce(gblItem.RC.Prioridade.Value, "—") & " / " & Coalesce(gblItem.RC.Nivel_Risco.Value, "—")
           X: =1070
-          Y: =306
+          Y: =382
           Width: =Parent.Width - 260 - 830
           Height: =40
           Size: =10
@@ -656,7 +754,7 @@ Screens:
         Properties:
           Text: ="Status / criação da RC"
           X: =840
-          Y: =350
+          Y: =426
           Width: =220
           Height: =40
           Size: =10
@@ -668,7 +766,7 @@ Screens:
         Properties:
           Text: =Coalesce(gblItem.RC.Status_RC, "—") & " / " & If(IsBlank(gblItem.RC.Data_Criacao_RC), "—", Text(gblItem.RC.Data_Criacao_RC, "dd/mm/yyyy"))
           X: =1070
-          Y: =350
+          Y: =426
           Width: =Parent.Width - 260 - 830
           Height: =40
           Size: =10
@@ -681,7 +779,7 @@ Screens:
         Properties:
           Text: '="Item RC: utilização / avaliação"'
           X: =840
-          Y: =394
+          Y: =470
           Width: =220
           Height: =40
           Size: =10
@@ -693,7 +791,7 @@ Screens:
         Properties:
           Text: =Coalesce(gblItem.ItemRC.Utilizacao_Material, "—") & " / " & Coalesce(gblItem.ItemRC.Tipo_Avaliacao, "—")
           X: =1070
-          Y: =394
+          Y: =470
           Width: =Parent.Width - 260 - 830
           Height: =40
           Size: =10
@@ -706,7 +804,7 @@ Screens:
         Properties:
           Text: ="Fornecedor / CNPJ"
           X: =840
-          Y: =438
+          Y: =514
           Width: =220
           Height: =40
           Size: =10
@@ -718,7 +816,7 @@ Screens:
         Properties:
           Text: =Coalesce(locForn.Nome_Fornecedor, gblItem.ItemPO.Nome_Fornecedor, "—") & " / " & Coalesce(locForn.CNPJ, "—")
           X: =1070
-          Y: =438
+          Y: =514
           Width: =Parent.Width - 260 - 830
           Height: =40
           Size: =10
@@ -731,7 +829,7 @@ Screens:
         Properties:
           Text: ="Contato / telefone"
           X: =840
-          Y: =482
+          Y: =558
           Width: =220
           Height: =40
           Size: =10
@@ -743,7 +841,7 @@ Screens:
         Properties:
           Text: =Coalesce(locForn.Contato_Principal, "—") & " / " & Coalesce(locForn.Telefone, "—")
           X: =1070
-          Y: =482
+          Y: =558
           Width: =Parent.Width - 260 - 830
           Height: =40
           Size: =10
@@ -756,7 +854,7 @@ Screens:
         Properties:
           Text: ="E-mail do fornecedor"
           X: =840
-          Y: =526
+          Y: =602
           Width: =220
           Height: =40
           Size: =10
@@ -768,7 +866,7 @@ Screens:
         Properties:
           Text: =Coalesce(locForn.Email_Principal, "—")
           X: =1070
-          Y: =526
+          Y: =602
           Width: =Parent.Width - 260 - 830
           Height: =40
           Size: =10
@@ -781,7 +879,7 @@ Screens:
         Properties:
           Text: ="Status / risco do fornecedor"
           X: =840
-          Y: =570
+          Y: =646
           Width: =220
           Height: =40
           Size: =10
@@ -793,7 +891,7 @@ Screens:
         Properties:
           Text: =Coalesce(locForn.Status_Fornecedor.Value, "—") & " / " & Coalesce(locForn.Nivel_Risco_Fornecedor.Value, "—")
           X: =1070
-          Y: =570
+          Y: =646
           Width: =Parent.Width - 260 - 830
           Height: =40
           Size: =10
@@ -807,9 +905,9 @@ Screens:
         Properties:
           Items: =Sort(colDosMarcos, Data_Planejada)
           X: =240
-          Y: =262
+          Y: =338
           Width: =Parent.Width - 260
-          Height: =Parent.Height - 278
+          Height: =Parent.Height - 354
           TemplateSize: =56
           TemplatePadding: =0
           ShowScrollbar: =true
@@ -875,9 +973,9 @@ Screens:
         Properties:
           Items: =Sort(colDosOcor, Data_Ocorrencia, SortOrder.Descending)
           X: =240
-          Y: =262
+          Y: =338
           Width: =Parent.Width - 260
-          Height: =Parent.Height - 278
+          Height: =Parent.Height - 354
           TemplateSize: =56
           TemplatePadding: =0
           ShowScrollbar: =true
@@ -943,9 +1041,9 @@ Screens:
         Properties:
           Items: =Sort(colDosAcoes, PrazoData)
           X: =240
-          Y: =262
+          Y: =338
           Width: =Parent.Width - 260
-          Height: =Parent.Height - 278
+          Height: =Parent.Height - 354
           TemplateSize: =56
           TemplatePadding: =0
           ShowScrollbar: =true
@@ -1011,13 +1109,13 @@ Screens:
         Properties:
           Items: =Sort(colDosComun, Data_Comunicacao, SortOrder.Descending)
           X: =240
-          Y: =262
+          Y: =338
           Width: =Parent.Width - 260
-          Height: =Parent.Height - 278
-          TemplateSize: =56
+          Height: =Parent.Height - 354
+          TemplateSize: =66
           TemplatePadding: =0
           ShowScrollbar: =true
-          Visible: =locAba = "Comunicações"
+          Visible: =locAba = "Contatos"
         Children:
         - dcFundo_Dossie:
             Control: Rectangle@2.3.0
@@ -1030,46 +1128,59 @@ Screens:
         - dcData_Dossie:
             Control: Label@2.5.1
             Properties:
-              Text: =If(IsBlank(ThisItem.Data_Comunicacao), "—", Text(ThisItem.Data_Comunicacao, "dd/mm/yyyy hh:mm"))
+              Text: =If(IsBlank(ThisItem.Data_Comunicacao), "—", Text(ThisItem.Data_Comunicacao, "dd/mm/yyyy"))
               X: =12
-              Y: =0
-              Width: =120
-              Height: =Parent.TemplateHeight
-              Size: =9
-              Color: =nfCorTexto
+              Y: =4
+              Width: =90
+              Height: =24
+              Size: =10
+              Color: =nfCorAzul
               Font: =Font.'Segoe UI'
+              FontWeight: =FontWeight.Semibold
         - dcAssunto_Dossie:
             Control: Label@2.5.1
             Properties:
-              Text: =Coalesce(ThisItem.Assunto, "—")
-              X: =136
-              Y: =0
-              Width: =Parent.TemplateWidth - 400
-              Height: =Parent.TemplateHeight
+              Text: =Coalesce(ThisItem.Assunto, "—") & "  ·  " & Coalesce(ThisItem.Tipo_Comunicacao.Value, "—") & " / " & Coalesce(ThisItem.Sentido.Value, "—")
+              X: =106
+              Y: =4
+              Width: =Parent.TemplateWidth - 330
+              Height: =24
               Size: =10
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
-        - dcEnvio_Dossie:
+        - dcResumo_Dossie:
             Control: Label@2.5.1
             Properties:
-              Text: =If(IsBlank(LookUp(colEnvios, Chave_Entidade = ThisItem.Chave_Comunicacao)), "Sem registro de envio", "E-mail enviado (DIL_10)")
-              X: =Parent.TemplateWidth - 250
-              Y: =0
-              Width: =240
-              Height: =Parent.TemplateHeight
+              Text: =Coalesce(ThisItem.Resumo, "")
+              X: =106
+              Y: =30
+              Width: =Parent.TemplateWidth - 330
+              Height: =30
+              Size: =9
+              Color: =nfCorTexto
+              Font: =Font.'Segoe UI'
+        - dcQuem_Dossie:
+            Control: Label@2.5.1
+            Properties:
+              Text: =If(StartsWith(ThisItem.Chave_Comunicacao, "COM-SLA-"), If(IsBlank(LookUp(colEnvios, Chave_Entidade = ThisItem.Chave_Comunicacao)), "Escalonamento automático (aguardando DIL_10)", "E-mail automático enviado (DIL_10)"), "Registrado por " & Coalesce(ThisItem.Responsavel_Pessoa.DisplayName, ThisItem.Responsavel, "—"))
+              X: =Parent.TemplateWidth - 220
+              Y: =4
+              Width: =210
+              Height: =56
               Size: =9
               Color: =nfCorSuave
               Font: =Font.'Segoe UI'
+              Align: =Align.Right
     - galHist_Dossie:
         Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
           Items: =Sort(colDosHist, Data_Evento, SortOrder.Descending)
           X: =240
-          Y: =262
+          Y: =338
           Width: =Parent.Width - 260
-          Height: =Parent.Height - 278
+          Height: =Parent.Height - 354
           TemplateSize: =60
           TemplatePadding: =0
           ShowScrollbar: =true
@@ -1123,9 +1234,9 @@ Screens:
         Properties:
           Items: =Sort(colDosComp, Data_Compromisso, SortOrder.Descending)
           X: =240
-          Y: =262
+          Y: =338
           Width: =(Parent.Width - 260) * 0.6
-          Height: =Parent.Height - 278
+          Height: =Parent.Height - 354
           TemplateSize: =60
           TemplatePadding: =0
           ShowScrollbar: =true
@@ -1191,7 +1302,7 @@ Screens:
         Properties:
           Text: ="Nenhum compromisso registrado para este item."
           X: =240
-          Y: =270
+          Y: =346
           Width: =(Parent.Width - 260) * 0.6
           Height: =28
           Size: =10
@@ -1202,9 +1313,9 @@ Screens:
         Control: Rectangle@2.3.0
         Properties:
           X: =240 + (Parent.Width - 260) * 0.6 + 16
-          Y: =262
+          Y: =338
           Width: =(Parent.Width - 260) * 0.4 - 16
-          Height: =Parent.Height - 278
+          Height: =Parent.Height - 354
           Fill: =nfCorCartao
           BorderColor: =nfCorAzul
           BorderThickness: =1
@@ -1214,7 +1325,7 @@ Screens:
         Properties:
           Text: ="Novo compromisso"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
-          Y: =274
+          Y: =350
           Width: =160
           Height: =32
           OnSelect: '=UpdateContext({locCompModo: "novo"})'
@@ -1234,7 +1345,7 @@ Screens:
         Properties:
           Text: ="Reprogramar selecionado"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 186
-          Y: =274
+          Y: =350
           Width: =200
           Height: =32
           OnSelect: '=UpdateContext({locCompModo: "reprogramar"})'
@@ -1254,7 +1365,7 @@ Screens:
         Properties:
           Text: '=If(locCompModo = "reprogramar", "Nova data para: " & Coalesce(galComp_Dossie.Selected.Tipo_Compromisso.Value, "") & " de " & If(IsBlank(galComp_Dossie.Selected.Data_Compromisso), "—", Text(galComp_Dossie.Selected.Data_Compromisso, "dd/mm/yyyy")), "Registrar novo compromisso do fornecedor")'
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
-          Y: =314
+          Y: =390
           Width: =(Parent.Width - 260) * 0.4 - 16 - 32
           Height: =28
           Size: =10
@@ -1267,7 +1378,7 @@ Screens:
         Properties:
           Text: ="Tipo *"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
-          Y: =350
+          Y: =426
           Width: =90
           Height: =36
           Size: =9
@@ -1279,7 +1390,7 @@ Screens:
         Properties:
           Items: =Choices([@DIL_Compromissos].Tipo_Compromisso)
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
-          Y: =350
+          Y: =426
           Width: =(Parent.Width - 260) * 0.4 - 16 - 126
           Height: =36
           Size: =10
@@ -1290,7 +1401,7 @@ Screens:
         Properties:
           Text: ="Origem *"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
-          Y: =396
+          Y: =472
           Width: =90
           Height: =36
           Size: =9
@@ -1302,7 +1413,7 @@ Screens:
         Properties:
           Items: =Choices([@DIL_Compromissos].Origem_Compromisso)
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
-          Y: =396
+          Y: =472
           Width: =(Parent.Width - 260) * 0.4 - 16 - 126
           Height: =36
           Size: =10
@@ -1313,7 +1424,7 @@ Screens:
         Properties:
           Text: ="Status *"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
-          Y: =442
+          Y: =518
           Width: =90
           Height: =36
           Size: =9
@@ -1325,7 +1436,7 @@ Screens:
         Properties:
           Items: =Choices([@DIL_Compromissos].Status_Compromisso)
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
-          Y: =442
+          Y: =518
           Width: =(Parent.Width - 260) * 0.4 - 16 - 126
           Height: =36
           Size: =10
@@ -1337,7 +1448,7 @@ Screens:
         Properties:
           Text: ="Data *"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
-          Y: =488
+          Y: =564
           Width: =90
           Height: =36
           Size: =9
@@ -1353,7 +1464,7 @@ Screens:
           BorderColor: =nfCorLinha
           Visible: =locAba = "Compromissos" && gblPodeEditar
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
-          Y: =488
+          Y: =564
           Width: =(Parent.Width - 260) * 0.4 - 16 - 126
     - txtObsComp_Dossie:
         Control: Classic/TextInput@2.3.2
@@ -1361,7 +1472,7 @@ Screens:
           Default: =If(locCompModo = "reprogramar", galComp_Dossie.Selected.Observacao, "")
           HintText: '="Observação (ex.: confirmado por e-mail do fornecedor)"'
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
-          Y: =534
+          Y: =610
           Width: =(Parent.Width - 260) * 0.4 - 16 - 32
           Height: =70
           Size: =10
@@ -1373,7 +1484,7 @@ Screens:
         Properties:
           Text: ="Gravar compromisso"
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
-          Y: =616
+          Y: =692
           Width: =190
           Height: =36
           OnSelect: |-
@@ -1430,19 +1541,71 @@ Screens:
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
-                colCarteira,
+                colCarteiraBase,
                 AddColumns(
                     AddColumns(
-                        colVinc As v,
-                        ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
-                        RC, LookUp(colReq, Numero_RC = v.Numero_RC),
-                        ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                        QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                        QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
-                        QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
-                    ) As c,
-                    Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+                        AddColumns(
+                            colVinc As v,
+                            ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                            RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                            ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                            CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
+                            UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
+                            UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), Data_Comunicacao, SortOrder.Descending)).Assunto,
+                            QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                        ) As a,
+                        DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
+                        DataNegociada, a.CompEntrega.Data_Compromisso,
+                        Entregue, a.CompEntrega.Status_Compromisso.Value = "Cumprido",
+                        PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
+                        LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
+                        DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
+                        SituacaoFisica, If(
+                            StartsWith(a.UltimaMarca, nfMarcaDivergencia), "Recebido — NF com divergência",
+                            StartsWith(a.UltimaMarca, nfMarcaNF), "NF emitida — em trânsito",
+                            a.CompEntrega.Status_Compromisso.Value = "Cumprido", "Entregue",
+                            ""
+                        )
+                    ) As b,
+                    DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
+                    GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days)),
+                    Situacao, If(
+                        b.Entregue, "Entregue",
+                        IsBlank(Coalesce(b.DataNegociada, b.DataSAP)), "Sem data",
+                        Coalesce(b.DataNegociada, b.DataSAP) < Today(), "Atrasado",
+                        Coalesce(b.DataNegociada, b.DataSAP) <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
+                        "Em dia"
+                    )
+                )
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    colCarteiraBase As c,
+                    Urgencia, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", 100,
+                        c.Entregue, 0,
+                        c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.Situacao = "Vence em 7 dias", 700 - DateDiff(Today(), c.DataVigente, TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.QtdAcoesVencidas > 0, 500,
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, 400,
+                        c.DiasSemContato > c.LimiteContato, 300 + Min(c.DiasSemContato, 99),
+                        0
+                    ),
+                    Motivo, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", "Recebido: acompanhar regularização da NF",
+                        c.Entregue, "Entregue",
+                        c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): cobrar nova data",
+                        c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar com o fornecedor",
+                        c.QtdAcoesVencidas > 0, c.QtdAcoesVencidas & " ação(ões) vencida(s)",
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, "Prioridade " & c.RC.Prioridade.Value & ": buscar antecipação",
+                        c.DiasSemContato > c.LimiteContato, If(c.DiasSemContato = 999, "Nenhum contato registrado", "Sem contato há " & c.DiasSemContato & " dias"),
+                        "Em dia"
+                    )
                 )
             );
             Set(gblCarregadoEm, Now());
@@ -1466,13 +1629,380 @@ Screens:
         Properties:
           Text: ="O marco correspondente (MARCO-COMP-…) é criado/atualizado pelo fluxo DIL_05, que também registra o histórico."
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 16
-          Y: =660
+          Y: =736
           Width: =(Parent.Width - 260) * 0.4 - 16 - 32
           Height: =44
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Compromissos" && gblPodeEditar
+    - ctFundo_Dossie:
+        Control: Rectangle@2.3.0
+        Properties:
+          X: =240 + (Parent.Width - 260) * 0.42
+          Y: =292
+          Width: =(Parent.Width - 260) * 0.58
+          Height: =Parent.Height - 308
+          Fill: =nfCorCartao
+          BorderColor: =nfCorAzul
+          BorderThickness: =2
+          Visible: =locContato
+    - ctTitulo_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: ="Registrar contato com o fornecedor"
+          X: =240 + (Parent.Width - 260) * 0.42 + 16
+          Y: =300
+          Width: =(Parent.Width - 260) * 0.58 - 32
+          Height: =30
+          Size: =13
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locContato
+    - ctT0_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: ="Resultado *"
+          X: =240 + (Parent.Width - 260) * 0.42 + 16
+          Y: =338
+          Width: =120
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locContato
+    - ddResultado_Dossie:
+        Control: Classic/DropDown@2.3.1
+        Properties:
+          Items: =["Somente contato (sem mudança)", "Nova data negociada", "Material entregue", "Chegou com divergência na NF", "NF emitida — material em trânsito"]
+          X: =240 + (Parent.Width - 260) * 0.42 + 140
+          Y: =338
+          Width: =(Parent.Width - 260) * 0.58 - 156
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locContato
+    - ctT1_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: ="Meio *"
+          X: =240 + (Parent.Width - 260) * 0.42 + 16
+          Y: =382
+          Width: =120
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locContato
+    - ddMeio_Dossie:
+        Control: Classic/DropDown@2.3.1
+        Properties:
+          Items: =Choices([@DIL_Comunicacoes].Tipo_Comunicacao)
+          X: =240 + (Parent.Width - 260) * 0.42 + 140
+          Y: =382
+          Width: =(Parent.Width - 260) * 0.58 - 156
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locContato
+    - ctT2_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: ="Sentido *"
+          X: =240 + (Parent.Width - 260) * 0.42 + 16
+          Y: =426
+          Width: =120
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locContato
+    - ddSentido_Dossie:
+        Control: Classic/DropDown@2.3.1
+        Properties:
+          Items: =Choices([@DIL_Comunicacoes].Sentido)
+          X: =240 + (Parent.Width - 260) * 0.42 + 140
+          Y: =426
+          Width: =(Parent.Width - 260) * 0.58 - 156
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locContato
+    - ctT3_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: =Switch(ddResultado_Dossie.Selected.Value, "Nova data negociada", "Nova data *", "Material entregue", "Data da chegada *", "Chegou com divergência na NF", "Data da chegada *", "NF emitida — material em trânsito", "Data da NF *", "")
+          X: =240 + (Parent.Width - 260) * 0.42 + 16
+          Y: =470
+          Width: =120
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locContato && ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)"
+    - dtResultado_Dossie:
+        Control: Classic/DatePicker@2.6.0
+        Properties:
+          DefaultDate: =If(ddResultado_Dossie.Selected.Value = "Nova data negociada" && !IsBlank(gblItem.DataVigente), gblItem.DataVigente, Today())
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          Visible: =locContato && ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)"
+          X: =240 + (Parent.Width - 260) * 0.42 + 140
+          Y: =470
+          Width: =(Parent.Width - 260) * 0.58 - 156
+    - txtResumo_Dossie:
+        Control: Classic/TextInput@2.3.2
+        Properties:
+          Default: =""
+          HintText: '="O que foi tratado (ex.: fornecedor confirmou embarque; pedida antecipação por criticidade)"'
+          X: =240 + (Parent.Width - 260) * 0.42 + 16
+          Y: =514
+          Width: =(Parent.Width - 260) * 0.58 - 32
+          Height: =80
+          Size: =10
+          BorderColor: =nfCorLinha
+          Mode: =TextMode.MultiLine
+          Visible: =locContato
+    - ctAjuda_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: '=Switch(ddResultado_Dossie.Selected.Value, "Nova data negociada", "Atualiza a data do compromisso de entrega; o ganho é calculado contra a remessa SAP.", "Material entregue", "Marca o compromisso como Cumprido: a cobrança para e a ocorrência de atraso é encerrada pelo fluxo.", "Chegou com divergência na NF", "Material recebido fisicamente; fica sinalizado até registrar ""Material entregue"" após a regularização da NF.", "NF emitida — material em trânsito", "Registra a NF; a cobrança continua até a chegada do material.", "Registra apenas o contato.")'
+          X: =240 + (Parent.Width - 260) * 0.42 + 16
+          Y: =600
+          Width: =(Parent.Width - 260) * 0.58 - 32
+          Height: =36
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locContato
+    - btnCtSalvar_Dossie:
+        Control: Classic/Button@2.2.0
+        Properties:
+          Text: ="Gravar"
+          X: =240 + (Parent.Width - 260) * 0.42 + 16
+          Y: =642
+          Width: =140
+          Height: =38
+          OnSelect: |-
+            =If(
+                IsBlank(Trim(txtResumo_Dossie.Text)) || IsBlank(ddMeio_Dossie.Selected) || IsBlank(ddSentido_Dossie.Selected),
+                Notify("Informe meio, sentido e o resumo do contato.", NotificationType.Error),
+                ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)" && IsBlank(dtResultado_Dossie.SelectedDate),
+                Notify("Informe a data do resultado.", NotificationType.Error),
+                IfError(
+                    Patch(
+                    DIL_Comunicacoes,
+                    Defaults(DIL_Comunicacoes),
+                    {
+                        Chave_Comunicacao: "COM-APP-" & Text(Now(), "yyyymmddhhmmss") & "-" & Text(RandBetween(100, 999)),
+                        Numero_RC: gblItem.Numero_RC, Item_RC: gblItem.Item_RC,
+                        Numero_PO: gblItem.Numero_PO, Item_PO: gblItem.Item_PO,
+                        Codigo_Fornecedor: gblItem.ItemPO.Codigo_Fornecedor,
+                        Tipo_Comunicacao: ddMeio_Dossie.Selected,
+                        Data_Comunicacao: Today(),
+                        Sentido: ddSentido_Dossie.Selected,
+                        Assunto: Switch(ddResultado_Dossie.Selected.Value, "Nova data negociada", nfMarcaNovaData, "Material entregue", nfMarcaEntregue, "Chegou com divergência na NF", nfMarcaDivergencia, "NF emitida — material em trânsito", nfMarcaNF, nfMarcaContato) & If(ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)", " " & Text(dtResultado_Dossie.SelectedDate, "dd/mm/yyyy"), "") & " — " & ddMeio_Dossie.Selected.Value,
+                        Resumo: Trim(txtResumo_Dossie.Text),
+                        Responsavel: User().FullName,
+                        Responsavel_Pessoa: nfPessoaAtual,
+                        Ativo: true
+                    }
+                ),
+                    Notify("Não foi possível gravar o contato: " & FirstError.Message, NotificationType.Error),
+                    If(
+                    ddResultado_Dossie.Selected.Value = "Nova data negociada" && IsBlank(gblItem.CompEntrega), Patch(
+                        DIL_Compromissos,
+                        Defaults(DIL_Compromissos),
+                        {
+                            Chave_Compromisso: "COMP-APP-" & Text(Now(), "yyyymmddhhmmss") & "-" & Text(RandBetween(100, 999)),
+                            Numero_RC: gblItem.Numero_RC, Item_RC: gblItem.Item_RC,
+                            Numero_PO: gblItem.Numero_PO, Item_PO: gblItem.Item_PO,
+                            Codigo_Fornecedor: gblItem.ItemPO.Codigo_Fornecedor,
+                            Tipo_Compromisso: {Value: "Entrega"},
+                            Data_Compromisso: dtResultado_Dossie.SelectedDate,
+                            Origem_Compromisso: {Value: "Fornecedor"},
+                            Status_Compromisso: {Value: "Aberto"},
+                            Data_Registro: Now(),
+                            Responsavel_Registro: User().FullName,
+                            Responsavel_Registro_Pessoa: nfPessoaAtual,
+                            Observacao: Switch(ddResultado_Dossie.Selected.Value, "Nova data negociada", nfMarcaNovaData, "Material entregue", nfMarcaEntregue, "Chegou com divergência na NF", nfMarcaDivergencia, "NF emitida — material em trânsito", nfMarcaNF, nfMarcaContato) & If(ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)", " " & Text(dtResultado_Dossie.SelectedDate, "dd/mm/yyyy"), "") & " — " & ddMeio_Dossie.Selected.Value,
+                            Ativo: true
+                        }
+                    ),
+                    ddResultado_Dossie.Selected.Value = "Nova data negociada",
+                    Patch(
+                        DIL_Compromissos,
+                        LookUp(DIL_Compromissos, ID = gblItem.CompEntrega.ID),
+                        {
+                            Data_Compromisso_Anterior: gblItem.CompEntrega.Data_Compromisso,
+                            Data_Compromisso: dtResultado_Dossie.SelectedDate,
+                            Status_Compromisso: {Value: "Aberto"},
+                            Observacao: Switch(ddResultado_Dossie.Selected.Value, "Nova data negociada", nfMarcaNovaData, "Material entregue", nfMarcaEntregue, "Chegou com divergência na NF", nfMarcaDivergencia, "NF emitida — material em trânsito", nfMarcaNF, nfMarcaContato) & If(ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)", " " & Text(dtResultado_Dossie.SelectedDate, "dd/mm/yyyy"), "") & " — " & ddMeio_Dossie.Selected.Value
+                        }
+                    ),
+                    ddResultado_Dossie.Selected.Value in ["Material entregue", "Chegou com divergência na NF"] && IsBlank(gblItem.CompEntrega), Patch(
+                        DIL_Compromissos,
+                        Defaults(DIL_Compromissos),
+                        {
+                            Chave_Compromisso: "COMP-APP-" & Text(Now(), "yyyymmddhhmmss") & "-" & Text(RandBetween(100, 999)),
+                            Numero_RC: gblItem.Numero_RC, Item_RC: gblItem.Item_RC,
+                            Numero_PO: gblItem.Numero_PO, Item_PO: gblItem.Item_PO,
+                            Codigo_Fornecedor: gblItem.ItemPO.Codigo_Fornecedor,
+                            Tipo_Compromisso: {Value: "Entrega"},
+                            Data_Compromisso: dtResultado_Dossie.SelectedDate,
+                            Origem_Compromisso: {Value: "Fornecedor"},
+                            Status_Compromisso: {Value: "Cumprido"},
+                            Data_Registro: Now(),
+                            Responsavel_Registro: User().FullName,
+                            Responsavel_Registro_Pessoa: nfPessoaAtual,
+                            Observacao: Switch(ddResultado_Dossie.Selected.Value, "Nova data negociada", nfMarcaNovaData, "Material entregue", nfMarcaEntregue, "Chegou com divergência na NF", nfMarcaDivergencia, "NF emitida — material em trânsito", nfMarcaNF, nfMarcaContato) & If(ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)", " " & Text(dtResultado_Dossie.SelectedDate, "dd/mm/yyyy"), "") & " — " & ddMeio_Dossie.Selected.Value,
+                            Ativo: true
+                        }
+                    ),
+                    ddResultado_Dossie.Selected.Value in ["Material entregue", "Chegou com divergência na NF"],
+                    Patch(
+                        DIL_Compromissos,
+                        LookUp(DIL_Compromissos, ID = gblItem.CompEntrega.ID),
+                        {Status_Compromisso: {Value: "Cumprido"}, Observacao: Switch(ddResultado_Dossie.Selected.Value, "Nova data negociada", nfMarcaNovaData, "Material entregue", nfMarcaEntregue, "Chegou com divergência na NF", nfMarcaDivergencia, "NF emitida — material em trânsito", nfMarcaNF, nfMarcaContato) & If(ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)", " " & Text(dtResultado_Dossie.SelectedDate, "dd/mm/yyyy"), "") & " — " & ddMeio_Dossie.Selected.Value}
+                    )
+                ),
+                    Notify("Contato gravado, mas o compromisso não foi atualizado: " & FirstError.Message, NotificationType.Warning),
+                    Notify(If(ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)" && ddResultado_Dossie.Selected.Value <> "NF emitida — material em trânsito", "Contato e compromisso gravados. O marco é atualizado pelo DIL_05 em instantes.", "Contato registrado."), NotificationType.Success);
+                    Concurrent(
+                ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
+                ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
+                ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
+                ClearCollect(colAcoes, AddColumns(Filter(DIL_Acoes, Ativo = true), PrazoData, IfError(DateTimeValue(Prazo), Blank()))),
+                ClearCollect(colMarcos, DIL_Marcos),
+                ClearCollect(colComun, DIL_Comunicacoes),
+                ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
+                ClearCollect(colReq, Filter(DIL_Requisicoes, Ativa = true)),
+                ClearCollect(colItensRC, Filter(DIL_Itens_Requisicao, Ativo = true)),
+                ClearCollect(colForn, Filter(DIL_Fornecedores, Ativo = true)),
+                ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
+            );
+            ClearCollect(
+                colCarteiraBase,
+                AddColumns(
+                    AddColumns(
+                        AddColumns(
+                            colVinc As v,
+                            ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                            RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                            ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                            CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
+                            UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
+                            UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), Data_Comunicacao, SortOrder.Descending)).Assunto,
+                            QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                        ) As a,
+                        DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
+                        DataNegociada, a.CompEntrega.Data_Compromisso,
+                        Entregue, a.CompEntrega.Status_Compromisso.Value = "Cumprido",
+                        PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
+                        LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
+                        DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
+                        SituacaoFisica, If(
+                            StartsWith(a.UltimaMarca, nfMarcaDivergencia), "Recebido — NF com divergência",
+                            StartsWith(a.UltimaMarca, nfMarcaNF), "NF emitida — em trânsito",
+                            a.CompEntrega.Status_Compromisso.Value = "Cumprido", "Entregue",
+                            ""
+                        )
+                    ) As b,
+                    DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
+                    GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days)),
+                    Situacao, If(
+                        b.Entregue, "Entregue",
+                        IsBlank(Coalesce(b.DataNegociada, b.DataSAP)), "Sem data",
+                        Coalesce(b.DataNegociada, b.DataSAP) < Today(), "Atrasado",
+                        Coalesce(b.DataNegociada, b.DataSAP) <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
+                        "Em dia"
+                    )
+                )
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    colCarteiraBase As c,
+                    Urgencia, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", 100,
+                        c.Entregue, 0,
+                        c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.Situacao = "Vence em 7 dias", 700 - DateDiff(Today(), c.DataVigente, TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.QtdAcoesVencidas > 0, 500,
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, 400,
+                        c.DiasSemContato > c.LimiteContato, 300 + Min(c.DiasSemContato, 99),
+                        0
+                    ),
+                    Motivo, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", "Recebido: acompanhar regularização da NF",
+                        c.Entregue, "Entregue",
+                        c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): cobrar nova data",
+                        c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar com o fornecedor",
+                        c.QtdAcoesVencidas > 0, c.QtdAcoesVencidas & " ação(ões) vencida(s)",
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, "Prioridade " & c.RC.Prioridade.Value & ": buscar antecipação",
+                        c.DiasSemContato > c.LimiteContato, If(c.DiasSemContato = 999, "Nenhum contato registrado", "Sem contato há " & c.DiasSemContato & " dias"),
+                        "Em dia"
+                    )
+                )
+            );
+            Set(gblCarregadoEm, Now());
+            Set(gblItem, LookUp(colCarteira, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
+            UpdateContext({locForn: LookUp(colForn, Codigo_Fornecedor = gblItem.ItemPO.Codigo_Fornecedor)});
+                ClearCollect(colDosMarcos, Filter(colMarcos, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
+                ClearCollect(colDosOcor, Filter(colOcor, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
+                ClearCollect(colDosAcoes, Filter(colAcoes, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
+                ClearCollect(colDosComun, Filter(colComun, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
+                ClearCollect(colDosComp, Filter(colComp, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));
+                ClearCollect(
+                    colDosChaves,
+                    ForAll(colDosMarcos, {Chave: Chave_Marco}),
+                    ForAll(colDosOcor, {Chave: Chave_Ocorrencia}),
+                    ForAll(colDosAcoes, {Chave: Chave_Acao}),
+                    ForAll(colDosComun, {Chave: Chave_Comunicacao}),
+                    ForAll(colDosComp, {Chave: Chave_Compromisso})
+                );
+                Clear(colDosHist);
+                ForAll(colDosChaves As k, Collect(colDosHist, Filter(DIL_Historico, Chave_Entidade = k.Chave)));
+            Reset(txtResumo_Dossie); UpdateContext({locContato: false, locAba: "Contatos"})
+                )
+            )
+          Fill: =nfCorAzul
+          Color: =nfCorCartao
+          HoverFill: =nfCorNavy2
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =locContato
+    - btnCtCancelar_Dossie:
+        Control: Classic/Button@2.2.0
+        Properties:
+          Text: ="Cancelar"
+          X: =240 + (Parent.Width - 260) * 0.42 + 168
+          Y: =642
+          Width: =120
+          Height: =38
+          OnSelect: '=UpdateContext({locContato: false})'
+          Fill: =nfCorCartao
+          Color: =nfCorAzul
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+          Visible: =locContato
     - blqFundo_Dossie:
         Control: Rectangle@2.3.0
         Properties:

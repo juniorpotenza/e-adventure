@@ -1,6 +1,6 @@
 # Mapeamento das listas DIL (gerado)
 
-> Gerado por `scripts/extrair_esquema.py` em 2026-10-21T23:00:54Z a partir de `DIL.zip` (sha256 `c40f37d6566455f2…`). **Não editar à mão** — rode o script de novo.
+> Gerado por `scripts/extrair_esquema.py` em 2026-10-21T23:53:37Z a partir de `DIL.zip` (sha256 `c40f37d6566455f2…`). **Não editar à mão** — rode o script de novo.
 
 ## Regras aplicadas
 

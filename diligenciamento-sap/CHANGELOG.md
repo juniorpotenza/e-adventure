@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.5.0-candidato-v7] — 2026-10-21 — app orientado ao trabalho do diligenciador
+
+Base: v6b (sem `SearchItems` no ComboBox). Nenhuma lista, coluna ou fluxo alterado.
+
+### Novo fluxo de uso
+- **Minha fila (Início)**: lista única ordenada por urgência com o motivo de cada item — atrasado (cobrar),
+  entrega em ≤ 7 dias (confirmar), ações vencidas, prioridade Crítica/Urgente/Alta sem antecipação (buscar
+  antecipação), sem contato além do limite da prioridade (Crítica/Urgente 2 d, Alta 3 d, Média 7 d, Baixa 14 d),
+  recebido com divergência de NF. KPIs: atrasados, entregas em 7 dias, prioritários a antecipar, sem contato,
+  ganho negociado (dias). Escopo "Minha carteira" (responsável da RC) ou toda a carteira.
+- **Diligenciar item** (antigo Dossiê): cabeçalho com remessa SAP, data negociada, ganho, último contato e
+  situação física; botão **Registrar contato / resultado**:
+  - grava o contato em `DIL_Comunicacoes` (chave `COM-APP-*`, ignorada pelo DIL_10; nenhum e-mail é enviado);
+  - *Nova data negociada* → cria/atualiza o compromisso de Entrega (guarda a data anterior; DIL_05 atualiza o marco);
+  - *Material entregue* / *Chegou com divergência na NF* → compromisso `Cumprido` (encerra a cobrança; DIL_07
+    encerra a ocorrência de atraso); a divergência fica sinalizada até registrar "Material entregue";
+  - *NF emitida — material em trânsito* → só registra; a cobrança continua.
+- **Datas e ganho**: data vigente = negociada ou, sem negociação, remessa SAP; ganho = remessa SAP − negociada
+  (dias). Exibidos na fila, carteira, diligência, agenda e gestão.
+- **Agenda de entregas**: calendário pela data vigente (atrasados + próximos 30 dias); clique abre a diligência.
+- **Visão da gestão**: itens em aberto, atrasados, entregas em 7 dias, itens antecipados, ganho total;
+  barras por situação, atrasados por fornecedor e ganho por diligenciador.
+- Situação de entrega substitui Crítico/Em risco/Normal: Atrasado, Vence em 7 dias, Em dia, Sem data, Entregue.
+
+### Corrigido
+- Grade da Carteira cabia em 1232 px e a última coluna ficava cortada em 1366 px; agora cabe em 1100 px.
+
+### Convenções (sem alterar esquema)
+- Marcadores no início do `Assunto` do contato: `[Contato]`, `[Nova data]`, `[Entregue]`,
+  `[Recebido c/ divergência NF]`, `[NF emitida]`. A situação física é derivada do último marcador.
+- Valores de escolha gravados pelo app: Tipo_Compromisso `Entrega`, Origem `Fornecedor`, Status `Aberto`/`Cumprido`
+  (valores que os fluxos e os dados já usam) — confirmar que existem nas colunas.
+
 ## [0.4.0-candidato-v6] — 2026-10-21
 
 ### Evidência nova

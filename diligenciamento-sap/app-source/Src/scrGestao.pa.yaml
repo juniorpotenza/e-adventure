@@ -60,19 +60,71 @@ Screens:
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
-                colCarteira,
+                colCarteiraBase,
                 AddColumns(
                     AddColumns(
-                        colVinc As v,
-                        ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
-                        RC, LookUp(colReq, Numero_RC = v.Numero_RC),
-                        ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                        QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                        QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                        QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
-                        QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
-                    ) As c,
-                    Situacao, If(c.QtdCriticas > 0, "Crítico", c.QtdOcorrAbertas > 0 || c.QtdMarcosAtrasados > 0, "Em risco", "Normal")
+                        AddColumns(
+                            colVinc As v,
+                            ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                            RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                            ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                            CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
+                            UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
+                            UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), Data_Comunicacao, SortOrder.Descending)).Assunto,
+                            QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                            QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
+                            QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                        ) As a,
+                        DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
+                        DataNegociada, a.CompEntrega.Data_Compromisso,
+                        Entregue, a.CompEntrega.Status_Compromisso.Value = "Cumprido",
+                        PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
+                        LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
+                        DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
+                        SituacaoFisica, If(
+                            StartsWith(a.UltimaMarca, nfMarcaDivergencia), "Recebido — NF com divergência",
+                            StartsWith(a.UltimaMarca, nfMarcaNF), "NF emitida — em trânsito",
+                            a.CompEntrega.Status_Compromisso.Value = "Cumprido", "Entregue",
+                            ""
+                        )
+                    ) As b,
+                    DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
+                    GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days)),
+                    Situacao, If(
+                        b.Entregue, "Entregue",
+                        IsBlank(Coalesce(b.DataNegociada, b.DataSAP)), "Sem data",
+                        Coalesce(b.DataNegociada, b.DataSAP) < Today(), "Atrasado",
+                        Coalesce(b.DataNegociada, b.DataSAP) <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
+                        "Em dia"
+                    )
+                )
+            );
+            ClearCollect(
+                colCarteira,
+                AddColumns(
+                    colCarteiraBase As c,
+                    Urgencia, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", 100,
+                        c.Entregue, 0,
+                        c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.Situacao = "Vence em 7 dias", 700 - DateDiff(Today(), c.DataVigente, TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                        c.QtdAcoesVencidas > 0, 500,
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, 400,
+                        c.DiasSemContato > c.LimiteContato, 300 + Min(c.DiasSemContato, 99),
+                        0
+                    ),
+                    Motivo, If(
+                        c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", "Recebido: acompanhar regularização da NF",
+                        c.Entregue, "Entregue",
+                        c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): cobrar nova data",
+                        c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar com o fornecedor",
+                        c.QtdAcoesVencidas > 0, c.QtdAcoesVencidas & " ação(ões) vencida(s)",
+                        c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, "Prioridade " & c.RC.Prioridade.Value & ": buscar antecipação",
+                        c.DiasSemContato > c.LimiteContato, If(c.DiasSemContato = 999, "Nenhum contato registrado", "Sem contato há " & c.DiasSemContato & " dias"),
+                        "Em dia"
+                    )
                 )
             );
             Set(gblCarregadoEm, Now());
@@ -175,7 +227,7 @@ Screens:
     - kpiTitulo0_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: ="Itens na carteira"
+          Text: ="Itens em aberto"
           X: =240 + 0 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =130
           Width: =(Parent.Width - 260 - 48) / 5 - 24
@@ -186,7 +238,7 @@ Screens:
     - kpiValor0_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: =CountRows(colCarteira)
+          Text: =CountRows(Filter(colCarteira, Situacao <> "Entregue"))
           X: =240 + 0 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =156
           Width: =(Parent.Width - 260 - 48) / 5 - 24
@@ -212,11 +264,11 @@ Screens:
           Y: =120
           Width: =4
           Height: =92
-          Fill: =nfCorLaranja
+          Fill: =nfCorVermelho
     - kpiTitulo1_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: ="Ocorrências abertas"
+          Text: ="Atrasados"
           X: =240 + 1 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =130
           Width: =(Parent.Width - 260 - 48) / 5 - 24
@@ -227,13 +279,13 @@ Screens:
     - kpiValor1_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: =CountRows(Filter(colOcor, !(Status_Ocorrencia.Value in nfOcorFechadas)))
+          Text: =CountRows(Filter(colCarteira, Situacao = "Atrasado"))
           X: =240 + 1 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =156
           Width: =(Parent.Width - 260 - 48) / 5 - 24
           Height: =44
           Size: =24
-          Color: =nfCorLaranja
+          Color: =nfCorVermelho
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo2_Gestao:
@@ -253,11 +305,11 @@ Screens:
           Y: =120
           Width: =4
           Height: =92
-          Fill: =nfCorVermelho
+          Fill: =nfCorLaranja
     - kpiTitulo2_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: ="Ações vencidas"
+          Text: ="Entregas em 7 dias"
           X: =240 + 2 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =130
           Width: =(Parent.Width - 260 - 48) / 5 - 24
@@ -268,13 +320,13 @@ Screens:
     - kpiValor2_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: =CountRows(Filter(Filter(colAcoes, !(Status_Acao.Value in nfAcaoFechadas)), PrazoData < Now()))
+          Text: =CountRows(Filter(colCarteira, Situacao = "Vence em 7 dias"))
           X: =240 + 2 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =156
           Width: =(Parent.Width - 260 - 48) / 5 - 24
           Height: =44
           Size: =24
-          Color: =nfCorVermelho
+          Color: =nfCorLaranja
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo3_Gestao:
@@ -294,11 +346,11 @@ Screens:
           Y: =120
           Width: =4
           Height: =92
-          Fill: =nfCorVermelho
+          Fill: =nfCorVerde
     - kpiTitulo3_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: ="Escalonamentos SLA abertos"
+          Text: ="Itens antecipados"
           X: =240 + 3 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =130
           Width: =(Parent.Width - 260 - 48) / 5 - 24
@@ -309,13 +361,13 @@ Screens:
     - kpiValor3_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: =CountRows(Filter(Filter(colAcoes, !(Status_Acao.Value in nfAcaoFechadas)), Tipo_Acao.Value = "Escalonamento"))
+          Text: =CountRows(Filter(colCarteira, GanhoDias > 0))
           X: =240 + 3 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =156
           Width: =(Parent.Width - 260 - 48) / 5 - 24
           Height: =44
           Size: =24
-          Color: =nfCorVermelho
+          Color: =nfCorVerde
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
     - kpiFundo4_Gestao:
@@ -339,7 +391,7 @@ Screens:
     - kpiTitulo4_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: ="E-mails enviados (DIL_10)"
+          Text: ="Ganho negociado (dias)"
           X: =240 + 4 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =130
           Width: =(Parent.Width - 260 - 48) / 5 - 24
@@ -350,7 +402,7 @@ Screens:
     - kpiValor4_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: =CountRows(colEnvios)
+          Text: =Sum(Filter(colCarteira, GanhoDias > 0), GanhoDias)
           X: =240 + 4 * ((Parent.Width - 260 - 48) / 5 + 12) + 16
           Y: =156
           Width: =(Parent.Width - 260 - 48) / 5 - 24
@@ -372,7 +424,7 @@ Screens:
     - b1Titulo_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: ="Carteira por situação"
+          Text: ="Carteira por situação de entrega"
           X: =240 + 12
           Y: =228 + 6
           Width: =(Parent.Width - 260 - 32) / 3 - 24
@@ -439,7 +491,7 @@ Screens:
     - b2Titulo_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: ="Ocorrências abertas por severidade"
+          Text: ="Atrasados por fornecedor"
           X: =240 + (Parent.Width - 260 - 32) / 3 + 16 + 12
           Y: =228 + 6
           Width: =(Parent.Width - 260 - 32) / 3 - 24
@@ -452,7 +504,7 @@ Screens:
         Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
-          Items: '=With({t: AddColumns(GroupBy(AddColumns(Filter(colOcor, !(Status_Ocorrencia.Value in nfOcorFechadas)), Rotulo, Coalesce(Severidade.Value, "(sem severidade)")), Rotulo, Itens), Qtd, CountRows(Itens))}, Sort(AddColumns(t, Max, Max(t, Qtd)), Qtd, SortOrder.Descending))'
+          Items: '=With({t: AddColumns(GroupBy(AddColumns(Filter(colCarteira, Situacao = "Atrasado"), Rotulo, Coalesce(ItemPO.Nome_Fornecedor, "(sem fornecedor)")), Rotulo, Itens), Qtd, CountRows(Itens))}, Sort(AddColumns(t, Max, Max(t, Qtd)), Qtd, SortOrder.Descending))'
           X: =240 + (Parent.Width - 260 - 32) / 3 + 16 + 12
           Y: =228 + 40
           Width: =(Parent.Width - 260 - 32) / 3 - 24
@@ -506,7 +558,7 @@ Screens:
     - b3Titulo_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: ="Ações pendentes por responsável"
+          Text: ="Ganho negociado (dias) por diligenciador"
           X: =240 + 2 * ((Parent.Width - 260 - 32) / 3 + 16) + 12
           Y: =228 + 6
           Width: =(Parent.Width - 260 - 32) / 3 - 24
@@ -519,7 +571,7 @@ Screens:
         Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
-          Items: '=With({t: AddColumns(GroupBy(AddColumns(Filter(colAcoes, !(Status_Acao.Value in nfAcaoFechadas)), Rotulo, Coalesce(Responsavel_Pessoa.DisplayName, Responsavel, "(sem responsável)")), Rotulo, Itens), Qtd, CountRows(Itens))}, Sort(AddColumns(t, Max, Max(t, Qtd)), Qtd, SortOrder.Descending))'
+          Items: '=With({t: AddColumns(GroupBy(AddColumns(Filter(colCarteira, GanhoDias > 0), Rotulo, Coalesce(RC.Responsavel_Diligencia.DisplayName, "(sem responsável)")), Rotulo, Itens), Qtd, Sum(Itens, GanhoDias))}, Sort(AddColumns(t, Max, Max(t, Qtd)), Qtd, SortOrder.Descending))'
           X: =240 + 2 * ((Parent.Width - 260 - 32) / 3 + 16) + 12
           Y: =228 + 40
           Width: =(Parent.Width - 260 - 32) / 3 - 24
@@ -563,7 +615,7 @@ Screens:
     - lblBI_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: '="Escopo: registros ativos carregados no app (limite de delegação). Tendências e indicadores executivos: relatório Power BI (pendente de publicação)."'
+          Text: '="Ganho = remessa SAP − data negociada (dias antecipados). Escopo: registros ativos carregados no app. Tendências históricas: Power BI (pendente)."'
           X: =240
           Y: =Parent.Height - 56
           Width: =Parent.Width - 260

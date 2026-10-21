@@ -1,4 +1,6 @@
-# Mapa de telas (implementado)
+# Mapa de telas (implementado — v7)
+
+> v7: o app é orientado ao trabalho diário. Fluxo principal: **Minha fila → Diligenciar item → Registrar contato / resultado**. Detalhes no `CHANGELOG.md` (0.5.0).
 
 Layout comum (todas as telas): cabeçalho azul-marinho com marca, usuário · perfil e **Atualizar dados**; menu
 lateral filtrado por perfil (`nfMenu`); área de conteúdo à direita. Paleta do protótipo aprovado (named formulas
