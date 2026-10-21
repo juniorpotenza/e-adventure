@@ -58,6 +58,9 @@ App:
           ClearCollect(colMarcos, DIL_Marcos),
           ClearCollect(colComun, DIL_Comunicacoes),
           ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
+          ClearCollect(colReq, Filter(DIL_Requisicoes, Ativa = true)),
+          ClearCollect(colItensRC, Filter(DIL_Itens_Requisicao, Ativo = true)),
+          ClearCollect(colForn, Filter(DIL_Fornecedores, Ativo = true)),
           ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
       );
       ClearCollect(
@@ -66,6 +69,9 @@ App:
               AddColumns(
                   colVinc As v,
                   ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                  RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                  ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                  Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                   QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                   QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                   QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),

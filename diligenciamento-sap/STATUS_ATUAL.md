@@ -39,6 +39,8 @@ Legenda: ✅ confirmado com evidência · 🟡 inferido · ⏳ pendente · ⛔ i
 | Tipos (Escolha/Pessoa/Booleano/Data) | ✅ quando o fluxo grava `/Value`, `/Claims`, `True`, `utcNow()` ou filtra `eq 1`; 🟡 demais inferidos dos valores do CSV |
 | Detalhe completo | `docs/Mapeamento_Listas_DIL.md` (gerado) · checklist do que o app usa sem evidência direta: `docs/Checklist_Colunas_Inferidas.md` |
 
+**Atualização 21/10/2026:** tipos de `DIL_Compromissos`, `DIL_Requisicoes`, `DIL_Fornecedores` e `DIL_Itens_Requisicao` confirmados pelo usuário (`schema/confirmacoes_usuario.json`) e incorporados (v4/v5). Itens abaixo sobre essas listas estão resolvidos.
+
 **Ambiguidades encontradas (o app NÃO usa estas colunas até confirmação):**
 - `DIL_Marcos.Ativo`: o fluxo grava `True`, mas há `Sim` no CSV e o DIL_06 testa `'true'` **ou** `'sim'` → tipo real incerto.
 - `DIL_Requisicoes.Prioridade`/`Nivel_Risco`/`Responsavel_Diligencia`: tipo incerto (valores-padrão sugerem Escolha). Por isso a "Situação" da carteira é **calculada** a partir de ocorrências e marcos.

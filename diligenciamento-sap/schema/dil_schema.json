@@ -1,5 +1,5 @@
 {
-  "gerado_em": "2026-10-21T22:14:35Z",
+  "gerado_em": "2026-10-21T22:20:08Z",
   "fonte": {
     "arquivo": "DIL.zip",
     "sha256": "c40f37d6566455f25d4a59c1b9b140d0298919153d5f466c326fc110a318ad5a",
@@ -363,7 +363,7 @@
           "interno": "Title",
           "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
           "tipo": "Texto",
-          "tipo_status": "confirmado (Title)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
@@ -374,7 +374,7 @@
           "interno": "Numero_RC",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC",
@@ -386,7 +386,7 @@
           "interno": "Tipo_Doc_Compra",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
@@ -397,7 +397,7 @@
           "interno": "Descricao_Tipo_Doc",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
@@ -408,15 +408,15 @@
           "interno": "Status_RC",
           "interno_status": "inferido (= nome de exibição)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Data_Criacao_RC",
           "interno": "Data_Criacao_RC",
           "interno_status": "inferido (= nome de exibição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
@@ -424,7 +424,7 @@
           "interno": "Grupo_Compradores",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
@@ -434,24 +434,24 @@
           "exibicao": "Responsavel_Diligencia",
           "interno": "Responsavel_Diligencia",
           "interno_status": "inferido (= nome de exibição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo": "Pessoa",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Prioridade",
           "interno": "Prioridade",
           "interno_status": "inferido (= nome de exibição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Nivel_Risco",
           "interno": "Nivel_Risco",
           "interno_status": "inferido (= nome de exibição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
@@ -459,7 +459,7 @@
           "interno": "Data_Ultima_Atualizacao_SAP",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "DataHora",
-          "tipo_status": "confirmado (gravação em fluxo)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
@@ -470,7 +470,7 @@
           "interno": "Ativa",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Booleano",
-          "tipo_status": "confirmado (gravação em fluxo)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_RC",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_RC"
@@ -483,8 +483,8 @@
           "exibicao": "Observacao",
           "interno": "Observacao",
           "interno_status": "inferido (= nome de exibição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo": "TextoMultilinha",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         }
       ]
@@ -501,7 +501,7 @@
           "interno": "Title",
           "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
           "tipo": "Texto",
-          "tipo_status": "confirmado (Title)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
             "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
@@ -512,7 +512,7 @@
           "interno": "Numero_RC",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
             "DIL_04_Normalizar_RC_PO:Criar_Item_RC",
@@ -524,7 +524,7 @@
           "interno": "Item_RC",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
             "DIL_04_Normalizar_RC_PO:Criar_Item_RC",
@@ -536,7 +536,7 @@
           "interno": "Material",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
             "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
@@ -547,7 +547,7 @@
           "interno": "Descricao_Produto",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
             "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
@@ -558,7 +558,7 @@
           "interno": "Utilizacao_Material",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
             "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
@@ -569,7 +569,7 @@
           "interno": "Tipo_Avaliacao",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
             "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
@@ -580,7 +580,7 @@
           "interno": "Grupo_Compradores",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
             "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
@@ -590,8 +590,8 @@
           "exibicao": "Data_1_Remessa_Item_SAP",
           "interno": "Data_1_Remessa_Item_SAP",
           "interno_status": "confirmado (usado em fluxo)",
-          "tipo": "Data",
-          "tipo_status": "inferido (valores do CSV)",
+          "tipo": "DataHora",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
             "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
@@ -602,7 +602,7 @@
           "interno": "Ativo",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Booleano",
-          "tipo_status": "confirmado (gravação em fluxo)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_04_Normalizar_RC_PO:Atualizar_Item_RC",
             "DIL_04_Normalizar_RC_PO:Criar_Item_RC"
@@ -1072,7 +1072,7 @@
           "interno": "Title",
           "interno_status": "confirmado (fluxos gravam Title com o prefixo da chave)",
           "tipo": "Texto",
-          "tipo_status": "confirmado (Title)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Fornecedor",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Fornecedor"
@@ -1083,7 +1083,7 @@
           "interno": "field_1",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "confirmado (filtro OData compara com texto; pode ser Escolha)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Fornecedor",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Fornecedor",
@@ -1095,7 +1095,7 @@
           "interno": "field_2",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Fornecedor",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Fornecedor"
@@ -1104,73 +1104,73 @@
         {
           "exibicao": "CNPJ",
           "interno": "field_3",
-          "interno_status": "inferido (posição)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Email_Principal",
           "interno": "field_4",
-          "interno_status": "inferido (posição)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Telefone",
           "interno": "field_5",
-          "interno_status": "inferido (posição)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Contato_Principal",
           "interno": "field_6",
-          "interno_status": "inferido (posição)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Categoria_Fornecedor",
           "interno": "field_7",
-          "interno_status": "inferido (posição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
+          "tipo": "TextoMultilinha",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Status_Fornecedor",
           "interno": "field_8",
-          "interno_status": "inferido (posição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Nivel_Risco_Fornecedor",
           "interno": "field_9",
-          "interno_status": "inferido (posição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
+          "tipo": "Escolha",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Responsavel_Fornecedor",
           "interno": "field_10",
-          "interno_status": "inferido (posição)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
           "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
           "exibicao": "Observacao",
           "interno": "field_11",
-          "interno_status": "inferido (posição)",
-          "tipo": "Texto",
-          "tipo_status": "inferido (padrão; sem evidência contrária)",
+          "interno_status": "inferido (posição; coluna confirmada pelo usuário)",
+          "tipo": "TextoMultilinha",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         },
         {
@@ -1178,7 +1178,7 @@
           "interno": "field_12",
           "interno_status": "confirmado (usado em fluxo)",
           "tipo": "Booleano",
-          "tipo_status": "confirmado (gravação em fluxo)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": [
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Atualizar_Fornecedor",
             "DIL_02_Normalizar_SAP_BATCH_V10_CORRIGIDO_SEM_HTTP:Criar_Fornecedor"
@@ -1192,7 +1192,7 @@
           "interno": "Responsavel_Fornecedor_Pessoa",
           "interno_status": "inferido (= nome de exibição)",
           "tipo": "Pessoa",
-          "tipo_status": "inferido (sufixo _Pessoa)",
+          "tipo_status": "confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026)",
           "evidencias": []
         }
       ]

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.0-candidato-v5] — 2026-10-21
+
+### Adicionado
+- Tipos de `DIL_Requisicoes`, `DIL_Fornecedores` e `DIL_Itens_Requisicao` confirmados pelo usuário.
+- Carteira: escopo **"Minha carteira (responsável pela RC)"** via `Responsavel_Diligencia` (Pessoa); padrão
+  automático quando o usuário é responsável por alguma RC; responsável e prioridade na grade; busca por responsável.
+- Dossiê > Resumo em duas colunas: responsável, prioridade/risco e status da RC, utilização/avaliação do item da RC,
+  fornecedor (CNPJ, contato, telefone, e-mail, status e risco). Somente leitura.
+- App passa a usar 14 listas. Pendente: `DIL_Documentos` (colunas não recebidas).
+
 ## [0.2.0-candidato-v4] — 2026-10-21
 
 ### Adicionado

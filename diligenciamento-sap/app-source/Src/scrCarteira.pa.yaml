@@ -54,6 +54,9 @@ Screens:
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
+                ClearCollect(colReq, Filter(DIL_Requisicoes, Ativa = true)),
+                ClearCollect(colItensRC, Filter(DIL_Itens_Requisicao, Ativo = true)),
+                ClearCollect(colForn, Filter(DIL_Fornecedores, Ativo = true)),
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
@@ -62,6 +65,9 @@ Screens:
                     AddColumns(
                         colVinc As v,
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                        RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                        ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -183,17 +189,18 @@ Screens:
     - ddEscopo_Carteira:
         Control: Classic/DropDown
         Properties:
-          Items: =["Todos os itens", "Com ações sob minha responsabilidade"]
+          Items: =["Minha carteira (responsável pela RC)", "Com ações sob minha responsabilidade", "Todos os itens"]
           X: =1046
           Y: =120
           Width: =300
           Height: =36
           Size: =10
           BorderColor: =nfCorLinha
+          Default: =If(CountRows(Filter(colCarteira, Lower(RC.Responsavel_Diligencia.Email) = nfEmailUsuario)) > 0, "Minha carteira (responsável pela RC)", "Todos os itens")
     - cabCarteira0:
         Control: Label
         Properties:
-          Text: ="RC / item"
+          Text: ="RC / item · responsável"
           X: =240 + 16
           Y: =168
           Width: =130
@@ -265,7 +272,7 @@ Screens:
     - cabCarteira6:
         Control: Label
         Properties:
-          Text: ="Situação"
+          Text: ="Situação · prioridade"
           X: =240 + 1132
           Y: =168
           Width: =100
@@ -283,11 +290,15 @@ Screens:
                 colCarteira As c,
                 IsBlank(txtBusca_Carteira.Text) || txtBusca_Carteira.Text in c.Numero_RC || txtBusca_Carteira.Text in c.Numero_PO
                     || txtBusca_Carteira.Text in c.ItemPO.Material || txtBusca_Carteira.Text in c.ItemPO.Descricao_Produto
-                    || txtBusca_Carteira.Text in c.ItemPO.Nome_Fornecedor,
+                    || txtBusca_Carteira.Text in c.ItemPO.Nome_Fornecedor || txtBusca_Carteira.Text in c.RC.Responsavel_Diligencia.DisplayName,
                 ddSituacao_Carteira.Selected.Value = "(Todos)" || c.Situacao = ddSituacao_Carteira.Selected.Value,
                 ddFornecedor_Carteira.Selected.Value = "(Todos)" || c.ItemPO.Nome_Fornecedor = ddFornecedor_Carteira.Selected.Value,
-                ddEscopo_Carteira.Selected.Value = "Todos os itens"
-                    || CountRows(Filter(colAcoes, Numero_PO = c.Numero_PO && Item_PO = c.Item_PO && Lower(Responsavel_Pessoa.Email) = nfEmailUsuario)) > 0
+                Switch(
+                    ddEscopo_Carteira.Selected.Value,
+                    "Todos os itens", true,
+                    "Minha carteira (responsável pela RC)", Lower(c.RC.Responsavel_Diligencia.Email) = nfEmailUsuario,
+                    CountRows(Filter(colAcoes, Numero_PO = c.Numero_PO && Item_PO = c.Item_PO && Lower(Responsavel_Pessoa.Email) = nfEmailUsuario)) > 0
+                )
             )
           X: =240
           Y: =198
@@ -318,12 +329,12 @@ Screens:
         - cRC_Carteira:
             Control: Label
             Properties:
-              Text: =ThisItem.Numero_RC & " / " & ThisItem.Item_RC
+              Text: =ThisItem.Numero_RC & " / " & ThisItem.Item_RC & Char(10) & Coalesce(ThisItem.RC.Responsavel_Diligencia.DisplayName, "sem responsável")
               X: =16
               Y: =0
               Width: =130
               Height: =Parent.TemplateHeight
-              Size: =10
+              Size: =9
               Color: =nfCorTexto
               Font: =Font.'Segoe UI'
               FontWeight: =FontWeight.Semibold
@@ -386,7 +397,7 @@ Screens:
         - cSit_Carteira:
             Control: Label
             Properties:
-              Text: =ThisItem.Situacao
+              Text: =ThisItem.Situacao & Char(10) & Coalesce(ThisItem.RC.Prioridade.Value, "—")
               X: =1132
               Y: =0
               Width: =100

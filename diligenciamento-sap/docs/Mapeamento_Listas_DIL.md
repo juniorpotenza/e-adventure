@@ -1,6 +1,6 @@
 # Mapeamento das listas DIL (gerado)
 
-> Gerado por `scripts/extrair_esquema.py` em 2026-10-21T22:14:35Z a partir de `DIL.zip` (sha256 `c40f37d6566455f2…`). **Não editar à mão** — rode o script de novo.
+> Gerado por `scripts/extrair_esquema.py` em 2026-10-21T22:20:08Z a partir de `DIL.zip` (sha256 `c40f37d6566455f2…`). **Não editar à mão** — rode o script de novo.
 
 ## Regras aplicadas
 
@@ -60,19 +60,19 @@ Legenda: *confirmado* = há evidência direta em fluxo/filtro; *inferido* = dedu
 
 | Exibição (Power Apps) | Interno (fluxo/OData) | Status interno | Tipo | Status tipo |
 |---|---|---|---|---|
-| `Chave_RC` | `Title` | confirmado (fluxos gravam Title com o prefixo da chave) | Texto | confirmado (Title) |
-| `Numero_RC` | `Numero_RC` | confirmado (usado em fluxo) | Texto | confirmado (filtro OData compara com texto; pode ser Escolha) |
-| `Tipo_Doc_Compra` | `Tipo_Doc_Compra` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Descricao_Tipo_Doc` | `Descricao_Tipo_Doc` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Status_RC` | `Status_RC` | inferido (= nome de exibição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Data_Criacao_RC` | `Data_Criacao_RC` | inferido (= nome de exibição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Grupo_Compradores` | `Grupo_Compradores` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Responsavel_Diligencia` | `Responsavel_Diligencia` | inferido (= nome de exibição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Prioridade` | `Prioridade` | inferido (= nome de exibição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Nivel_Risco` | `Nivel_Risco` | inferido (= nome de exibição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Data_Ultima_Atualizacao_SAP` | `Data_Ultima_Atualizacao_SAP` | confirmado (usado em fluxo) | DataHora | confirmado (gravação em fluxo) |
-| `Ativa` | `Ativa` | confirmado (usado em fluxo) | Booleano | confirmado (gravação em fluxo) |
-| `Observacao` | `Observacao` | inferido (= nome de exibição) | Texto | inferido (padrão; sem evidência contrária) |
+| `Chave_RC` | `Title` | confirmado (fluxos gravam Title com o prefixo da chave) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Numero_RC` | `Numero_RC` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Tipo_Doc_Compra` | `Tipo_Doc_Compra` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Descricao_Tipo_Doc` | `Descricao_Tipo_Doc` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Status_RC` | `Status_RC` | inferido (= nome de exibição) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Data_Criacao_RC` | `Data_Criacao_RC` | inferido (= nome de exibição) | DataHora | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Grupo_Compradores` | `Grupo_Compradores` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Responsavel_Diligencia` | `Responsavel_Diligencia` | inferido (= nome de exibição) | Pessoa | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Prioridade` | `Prioridade` | inferido (= nome de exibição) | Escolha | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Nivel_Risco` | `Nivel_Risco` | inferido (= nome de exibição) | Escolha | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Data_Ultima_Atualizacao_SAP` | `Data_Ultima_Atualizacao_SAP` | confirmado (usado em fluxo) | DataHora | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Ativa` | `Ativa` | confirmado (usado em fluxo) | Booleano | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Observacao` | `Observacao` | inferido (= nome de exibição) | TextoMultilinha | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
 
 ## DIL_Itens_Requisicao
 
@@ -82,16 +82,16 @@ Legenda: *confirmado* = há evidência direta em fluxo/filtro; *inferido* = dedu
 
 | Exibição (Power Apps) | Interno (fluxo/OData) | Status interno | Tipo | Status tipo |
 |---|---|---|---|---|
-| `Chave_Item_RC` | `Title` | confirmado (fluxos gravam Title com o prefixo da chave) | Texto | confirmado (Title) |
-| `Numero_RC` | `Numero_RC` | confirmado (usado em fluxo) | Texto | confirmado (filtro OData compara com texto; pode ser Escolha) |
-| `Item_RC` | `Item_RC` | confirmado (usado em fluxo) | Texto | confirmado (filtro OData compara com texto; pode ser Escolha) |
-| `Material` | `Material` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Descricao_Produto` | `Descricao_Produto` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Utilizacao_Material` | `Utilizacao_Material` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Tipo_Avaliacao` | `Tipo_Avaliacao` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Grupo_Compradores` | `Grupo_Compradores` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `Data_1_Remessa_Item_SAP` | `Data_1_Remessa_Item_SAP` | confirmado (usado em fluxo) | Data | inferido (valores do CSV) |
-| `Ativo` | `Ativo` | confirmado (usado em fluxo) | Booleano | confirmado (gravação em fluxo) |
+| `Chave_Item_RC` | `Title` | confirmado (fluxos gravam Title com o prefixo da chave) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Numero_RC` | `Numero_RC` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Item_RC` | `Item_RC` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Material` | `Material` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Descricao_Produto` | `Descricao_Produto` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Utilizacao_Material` | `Utilizacao_Material` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Tipo_Avaliacao` | `Tipo_Avaliacao` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Grupo_Compradores` | `Grupo_Compradores` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Data_1_Remessa_Item_SAP` | `Data_1_Remessa_Item_SAP` | confirmado (usado em fluxo) | DataHora | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Ativo` | `Ativo` | confirmado (usado em fluxo) | Booleano | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
 
 ## DIL_Pedidos
 
@@ -165,20 +165,20 @@ Legenda: *confirmado* = há evidência direta em fluxo/filtro; *inferido* = dedu
 
 | Exibição (Power Apps) | Interno (fluxo/OData) | Status interno | Tipo | Status tipo |
 |---|---|---|---|---|
-| `Chave_Fornecedor` | `Title` | confirmado (fluxos gravam Title com o prefixo da chave) | Texto | confirmado (Title) |
-| `Codigo_Fornecedor` | `field_1` | confirmado (usado em fluxo) | Texto | confirmado (filtro OData compara com texto; pode ser Escolha) |
-| `Nome_Fornecedor` | `field_2` | confirmado (usado em fluxo) | Texto | inferido (padrão; sem evidência contrária) |
-| `CNPJ` | `field_3` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Email_Principal` | `field_4` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Telefone` | `field_5` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Contato_Principal` | `field_6` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Categoria_Fornecedor` | `field_7` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Status_Fornecedor` | `field_8` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Nivel_Risco_Fornecedor` | `field_9` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Responsavel_Fornecedor` | `field_10` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Observacao` | `field_11` | inferido (posição) | Texto | inferido (padrão; sem evidência contrária) |
-| `Ativo` | `field_12` | confirmado (usado em fluxo) | Booleano | confirmado (gravação em fluxo) |
-| `Responsavel_Fornecedor_Pessoa` | `Responsavel_Fornecedor_Pessoa` | inferido (= nome de exibição) | Pessoa | inferido (sufixo _Pessoa) |
+| `Chave_Fornecedor` | `Title` | confirmado (fluxos gravam Title com o prefixo da chave) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Codigo_Fornecedor` | `field_1` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Nome_Fornecedor` | `field_2` | confirmado (usado em fluxo) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `CNPJ` | `field_3` | inferido (posição; coluna confirmada pelo usuário) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Email_Principal` | `field_4` | inferido (posição; coluna confirmada pelo usuário) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Telefone` | `field_5` | inferido (posição; coluna confirmada pelo usuário) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Contato_Principal` | `field_6` | inferido (posição; coluna confirmada pelo usuário) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Categoria_Fornecedor` | `field_7` | inferido (posição; coluna confirmada pelo usuário) | TextoMultilinha | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Status_Fornecedor` | `field_8` | inferido (posição; coluna confirmada pelo usuário) | Escolha | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Nivel_Risco_Fornecedor` | `field_9` | inferido (posição; coluna confirmada pelo usuário) | Escolha | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Responsavel_Fornecedor` | `field_10` | inferido (posição; coluna confirmada pelo usuário) | Texto | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Observacao` | `field_11` | inferido (posição; coluna confirmada pelo usuário) | TextoMultilinha | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Ativo` | `field_12` | confirmado (usado em fluxo) | Booleano | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
+| `Responsavel_Fornecedor_Pessoa` | `Responsavel_Fornecedor_Pessoa` | inferido (= nome de exibição) | Pessoa | confirmado (usuário: texto de Configurações da lista > Colunas, enviado em 21/10/2026) |
 
 ## DIL_Compromissos
 

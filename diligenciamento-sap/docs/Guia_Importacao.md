@@ -55,6 +55,9 @@ O script:
 | 8 | `DIL_Historico` | timeline/auditoria (leitura) e **gravação** de eventos manuais | |
 | 9 | `DIL_SLA` | administração (leitura) | |
 | 10 | `DIL_Integracao_Execucao` | administração (leitura) | |
+| 12 | `DIL_Requisicoes` | carteira e dossiê (leitura): responsável, prioridade, risco | filtro "Minha carteira" |
+| 13 | `DIL_Itens_Requisicao` | dossiê (leitura) | aba Resumo |
+| 14 | `DIL_Fornecedores` | dossiê (leitura): contato do fornecedor | aba Resumo |
 | 11 | `DIL_Compromissos` | dossiê: leitura e **gravação** (registrar/reprogramar compromisso) | aba Compromissos do Dossiê |
 
 O nome da fonte no Studio precisa ser **exatamente** o nome da lista (ex.: `DIL_Acoes`). Se o Studio criar outro nome

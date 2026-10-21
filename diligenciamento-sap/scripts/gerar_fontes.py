@@ -96,6 +96,9 @@ Concurrent(
     ClearCollect(colMarcos, DIL_Marcos),
     ClearCollect(colComun, DIL_Comunicacoes),
     ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
+    ClearCollect(colReq, Filter(DIL_Requisicoes, Ativa = true)),
+    ClearCollect(colItensRC, Filter(DIL_Itens_Requisicao, Ativo = true)),
+    ClearCollect(colForn, Filter(DIL_Fornecedores, Ativo = true)),
     ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
 );
 ClearCollect(
@@ -104,6 +107,9 @@ ClearCollect(
         AddColumns(
             colVinc As v,
             ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+            RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+            ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+            Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
             QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
             QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
             QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -378,17 +384,19 @@ def tela_carteira():
         lista_suspensa(f"ddFornecedor_{s}",
                        'Ungroup(Table({o: ["(Todos)"]}, {o: Sort(Distinct(colCarteira, ItemPO.Nome_Fornecedor), Value)}), o)',
                        X0 + 534, yf, 260),
-        lista_suspensa(f"ddEscopo_{s}", '["Todos os itens", "Com ações sob minha responsabilidade"]',
-                       X0 + 806, yf, 300),
+        lista_suspensa(f"ddEscopo_{s}", '["Minha carteira (responsável pela RC)", "Com ações sob minha responsabilidade", "Todos os itens"]',
+                       X0 + 806, yf, 300,
+                       Default='If(CountRows(Filter(colCarteira, Lower(RC.Responsavel_Diligencia.Email) = nfEmailUsuario)) > 0, "Minha carteira (responsável pela RC)", "Todos os itens")'),
     ]
-    cols = [("RC / item", 16, 130), ("PO / item", 150, 130), ("Material · descrição", 284, 330),
-            ("Fornecedor", 620, 240), ("1ª remessa", 864, 90), ("Pendências", 958, 170), ("Situação", 1132, 100)]
+    cols = [("RC / item · responsável", 16, 130), ("PO / item", 150, 130), ("Material · descrição", 284, 330),
+            ("Fornecedor", 620, 240), ("1ª remessa", 864, 90), ("Pendências", 958, 170), ("Situação · prioridade", 1132, 100)]
     filhos += linha_cab(s, cols, yf + 48)
     linha = [
         retangulo(f"cFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1", "nfCorCartao",
                   OnSelect="Select(Parent)"),
         retangulo(f"cFaixa_{s}", 0, 0, 4, "Parent.TemplateHeight - 1", cor_situacao("ThisItem.Situacao")),
-        rotulo(f"cRC_{s}", 'ThisItem.Numero_RC & " / " & ThisItem.Item_RC', 16, 0, 130, "Parent.TemplateHeight", 10, "nfCorTexto", True),
+        rotulo(f"cRC_{s}", 'ThisItem.Numero_RC & " / " & ThisItem.Item_RC & Char(10) & Coalesce(ThisItem.RC.Responsavel_Diligencia.DisplayName, "sem responsável")',
+               16, 0, 130, "Parent.TemplateHeight", 9, "nfCorTexto", True),
         rotulo(f"cPO_{s}", 'ThisItem.Numero_PO & " / " & ThisItem.Item_PO', 150, 0, 130, "Parent.TemplateHeight", 10, "nfCorTexto", True),
         rotulo(f"cDesc_{s}", 'Coalesce(ThisItem.ItemPO.Material, "—") & " · " & Coalesce(ThisItem.ItemPO.Descricao_Produto, "—")',
                284, 0, 330, "Parent.TemplateHeight", 9, "nfCorTexto"),
@@ -396,18 +404,22 @@ def tela_carteira():
         rotulo(f"cRem_{s}", data("ThisItem.ItemPO.Data_1_Remessa_Item_SAP"), 864, 0, 90, "Parent.TemplateHeight", 9, "nfCorTexto"),
         rotulo(f"cPend_{s}", 'ThisItem.QtdOcorrAbertas & " ocorr. · " & ThisItem.QtdAcoesPend & " ações · " & ThisItem.QtdMarcosAtrasados & " marcos atras."',
                958, 0, 170, "Parent.TemplateHeight", 9, "nfCorSuave"),
-        rotulo(f"cSit_{s}", "ThisItem.Situacao", 1132, 0, 100, "Parent.TemplateHeight", 10,
+        rotulo(f"cSit_{s}", 'ThisItem.Situacao & Char(10) & Coalesce(ThisItem.RC.Prioridade.Value, "—")', 1132, 0, 100, "Parent.TemplateHeight", 10,
                cor_situacao("ThisItem.Situacao"), True),
     ]
     itens = f"""Filter(
     colCarteira As c,
     IsBlank(txtBusca_{s}.Text) || txtBusca_{s}.Text in c.Numero_RC || txtBusca_{s}.Text in c.Numero_PO
         || txtBusca_{s}.Text in c.ItemPO.Material || txtBusca_{s}.Text in c.ItemPO.Descricao_Produto
-        || txtBusca_{s}.Text in c.ItemPO.Nome_Fornecedor,
+        || txtBusca_{s}.Text in c.ItemPO.Nome_Fornecedor || txtBusca_{s}.Text in c.RC.Responsavel_Diligencia.DisplayName,
     ddSituacao_{s}.Selected.Value = "(Todos)" || c.Situacao = ddSituacao_{s}.Selected.Value,
     ddFornecedor_{s}.Selected.Value = "(Todos)" || c.ItemPO.Nome_Fornecedor = ddFornecedor_{s}.Selected.Value,
-    ddEscopo_{s}.Selected.Value = "Todos os itens"
-        || CountRows(Filter(colAcoes, Numero_PO = c.Numero_PO && Item_PO = c.Item_PO && Lower(Responsavel_Pessoa.Email) = nfEmailUsuario)) > 0
+    Switch(
+        ddEscopo_{s}.Selected.Value,
+        "Todos os itens", true,
+        "Minha carteira (responsável pela RC)", Lower(c.RC.Responsavel_Diligencia.Email) = nfEmailUsuario,
+        CountRows(Filter(colAcoes, Numero_PO = c.Numero_PO && Item_PO = c.Item_PO && Lower(Responsavel_Pessoa.Email) = nfEmailUsuario)) > 0
+    )
 )"""
     filhos += [
         galeria(f"galCarteira_{s}", itens, X0, yf + 78, LARG_CONTEUDO, f"Parent.Height - {yf + 78 + 44}", 52, linha,
@@ -476,12 +488,24 @@ def tela_dossie():
         ("Marcos atrasados", "gblItem.QtdMarcosAtrasados"),
         ("Tipo / origem do vínculo RC×PO", 'Coalesce(gblItem.Tipo_Vinculo.Value, "—") & " / " & Coalesce(gblItem.Origem_Vinculo.Value, "—")'),
     ]
-    for i, (t, v) in enumerate(resumo):
-        yy = yg + i * 44
-        filhos += [
-            rotulo(f"rTit{i}_{s}", txt(t), X0, yy, 280, 40, 10, "nfCorSuave", Visible='locAba = "Resumo"'),
-            rotulo(f"rVal{i}_{s}", v, X0 + 290, yy, 500, 40, 11, "nfCorTexto", True, Visible='locAba = "Resumo"'),
-        ]
+    resumo2 = [
+        ("Responsável pela diligência", 'Coalesce(gblItem.RC.Responsavel_Diligencia.DisplayName, "—")'),
+        ("Prioridade / risco (RC)", 'Coalesce(gblItem.RC.Prioridade.Value, "—") & " / " & Coalesce(gblItem.RC.Nivel_Risco.Value, "—")'),
+        ("Status / criação da RC", 'Coalesce(gblItem.RC.Status_RC, "—") & " / " & ' + data("gblItem.RC.Data_Criacao_RC")),
+        ("Item RC: utilização / avaliação", 'Coalesce(gblItem.ItemRC.Utilizacao_Material, "—") & " / " & Coalesce(gblItem.ItemRC.Tipo_Avaliacao, "—")'),
+        ("Fornecedor / CNPJ", 'Coalesce(gblItem.Forn.Nome_Fornecedor, gblItem.ItemPO.Nome_Fornecedor, "—") & " / " & Coalesce(gblItem.Forn.CNPJ, "—")'),
+        ("Contato / telefone", 'Coalesce(gblItem.Forn.Contato_Principal, "—") & " / " & Coalesce(gblItem.Forn.Telefone, "—")'),
+        ("E-mail do fornecedor", 'Coalesce(gblItem.Forn.Email_Principal, "—")'),
+        ("Status / risco do fornecedor", 'Coalesce(gblItem.Forn.Status_Fornecedor.Value, "—") & " / " & Coalesce(gblItem.Forn.Nivel_Risco_Fornecedor.Value, "—")'),
+    ]
+    for col, (lista, x) in enumerate([(resumo, X0), (resumo2, X0 + 600)]):
+        for i, (t, v) in enumerate(lista):
+            yy = yg + i * 44
+            filhos += [
+                rotulo(f"rTit{col}{i}_{s}", txt(t), x, yy, 220, 40, 10, "nfCorSuave", Visible='locAba = "Resumo"'),
+                rotulo(f"rVal{col}{i}_{s}", v, x + 230, yy, 340 if col == 0 else f"{LARG_CONTEUDO} - 830", 40, 10,
+                       "nfCorTexto", True, Visible='locAba = "Resumo"'),
+            ]
 
     def grade(nome, itens, aba, linhas, alt_modelo=56):
         return galeria(f"gal{nome}_{s}", itens, X0, yg, LARG_CONTEUDO, alt, alt_modelo, linhas,

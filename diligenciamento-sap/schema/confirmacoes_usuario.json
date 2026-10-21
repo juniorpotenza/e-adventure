@@ -18,5 +18,51 @@
     "Observacao": "TextoMultilinha",
     "Ativo": "Booleano",
     "Responsavel_Registro_Pessoa": "Pessoa"
+  },
+  "DIL_Requisicoes": {
+    "_fonte": "texto de Configurações da lista > Colunas, enviado em 21/10/2026",
+    "Chave_RC": "Texto",
+    "Numero_RC": "Texto",
+    "Tipo_Doc_Compra": "Texto",
+    "Descricao_Tipo_Doc": "Texto",
+    "Status_RC": "Texto",
+    "Data_Criacao_RC": "DataHora",
+    "Grupo_Compradores": "Texto",
+    "Responsavel_Diligencia": "Pessoa",
+    "Prioridade": "Escolha",
+    "Nivel_Risco": "Escolha",
+    "Data_Ultima_Atualizacao_SAP": "DataHora",
+    "Ativa": "Booleano",
+    "Observacao": "TextoMultilinha"
+  },
+  "DIL_Fornecedores": {
+    "_fonte": "texto de Configurações da lista > Colunas, enviado em 21/10/2026",
+    "Chave_Fornecedor": "Texto",
+    "Codigo_Fornecedor": "Texto",
+    "Nome_Fornecedor": "Texto",
+    "CNPJ": "Texto",
+    "Email_Principal": "Texto",
+    "Telefone": "Texto",
+    "Contato_Principal": "Texto",
+    "Categoria_Fornecedor": "TextoMultilinha",
+    "Status_Fornecedor": "Escolha",
+    "Nivel_Risco_Fornecedor": "Escolha",
+    "Responsavel_Fornecedor": "Texto",
+    "Observacao": "TextoMultilinha",
+    "Ativo": "Booleano",
+    "Responsavel_Fornecedor_Pessoa": "Pessoa"
+  },
+  "DIL_Itens_Requisicao": {
+    "_fonte": "texto de Configurações da lista > Colunas, enviado em 21/10/2026",
+    "Chave_Item_RC": "Texto",
+    "Numero_RC": "Texto",
+    "Item_RC": "Texto",
+    "Material": "Texto",
+    "Descricao_Produto": "Texto",
+    "Utilizacao_Material": "Texto",
+    "Tipo_Avaliacao": "Texto",
+    "Grupo_Compradores": "Texto",
+    "Data_1_Remessa_Item_SAP": "DataHora",
+    "Ativo": "Booleano"
   }
 }

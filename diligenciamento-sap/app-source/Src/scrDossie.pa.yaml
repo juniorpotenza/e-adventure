@@ -75,6 +75,9 @@ Screens:
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
+                ClearCollect(colReq, Filter(DIL_Requisicoes, Ativa = true)),
+                ClearCollect(colItensRC, Filter(DIL_Itens_Requisicao, Ativo = true)),
+                ClearCollect(colForn, Filter(DIL_Fornecedores, Ativo = true)),
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
@@ -83,6 +86,9 @@ Screens:
                     AddColumns(
                         colVinc As v,
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                        RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                        ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
@@ -395,202 +401,402 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - rTit0_Dossie:
+    - rTit00_Dossie:
         Control: Label
         Properties:
           Text: ="Status de liberação do PO"
           X: =240
           Y: =262
-          Width: =280
+          Width: =220
           Height: =40
           Size: =10
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
-    - rVal0_Dossie:
+    - rVal00_Dossie:
         Control: Label
         Properties:
           Text: =Coalesce(gblItem.ItemPO.Status_Liberacao_PO, "—")
-          X: =530
+          X: =470
           Y: =262
-          Width: =500
+          Width: =340
           Height: =40
-          Size: =11
+          Size: =10
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
-    - rTit1_Dossie:
+    - rTit01_Dossie:
         Control: Label
         Properties:
           Text: ="Status EF / EM (SAP)"
           X: =240
           Y: =306
-          Width: =280
+          Width: =220
           Height: =40
           Size: =10
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
-    - rVal1_Dossie:
+    - rVal01_Dossie:
         Control: Label
         Properties:
           Text: =Coalesce(gblItem.ItemPO.Status_EF, "—") & " / " & Coalesce(gblItem.ItemPO.Status_EM, "—")
-          X: =530
+          X: =470
           Y: =306
-          Width: =500
+          Width: =340
           Height: =40
-          Size: =11
+          Size: =10
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
-    - rTit2_Dossie:
+    - rTit02_Dossie:
         Control: Label
         Properties:
           Text: ="Data 1ª remessa (SAP)"
           X: =240
           Y: =350
-          Width: =280
+          Width: =220
           Height: =40
           Size: =10
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
-    - rVal2_Dossie:
+    - rVal02_Dossie:
         Control: Label
         Properties:
           Text: =If(IsBlank(gblItem.ItemPO.Data_1_Remessa_Item_SAP), "—", Text(gblItem.ItemPO.Data_1_Remessa_Item_SAP, "dd/mm/yyyy"))
-          X: =530
+          X: =470
           Y: =350
-          Width: =500
+          Width: =340
           Height: =40
-          Size: =11
+          Size: =10
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
-    - rTit3_Dossie:
+    - rTit03_Dossie:
         Control: Label
         Properties:
           Text: ="Código do fornecedor"
           X: =240
           Y: =394
-          Width: =280
+          Width: =220
           Height: =40
           Size: =10
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
-    - rVal3_Dossie:
+    - rVal03_Dossie:
         Control: Label
         Properties:
           Text: =Coalesce(gblItem.ItemPO.Codigo_Fornecedor, "—")
-          X: =530
+          X: =470
           Y: =394
-          Width: =500
+          Width: =340
           Height: =40
-          Size: =11
+          Size: =10
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
-    - rTit4_Dossie:
+    - rTit04_Dossie:
         Control: Label
         Properties:
           Text: ="Ocorrências abertas"
           X: =240
           Y: =438
-          Width: =280
+          Width: =220
           Height: =40
           Size: =10
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
-    - rVal4_Dossie:
+    - rVal04_Dossie:
         Control: Label
         Properties:
           Text: =gblItem.QtdOcorrAbertas
-          X: =530
+          X: =470
           Y: =438
-          Width: =500
+          Width: =340
           Height: =40
-          Size: =11
+          Size: =10
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
-    - rTit5_Dossie:
+    - rTit05_Dossie:
         Control: Label
         Properties:
           Text: ="Ações pendentes"
           X: =240
           Y: =482
-          Width: =280
+          Width: =220
           Height: =40
           Size: =10
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
-    - rVal5_Dossie:
+    - rVal05_Dossie:
         Control: Label
         Properties:
           Text: =gblItem.QtdAcoesPend
-          X: =530
+          X: =470
           Y: =482
-          Width: =500
+          Width: =340
           Height: =40
-          Size: =11
+          Size: =10
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
-    - rTit6_Dossie:
+    - rTit06_Dossie:
         Control: Label
         Properties:
           Text: ="Marcos atrasados"
           X: =240
           Y: =526
-          Width: =280
+          Width: =220
           Height: =40
           Size: =10
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
-    - rVal6_Dossie:
+    - rVal06_Dossie:
         Control: Label
         Properties:
           Text: =gblItem.QtdMarcosAtrasados
-          X: =530
+          X: =470
           Y: =526
-          Width: =500
+          Width: =340
           Height: =40
-          Size: =11
+          Size: =10
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
           Visible: =locAba = "Resumo"
-    - rTit7_Dossie:
+    - rTit07_Dossie:
         Control: Label
         Properties:
           Text: ="Tipo / origem do vínculo RC×PO"
           X: =240
           Y: =570
-          Width: =280
+          Width: =220
           Height: =40
           Size: =10
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locAba = "Resumo"
-    - rVal7_Dossie:
+    - rVal07_Dossie:
         Control: Label
         Properties:
           Text: =Coalesce(gblItem.Tipo_Vinculo.Value, "—") & " / " & Coalesce(gblItem.Origem_Vinculo.Value, "—")
-          X: =530
+          X: =470
           Y: =570
-          Width: =500
+          Width: =340
           Height: =40
-          Size: =11
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locAba = "Resumo"
+    - rTit10_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Responsável pela diligência"
+          X: =840
+          Y: =262
+          Width: =220
+          Height: =40
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Resumo"
+    - rVal10_Dossie:
+        Control: Label
+        Properties:
+          Text: =Coalesce(gblItem.RC.Responsavel_Diligencia.DisplayName, "—")
+          X: =1070
+          Y: =262
+          Width: =Parent.Width - 260 - 830
+          Height: =40
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locAba = "Resumo"
+    - rTit11_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Prioridade / risco (RC)"
+          X: =840
+          Y: =306
+          Width: =220
+          Height: =40
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Resumo"
+    - rVal11_Dossie:
+        Control: Label
+        Properties:
+          Text: =Coalesce(gblItem.RC.Prioridade.Value, "—") & " / " & Coalesce(gblItem.RC.Nivel_Risco.Value, "—")
+          X: =1070
+          Y: =306
+          Width: =Parent.Width - 260 - 830
+          Height: =40
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locAba = "Resumo"
+    - rTit12_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Status / criação da RC"
+          X: =840
+          Y: =350
+          Width: =220
+          Height: =40
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Resumo"
+    - rVal12_Dossie:
+        Control: Label
+        Properties:
+          Text: =Coalesce(gblItem.RC.Status_RC, "—") & " / " & If(IsBlank(gblItem.RC.Data_Criacao_RC), "—", Text(gblItem.RC.Data_Criacao_RC, "dd/mm/yyyy"))
+          X: =1070
+          Y: =350
+          Width: =Parent.Width - 260 - 830
+          Height: =40
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locAba = "Resumo"
+    - rTit13_Dossie:
+        Control: Label
+        Properties:
+          Text: '="Item RC: utilização / avaliação"'
+          X: =840
+          Y: =394
+          Width: =220
+          Height: =40
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Resumo"
+    - rVal13_Dossie:
+        Control: Label
+        Properties:
+          Text: =Coalesce(gblItem.ItemRC.Utilizacao_Material, "—") & " / " & Coalesce(gblItem.ItemRC.Tipo_Avaliacao, "—")
+          X: =1070
+          Y: =394
+          Width: =Parent.Width - 260 - 830
+          Height: =40
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locAba = "Resumo"
+    - rTit14_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Fornecedor / CNPJ"
+          X: =840
+          Y: =438
+          Width: =220
+          Height: =40
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Resumo"
+    - rVal14_Dossie:
+        Control: Label
+        Properties:
+          Text: =Coalesce(gblItem.Forn.Nome_Fornecedor, gblItem.ItemPO.Nome_Fornecedor, "—") & " / " & Coalesce(gblItem.Forn.CNPJ, "—")
+          X: =1070
+          Y: =438
+          Width: =Parent.Width - 260 - 830
+          Height: =40
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locAba = "Resumo"
+    - rTit15_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Contato / telefone"
+          X: =840
+          Y: =482
+          Width: =220
+          Height: =40
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Resumo"
+    - rVal15_Dossie:
+        Control: Label
+        Properties:
+          Text: =Coalesce(gblItem.Forn.Contato_Principal, "—") & " / " & Coalesce(gblItem.Forn.Telefone, "—")
+          X: =1070
+          Y: =482
+          Width: =Parent.Width - 260 - 830
+          Height: =40
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locAba = "Resumo"
+    - rTit16_Dossie:
+        Control: Label
+        Properties:
+          Text: ="E-mail do fornecedor"
+          X: =840
+          Y: =526
+          Width: =220
+          Height: =40
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Resumo"
+    - rVal16_Dossie:
+        Control: Label
+        Properties:
+          Text: =Coalesce(gblItem.Forn.Email_Principal, "—")
+          X: =1070
+          Y: =526
+          Width: =Parent.Width - 260 - 830
+          Height: =40
+          Size: =10
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locAba = "Resumo"
+    - rTit17_Dossie:
+        Control: Label
+        Properties:
+          Text: ="Status / risco do fornecedor"
+          X: =840
+          Y: =570
+          Width: =220
+          Height: =40
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Resumo"
+    - rVal17_Dossie:
+        Control: Label
+        Properties:
+          Text: =Coalesce(gblItem.Forn.Status_Fornecedor.Value, "—") & " / " & Coalesce(gblItem.Forn.Nivel_Risco_Fornecedor.Value, "—")
+          X: =1070
+          Y: =570
+          Width: =Parent.Width - 260 - 830
+          Height: =40
+          Size: =10
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
@@ -1218,6 +1424,9 @@ Screens:
                 ClearCollect(colMarcos, DIL_Marcos),
                 ClearCollect(colComun, DIL_Comunicacoes),
                 ClearCollect(colComp, Filter(DIL_Compromissos, Ativo = true)),
+                ClearCollect(colReq, Filter(DIL_Requisicoes, Ativa = true)),
+                ClearCollect(colItensRC, Filter(DIL_Itens_Requisicao, Ativo = true)),
+                ClearCollect(colForn, Filter(DIL_Fornecedores, Ativo = true)),
                 ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
             );
             ClearCollect(
@@ -1226,6 +1435,9 @@ Screens:
                     AddColumns(
                         colVinc As v,
                         ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                        RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                        ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                        Forn, LookUp(colForn, Codigo_Fornecedor = LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO, Codigo_Fornecedor)),
                         QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
                         QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
