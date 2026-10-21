@@ -1,6 +1,6 @@
 # STATUS ATUAL — Sistema de Diligenciamento SAP (Canvas App)
 
-**Data:** 21/10/2026 · **Situação geral:** fontes do app geradas e validadas offline; **`.msapp` candidato ainda não gerado** porque o `.msapp` original não está disponível neste ambiente. Nada foi testado no tenant.
+**Data:** 21/10/2026 · **Situação geral:** fontes do app geradas e validadas offline; **`.msapp` candidato gerado** a partir do original (recebido por e-mail). Candidato **não aberto no Power Apps Studio** e nada testado no tenant.
 
 Legenda: ✅ confirmado com evidência · 🟡 inferido · ⏳ pendente · ⛔ inacessível · 🧪 não testado
 
@@ -10,7 +10,7 @@ Legenda: ✅ confirmado com evidência · 🟡 inferido · ⏳ pendente · ⛔ i
 
 | Artefato | Situação | Onde / evidência |
 |---|---|---|
-| `Sistema de Diligenciamento.msapp` | ⛔ **AUSENTE** | Não está no repositório, no contêiner, nem no Google Drive conectado (busca por "msapp", "Sistema de Dilig", "Diligenciamento"). |
+| `Sistema de Diligenciamento.msapp` | ✅ recebido | Anexo do e-mail "ss" no Gmail (12.608 bytes, sha256 `f81cb237…`, CRC OK). App em branco: só `scrInicio` vazia, tema `PowerAppsTheme`, 1366×768 paisagem, nenhuma fonte de dados, formato moderno com `Src/*.pa.yaml`. Cópia intocada em `artifacts/original/` (não versionada). |
 | `Prototipo_Diligenciamento_SAP.html` (avulso) | ⛔ **AUSENTE** como arquivo avulso | Existe `prototipo/index.html` dentro do pacote visual (abaixo). Não confirmei se é idêntico ao HTML avulso citado. |
 | `Projeto_Visual_Diligenciamento_SAP.zip` | ✅ presente | Google Drive (12.091 bytes, sha256 `48cb71cd…`). Integridade conferida (CRC OK). Copiado para `prototype/`. |
 | `DIL.zip` (não citado no pedido) | ✅ presente | Google Drive (sha256 `c40f37d6…`): **16 CSVs exportados das listas + 10 pacotes de fluxo** (DIL_01 a DIL_10). Base de todo o mapeamento de colunas. Mantido só em `local/` (contém e-mails e nomes reais; não versionado). |
@@ -68,7 +68,7 @@ Legenda: ✅ confirmado com evidência · 🟡 inferido · ⏳ pendente · ⛔ i
 
 | # | Pendência | Tipo |
 |---|---|---|
-| P1 | Anexar **`Sistema de Diligenciamento.msapp`** (o original, exportado do Studio: *Arquivo > Salvar como > Este computador*) | ⛔ bloqueia o candidato |
+| P1 | ~~Anexar o `.msapp` original~~ → recebido; candidato `Sistema_de_Diligenciamento__candidato__20261021-190639.msapp` gerado (`LoadFromYaml=true`, round-trip idêntico) | ✅ |
 | P2 | Abrir o candidato no Power Apps Studio, adicionar as 10 listas SharePoint e zerar erros de fórmula | ⏳ PENDENTE — requer execução no ambiente do usuário |
 | P3 | Conferir no SharePoint as colunas de `docs/Checklist_Colunas_Inferidas.md` | ⏳ ambiente do usuário |
 | P4 | Confirmar se a escolha `Power Apps` existe em `DIL_Historico.Origem_Evento` (o app grava esse valor) | ⏳ ambiente do usuário |
@@ -86,11 +86,12 @@ O repositório `juniorpotenza/e-adventure` é **público**. Para não expor dado
 1. ✅ Auditar insumos e extrair o esquema real (`scripts/extrair_esquema.py`).
 2. ✅ Gerar as fontes `*.pa.yaml` (`scripts/gerar_fontes.py`) usando só colunas mapeadas.
 3. ✅ Validar offline (`validar_fontes.py`, `checar_sintaxe_fx.py`).
-4. ⛔→⏳ Com o `.msapp` original: `scripts/montar_msapp.py` gera o candidato (backup + mescla + pack + round-trip).
+4. ✅ `scripts/montar_msapp.py` gerou o candidato a partir do original (backup + mescla + pack + round-trip).
 5. ⏳ Validar no Studio, conectar as listas uma a uma, executar o plano de testes.
 6. ⏳ Publicar como app separado; promover só após aceite (rollback = app original intacto).
 
 ## 9. Próximos passos que dependem de você
 
-1. **Anexe `Sistema de Diligenciamento.msapp`** nesta conversa (ou no Google Drive conectado). Eu gero o candidato aqui mesmo, com o PAC já instalado.
-2. Opcional: envie o pacote exportado da V9 do DIL_10.
+1. Abrir o candidato no Power Apps Studio (*Arquivo > Abrir > Procurar*), salvar com outro nome e seguir `docs/Guia_Importacao.md` (conectar as 10 listas, limite de linhas 2000, zerar erros).
+2. Relatar qualquer erro de carga/fórmula (tela, controle, propriedade, mensagem) para correção no gerador.
+3. Opcional: envie o pacote exportado da V9 do DIL_10.

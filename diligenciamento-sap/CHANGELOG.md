@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1-candidato] — 2026-10-21
+
+- Recebido o `.msapp` original (sha256 `f81cb237…`; app em branco com `scrInicio` vazia).
+- Gerado o candidato `Sistema_de_Diligenciamento__candidato__20261021-190639.msapp` com `scripts/montar_msapp.py`:
+  9 telas, tema original mantido, `packed.json` com `LoadFromYaml=true`, round-trip das fontes idêntico.
+- Pendente: abertura no Power Apps Studio e testes no tenant.
+
 ## [0.1.0-candidato-fontes] — 2026-10-21
 
 ### Auditoria
