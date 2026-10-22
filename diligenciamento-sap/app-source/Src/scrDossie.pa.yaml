@@ -1832,16 +1832,18 @@ Screens:
                         }
                     ),
                     ddResultado_Dossie.Selected.Value = "Nova data negociada",
-                    Patch(
+                    With(
+                        {r: LookUp(DIL_Compromissos, ID = gblItem.CompEntrega.ID)},
+                        Patch(
                         DIL_Compromissos,
-                        LookUp(DIL_Compromissos, ID = gblItem.CompEntrega.ID),
+                        r,
                         {
-                            Data_Compromisso_Anterior: gblItem.CompEntrega.Data_Compromisso,
+                            Data_Compromisso_Anterior: r.Data_Compromisso,
                             Data_Compromisso: dtResultado_Dossie.SelectedDate,
                             Status_Compromisso: {Value: "Aberto"},
                             Observacao: Switch(ddResultado_Dossie.Selected.Value, "Nova data negociada", nfMarcaNovaData, "Material entregue", nfMarcaEntregue, "Chegou com divergência na NF", nfMarcaDivergencia, "NF emitida — material em trânsito", nfMarcaNF, nfMarcaContato) & If(ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)", " " & Text(dtResultado_Dossie.SelectedDate, "dd/mm/yyyy"), "") & " — " & ddMeio_Dossie.Selected.Value
                         }
-                    ),
+                    )),
                     ddResultado_Dossie.Selected.Value in ["Material entregue", "Chegou com divergência na NF"] && IsBlank(gblItem.CompEntrega), Patch(
                         DIL_Compromissos,
                         Defaults(DIL_Compromissos),

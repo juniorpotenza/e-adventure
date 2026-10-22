@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.1-candidato-v8] — 2026-10-22
+
+### Validado no Studio (v7)
+- **v7 abriu** com as 14 listas conectadas, sem fonte duplicada. Verificador: 797 avisos (acessibilidade e
+  delegação) e **6 erros em 2 controles**. Análise com o novo `scripts/analisar_msapp_studio.py`.
+
+### Corrigido
+- Gravar contato com "Nova data negociada": o compromisso a reprogramar é lido direto de `DIL_Compromissos`
+  (`With({r: LookUp(...)}, Patch(..., r, {Data_Compromisso_Anterior: r.Data_Compromisso, ...}))`).
+- Responsável da nova ação: `Classic/ComboBox` substituído por `Classic/DropDown` de pessoas
+  (o Studio injeta `SearchItems` de amostra no ComboBox; definir `SearchItems` no YAML impediu a abertura da v6).
+- Validador: reprova `Classic/ComboBox`.
+
 ## [0.5.0-candidato-v7] — 2026-10-21 — app orientado ao trabalho do diligenciador
 
 Base: v6b (sem `SearchItems` no ComboBox). Nenhuma lista, coluna ou fluxo alterado.

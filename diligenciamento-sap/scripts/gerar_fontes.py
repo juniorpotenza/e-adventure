@@ -700,16 +700,18 @@ def painel_contato(s, y, filtro_item):
     passo_comp = f"""If(
         {res} = "{RESULTADOS[1]}" && IsBlank({comp}), {novo_comp("Aberto")},
         {res} = "{RESULTADOS[1]}",
-        Patch(
+        With(
+            {{r: LookUp(DIL_Compromissos, ID = {comp}.ID)}},
+            Patch(
             DIL_Compromissos,
-            LookUp(DIL_Compromissos, ID = {comp}.ID),
+            r,
             {{
-                Data_Compromisso_Anterior: {comp}.Data_Compromisso,
+                Data_Compromisso_Anterior: r.Data_Compromisso,
                 Data_Compromisso: dtResultado_{s}.SelectedDate,
                 Status_Compromisso: {{Value: "Aberto"}},
                 Observacao: {assunto}
             }}
-        ),
+        )),
         {res} in ["{RESULTADOS[2]}", "{RESULTADOS[3]}"] && IsBlank({comp}), {novo_comp("Cumprido")},
         {res} in ["{RESULTADOS[2]}", "{RESULTADOS[3]}"],
         Patch(
@@ -1168,8 +1170,8 @@ def tela_acoes():
             Chave_Ocorrencia: ddOcor_{s}.Selected.Chave,
             Tipo_Acao: ddTipo_{s}.Selected,
             Descricao_Acao: Trim(txtDesc_{s}.Text),
-            Responsavel: cmbResp_{s}.Selected.DisplayName,
-            Responsavel_Pessoa: cmbResp_{s}.Selected,
+            Responsavel: ddResp_{s}.Selected.Value,
+            Responsavel_Pessoa: ddResp_{s}.Selected.Pessoa,
             Prazo: Text(dtPrazo_{s}.SelectedDate, "yyyy-mm-dd"),
             Status_Acao: {{Value: "Aberta"}},
             Prioridade: ddPrioNova_{s}.Selected,
@@ -1177,10 +1179,10 @@ def tela_acoes():
         }}
     )"""
     hist_nova = historico("Ação", "locChave", "Inclusão", "Ação", '""',
-                          f'"Responsável=" & cmbResp_{s}.Selected.DisplayName & "; Prazo=" & Text(dtPrazo_{s}.SelectedDate, "dd/mm/yyyy")',
+                          f'"Responsável=" & ddResp_{s}.Selected.Value & "; Prazo=" & Text(dtPrazo_{s}.SelectedDate, "dd/mm/yyyy")',
                           '"Ação registrada pelo aplicativo."')
     salvar_nova = f"""If(
-    IsBlank(ddOcor_{s}.Selected) || IsBlank(ddTipo_{s}.Selected) || IsBlank(cmbResp_{s}.Selected)
+    IsBlank(ddOcor_{s}.Selected) || IsBlank(ddTipo_{s}.Selected) || IsBlank(ddResp_{s}.Selected.Pessoa)
         || IsBlank(dtPrazo_{s}.SelectedDate) || IsBlank(Trim(txtDesc_{s}.Text)),
     Notify("Preencha ocorrência, tipo, responsável, prazo e descrição.", NotificationType.Error),
     ddTipo_{s}.Selected.Value = "Escalonamento",
@@ -1195,11 +1197,9 @@ def tela_acoes():
         ("Tipo *", lista_suspensa(f"ddTipo_{s}", 'Filter(Choices([@DIL_Acoes].Tipo_Acao), Value <> "Escalonamento")',
                                   0, 0, 0, Visible=vis_n)),
         ("Prioridade", lista_suspensa(f"ddPrioNova_{s}", "Choices([@DIL_Acoes].Prioridade)", 0, 0, 0, Visible=vis_n)),
-        ("Responsável *", ctl(f"cmbResp_{s}", "Classic/ComboBox", {
-            "Items": "Choices([@DIL_Acoes].Responsavel_Pessoa)", "DisplayFields": '["DisplayName"]',
-            "SearchFields": '["DisplayName", "Email"]', "SelectMultiple": False,
-            "InputTextPlaceholder": txt("Buscar pessoa"), "Height": 36, "Size": 10, "BorderColor": "nfCorLinha",
-            "Visible": vis_n})),
+        ("Responsável *", lista_suspensa(
+            f"ddResp_{s}", "Sort(ForAll(Choices([@DIL_Acoes].Responsavel_Pessoa) As p, {Value: p.DisplayName, Pessoa: p}), Value)",
+            0, 0, 0, AllowEmptySelection=True, Visible=vis_n)),
         ("Prazo *", ctl(f"dtPrazo_{s}", "Classic/DatePicker", {
             "DefaultDate": "DateAdd(Today(), 2, TimeUnit.Days)", "Height": 36, "Size": 10,
             "BorderColor": "nfCorLinha", "Visible": vis_n})),

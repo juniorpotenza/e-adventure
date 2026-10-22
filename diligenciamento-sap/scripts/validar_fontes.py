@@ -108,7 +108,10 @@ def main():
                 erros.append(f"nome de controle duplicado: {nome} ({'/'.join(cam)} e {nomes.get(nome)})")
             nomes[nome] = "/".join(cam)
             tipo = c["Control"].split("@")[0]
-            if tipo in AMBIGUOS:
+            if tipo == "Classic/ComboBox":
+                erros.append(f"{nome}: Classic/ComboBox recebe SearchItems de amostra no Studio (ErrInvalidName "
+                             "ComboBoxSample) e SearchItems explícito impede a abertura; use Classic/DropDown")
+            elif tipo in AMBIGUOS:
                 erros.append(f"{nome}: '{tipo}' sem prefixo é o controle MODERNO no Studio; use 'Classic/{tipo}'")
             elif tipo not in ENUM and tipo not in CLASSICOS and tipo not in ("CanvasComponent", "CodeComponent"):
                 erros.append(f"{nome}: tipo de controle fora do enum oficial: {c['Control']}")

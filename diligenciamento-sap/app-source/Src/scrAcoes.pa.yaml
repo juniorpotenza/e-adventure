@@ -822,21 +822,18 @@ Screens:
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
           Visible: =locNova
-    - cmbResp_Acoes:
-        Control: Classic/ComboBox@2.4.0
+    - ddResp_Acoes:
+        Control: Classic/DropDown@2.3.1
         Properties:
-          Items: =Choices([@DIL_Acoes].Responsavel_Pessoa)
-          DisplayFields: =["DisplayName"]
-          SearchFields: =["DisplayName", "Email"]
-          SelectMultiple: =false
-          InputTextPlaceholder: ="Buscar pessoa"
-          Height: =36
-          Size: =10
-          BorderColor: =nfCorLinha
-          Visible: =locNova
+          Items: '=Sort(ForAll(Choices([@DIL_Acoes].Responsavel_Pessoa) As p, {Value: p.DisplayName, Pessoa: p}), Value)'
           X: =240 + (Parent.Width - 260) * 0.58 + 16 + 150
           Y: =358
           Width: =(Parent.Width - 260) * 0.42 - 16 - 166
+          Height: =36
+          Size: =10
+          BorderColor: =nfCorLinha
+          AllowEmptySelection: =true
+          Visible: =locNova
     - novaT4_Acoes:
         Control: Label@2.5.1
         Properties:
@@ -895,7 +892,7 @@ Screens:
           Height: =36
           OnSelect: |-
             =If(
-                IsBlank(ddOcor_Acoes.Selected) || IsBlank(ddTipo_Acoes.Selected) || IsBlank(cmbResp_Acoes.Selected)
+                IsBlank(ddOcor_Acoes.Selected) || IsBlank(ddTipo_Acoes.Selected) || IsBlank(ddResp_Acoes.Selected.Pessoa)
                     || IsBlank(dtPrazo_Acoes.SelectedDate) || IsBlank(Trim(txtDesc_Acoes.Text)),
                 Notify("Preencha ocorrência, tipo, responsável, prazo e descrição.", NotificationType.Error),
                 ddTipo_Acoes.Selected.Value = "Escalonamento",
@@ -914,8 +911,8 @@ Screens:
                         Chave_Ocorrencia: ddOcor_Acoes.Selected.Chave,
                         Tipo_Acao: ddTipo_Acoes.Selected,
                         Descricao_Acao: Trim(txtDesc_Acoes.Text),
-                        Responsavel: cmbResp_Acoes.Selected.DisplayName,
-                        Responsavel_Pessoa: cmbResp_Acoes.Selected,
+                        Responsavel: ddResp_Acoes.Selected.Value,
+                        Responsavel_Pessoa: ddResp_Acoes.Selected.Pessoa,
                         Prazo: Text(dtPrazo_Acoes.SelectedDate, "yyyy-mm-dd"),
                         Status_Acao: {Value: "Aberta"},
                         Prioridade: ddPrioNova_Acoes.Selected,
@@ -933,7 +930,7 @@ Screens:
                         Tipo_Evento: {Value: "Inclusão"},
                         Campo_Alterado: "Ação",
                         Valor_Anterior: "",
-                        Valor_Novo: "Responsável=" & cmbResp_Acoes.Selected.DisplayName & "; Prazo=" & Text(dtPrazo_Acoes.SelectedDate, "dd/mm/yyyy"),
+                        Valor_Novo: "Responsável=" & ddResp_Acoes.Selected.Value & "; Prazo=" & Text(dtPrazo_Acoes.SelectedDate, "dd/mm/yyyy"),
                         Data_Evento: Now(),
                         Usuario_Evento: User().FullName,
                         Usuario_Evento_Pessoa: nfPessoaAtual,
