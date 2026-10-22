@@ -24,7 +24,7 @@ Screens:
             );
             Clear(colDosHist);
             ForAll(colDosChaves As k, Collect(colDosHist, Filter(DIL_Historico, Chave_Entidade = k.Chave)));
-            UpdateContext({locAba: Coalesce(locAba, "Contatos"), locContato: false})
+            UpdateContext({locAba: If(nfPodeEditar, "Registrar contato", "Contatos")})
         )
     Children:
     - cabFundo_Dossie:
@@ -50,7 +50,7 @@ Screens:
     - cabUsuario_Dossie:
         Control: Label@2.5.1
         Properties:
-          Text: =User().FullName & "  ·  " & gblPerfil
+          Text: '=User().FullName & "  ·  perfil: " & nfPerfil'
           X: =Parent.Width - 560
           Y: =0
           Width: =360
@@ -173,7 +173,7 @@ Screens:
         Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
-          Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
+          Items: =Filter(nfMenu, Perfis = "*" || Lower(nfPerfil) in Split(Lower(Perfis), ","))
           X: =0
           Y: =68
           Width: =220
@@ -315,7 +315,7 @@ Screens:
           Y: =242
           Width: =260
           Height: =40
-          OnSelect: '=UpdateContext({locContato: true})'
+          OnSelect: '=UpdateContext({locAba: "Registrar contato"})'
           Fill: =nfCorAzul
           Color: =nfCorCartao
           HoverFill: =nfCorNavy2
@@ -326,7 +326,7 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =gblPodeEditar
+          Visible: =nfPodeEditar
     - btnNovaOcor_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
@@ -346,7 +346,7 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =gblPodeEditar
+          Visible: =nfPodeEditar
     - btnVoltar_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
@@ -369,10 +369,29 @@ Screens:
     - btnAba0_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
-          Text: ="Contatos"
+          Text: ="Registrar contato"
           X: =240 + 0
           Y: =292
-          Width: =144
+          Width: =134
+          Height: =34
+          OnSelect: '=UpdateContext({locAba: "Registrar contato"})'
+          Fill: =If(locAba = "Registrar contato", nfCorAzul, nfCorCartao)
+          Color: =If(locAba = "Registrar contato", nfCorCartao, nfCorAzul)
+          HoverFill: =nfCorFundo
+          BorderColor: =nfCorAzul
+          BorderThickness: =1
+          Size: =10
+          RadiusTopLeft: =4
+          RadiusTopRight: =4
+          RadiusBottomLeft: =4
+          RadiusBottomRight: =4
+    - btnAba1_Dossie:
+        Control: Classic/Button@2.2.0
+        Properties:
+          Text: ="Contatos"
+          X: =240 + 138
+          Y: =292
+          Width: =134
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Contatos"})'
           Fill: =If(locAba = "Contatos", nfCorAzul, nfCorCartao)
@@ -385,13 +404,13 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba1_Dossie:
+    - btnAba2_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Resumo"
-          X: =240 + 150
+          X: =240 + 276
           Y: =292
-          Width: =144
+          Width: =134
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Resumo"})'
           Fill: =If(locAba = "Resumo", nfCorAzul, nfCorCartao)
@@ -404,13 +423,13 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba2_Dossie:
+    - btnAba3_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Compromissos"
-          X: =240 + 300
+          X: =240 + 414
           Y: =292
-          Width: =144
+          Width: =134
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Compromissos"})'
           Fill: =If(locAba = "Compromissos", nfCorAzul, nfCorCartao)
@@ -423,13 +442,13 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba3_Dossie:
+    - btnAba4_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Marcos"
-          X: =240 + 450
+          X: =240 + 552
           Y: =292
-          Width: =144
+          Width: =134
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Marcos"})'
           Fill: =If(locAba = "Marcos", nfCorAzul, nfCorCartao)
@@ -442,13 +461,13 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba4_Dossie:
+    - btnAba5_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Ocorrências"
-          X: =240 + 600
+          X: =240 + 690
           Y: =292
-          Width: =144
+          Width: =134
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Ocorrências"})'
           Fill: =If(locAba = "Ocorrências", nfCorAzul, nfCorCartao)
@@ -461,13 +480,13 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba5_Dossie:
+    - btnAba6_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Ações"
-          X: =240 + 750
+          X: =240 + 828
           Y: =292
-          Width: =144
+          Width: =134
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Ações"})'
           Fill: =If(locAba = "Ações", nfCorAzul, nfCorCartao)
@@ -480,13 +499,13 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-    - btnAba6_Dossie:
+    - btnAba7_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Histórico"
-          X: =240 + 900
+          X: =240 + 966
           Y: =292
-          Width: =144
+          Width: =134
           Height: =34
           OnSelect: '=UpdateContext({locAba: "Histórico"})'
           Fill: =If(locAba = "Histórico", nfCorAzul, nfCorCartao)
@@ -1319,7 +1338,7 @@ Screens:
           Fill: =nfCorCartao
           BorderColor: =nfCorAzul
           BorderThickness: =1
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
     - btnCompNovo_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
@@ -1339,7 +1358,7 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
     - btnCompReprog_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
@@ -1359,7 +1378,7 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
     - cpModo_Dossie:
         Control: Label@2.5.1
         Properties:
@@ -1372,7 +1391,7 @@ Screens:
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
     - cpT0_Dossie:
         Control: Label@2.5.1
         Properties:
@@ -1384,7 +1403,7 @@ Screens:
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
+          Visible: =locAba = "Compromissos" && nfPodeEditar && !(locCompModo = "reprogramar")
     - ddTipoComp_Dossie:
         Control: Classic/DropDown@2.3.1
         Properties:
@@ -1395,7 +1414,7 @@ Screens:
           Height: =36
           Size: =10
           BorderColor: =nfCorLinha
-          Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
+          Visible: =locAba = "Compromissos" && nfPodeEditar && !(locCompModo = "reprogramar")
     - cpT1_Dossie:
         Control: Label@2.5.1
         Properties:
@@ -1407,7 +1426,7 @@ Screens:
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
+          Visible: =locAba = "Compromissos" && nfPodeEditar && !(locCompModo = "reprogramar")
     - ddOrigemComp_Dossie:
         Control: Classic/DropDown@2.3.1
         Properties:
@@ -1418,7 +1437,7 @@ Screens:
           Height: =36
           Size: =10
           BorderColor: =nfCorLinha
-          Visible: =locAba = "Compromissos" && gblPodeEditar && !(locCompModo = "reprogramar")
+          Visible: =locAba = "Compromissos" && nfPodeEditar && !(locCompModo = "reprogramar")
     - cpT2_Dossie:
         Control: Label@2.5.1
         Properties:
@@ -1430,7 +1449,7 @@ Screens:
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
     - ddStatusComp_Dossie:
         Control: Classic/DropDown@2.3.1
         Properties:
@@ -1442,7 +1461,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
           Default: =If(locCompModo = "reprogramar", galComp_Dossie.Selected.Status_Compromisso.Value, "Aberto")
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
     - cpT3_Dossie:
         Control: Label@2.5.1
         Properties:
@@ -1454,7 +1473,7 @@ Screens:
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
     - dtComp_Dossie:
         Control: Classic/DatePicker@2.6.0
         Properties:
@@ -1462,7 +1481,7 @@ Screens:
           Height: =36
           Size: =10
           BorderColor: =nfCorLinha
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
           X: =240 + (Parent.Width - 260) * 0.6 + 16 + 110
           Y: =564
           Width: =(Parent.Width - 260) * 0.4 - 16 - 126
@@ -1478,7 +1497,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
           Mode: =TextMode.MultiLine
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
     - btnCompSalvar_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
@@ -1623,7 +1642,7 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
     - cpNota_Dossie:
         Control: Label@2.5.1
         Properties:
@@ -1635,112 +1654,112 @@ Screens:
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =locAba = "Compromissos" && gblPodeEditar
+          Visible: =locAba = "Compromissos" && nfPodeEditar
     - ctFundo_Dossie:
         Control: Rectangle@2.3.0
         Properties:
-          X: =240 + (Parent.Width - 260) * 0.42
-          Y: =292
-          Width: =(Parent.Width - 260) * 0.58
-          Height: =Parent.Height - 308
+          X: =240
+          Y: =338
+          Width: =(Parent.Width - 260) * 0.56
+          Height: =Parent.Height - 354
           Fill: =nfCorCartao
           BorderColor: =nfCorAzul
           BorderThickness: =2
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - ctTitulo_Dossie:
         Control: Label@2.5.1
         Properties:
           Text: ="Registrar contato com o fornecedor"
-          X: =240 + (Parent.Width - 260) * 0.42 + 16
-          Y: =300
-          Width: =(Parent.Width - 260) * 0.58 - 32
+          X: =240 + 16
+          Y: =346
+          Width: =(Parent.Width - 260) * 0.56 - 32
           Height: =30
           Size: =13
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - ctT0_Dossie:
         Control: Label@2.5.1
         Properties:
           Text: ="Resultado *"
-          X: =240 + (Parent.Width - 260) * 0.42 + 16
-          Y: =338
+          X: =240 + 16
+          Y: =384
           Width: =120
           Height: =36
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - ddResultado_Dossie:
         Control: Classic/DropDown@2.3.1
         Properties:
           Items: =["Somente contato (sem mudança)", "Nova data negociada", "Material entregue", "Chegou com divergência na NF", "NF emitida — material em trânsito"]
-          X: =240 + (Parent.Width - 260) * 0.42 + 140
-          Y: =338
-          Width: =(Parent.Width - 260) * 0.58 - 156
+          X: =240 + 140
+          Y: =384
+          Width: =(Parent.Width - 260) * 0.56 - 156
           Height: =36
           Size: =10
           BorderColor: =nfCorLinha
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - ctT1_Dossie:
         Control: Label@2.5.1
         Properties:
           Text: ="Meio *"
-          X: =240 + (Parent.Width - 260) * 0.42 + 16
-          Y: =382
+          X: =240 + 16
+          Y: =428
           Width: =120
           Height: =36
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - ddMeio_Dossie:
         Control: Classic/DropDown@2.3.1
         Properties:
           Items: =Choices([@DIL_Comunicacoes].Tipo_Comunicacao)
-          X: =240 + (Parent.Width - 260) * 0.42 + 140
-          Y: =382
-          Width: =(Parent.Width - 260) * 0.58 - 156
+          X: =240 + 140
+          Y: =428
+          Width: =(Parent.Width - 260) * 0.56 - 156
           Height: =36
           Size: =10
           BorderColor: =nfCorLinha
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - ctT2_Dossie:
         Control: Label@2.5.1
         Properties:
           Text: ="Sentido *"
-          X: =240 + (Parent.Width - 260) * 0.42 + 16
-          Y: =426
+          X: =240 + 16
+          Y: =472
           Width: =120
           Height: =36
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - ddSentido_Dossie:
         Control: Classic/DropDown@2.3.1
         Properties:
           Items: =Choices([@DIL_Comunicacoes].Sentido)
-          X: =240 + (Parent.Width - 260) * 0.42 + 140
-          Y: =426
-          Width: =(Parent.Width - 260) * 0.58 - 156
+          X: =240 + 140
+          Y: =472
+          Width: =(Parent.Width - 260) * 0.56 - 156
           Height: =36
           Size: =10
           BorderColor: =nfCorLinha
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - ctT3_Dossie:
         Control: Label@2.5.1
         Properties:
           Text: =Switch(ddResultado_Dossie.Selected.Value, "Nova data negociada", "Nova data *", "Material entregue", "Data da chegada *", "Chegou com divergência na NF", "Data da chegada *", "NF emitida — material em trânsito", "Data da NF *", "")
-          X: =240 + (Parent.Width - 260) * 0.42 + 16
-          Y: =470
+          X: =240 + 16
+          Y: =516
           Width: =120
           Height: =36
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =locContato && ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)"
+          Visible: =locAba = "Registrar contato" && nfPodeEditar && ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)"
     - dtResultado_Dossie:
         Control: Classic/DatePicker@2.6.0
         Properties:
@@ -1748,41 +1767,41 @@ Screens:
           Height: =36
           Size: =10
           BorderColor: =nfCorLinha
-          Visible: =locContato && ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)"
-          X: =240 + (Parent.Width - 260) * 0.42 + 140
-          Y: =470
-          Width: =(Parent.Width - 260) * 0.58 - 156
+          Visible: =locAba = "Registrar contato" && nfPodeEditar && ddResultado_Dossie.Selected.Value <> "Somente contato (sem mudança)"
+          X: =240 + 140
+          Y: =516
+          Width: =(Parent.Width - 260) * 0.56 - 156
     - txtResumo_Dossie:
         Control: Classic/TextInput@2.3.2
         Properties:
           Default: =""
           HintText: '="O que foi tratado (ex.: fornecedor confirmou embarque; pedida antecipação por criticidade)"'
-          X: =240 + (Parent.Width - 260) * 0.42 + 16
-          Y: =514
-          Width: =(Parent.Width - 260) * 0.58 - 32
+          X: =240 + 16
+          Y: =560
+          Width: =(Parent.Width - 260) * 0.56 - 32
           Height: =80
           Size: =10
           BorderColor: =nfCorLinha
           Mode: =TextMode.MultiLine
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - ctAjuda_Dossie:
         Control: Label@2.5.1
         Properties:
           Text: '=Switch(ddResultado_Dossie.Selected.Value, "Nova data negociada", "Atualiza a data do compromisso de entrega; o ganho é calculado contra a remessa SAP.", "Material entregue", "Marca o compromisso como Cumprido: a cobrança para e a ocorrência de atraso é encerrada pelo fluxo.", "Chegou com divergência na NF", "Material recebido fisicamente; fica sinalizado até registrar ""Material entregue"" após a regularização da NF.", "NF emitida — material em trânsito", "Registra a NF; a cobrança continua até a chegada do material.", "Registra apenas o contato.")'
-          X: =240 + (Parent.Width - 260) * 0.42 + 16
-          Y: =600
-          Width: =(Parent.Width - 260) * 0.58 - 32
+          X: =240 + 16
+          Y: =646
+          Width: =(Parent.Width - 260) * 0.56 - 32
           Height: =36
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - btnCtSalvar_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
           Text: ="Gravar"
-          X: =240 + (Parent.Width - 260) * 0.42 + 16
-          Y: =642
+          X: =240 + 16
+          Y: =688
           Width: =140
           Height: =38
           OnSelect: |-
@@ -1971,7 +1990,7 @@ Screens:
                 );
                 Clear(colDosHist);
                 ForAll(colDosChaves As k, Collect(colDosHist, Filter(DIL_Historico, Chave_Entidade = k.Chave)));
-            Reset(txtResumo_Dossie); UpdateContext({locContato: false, locAba: "Contatos"})
+            Reset(txtResumo_Dossie); Reset(ddResultado_Dossie)
                 )
             )
           Fill: =nfCorAzul
@@ -1984,16 +2003,16 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
     - btnCtCancelar_Dossie:
         Control: Classic/Button@2.2.0
         Properties:
-          Text: ="Cancelar"
-          X: =240 + (Parent.Width - 260) * 0.42 + 168
-          Y: =642
+          Text: ="Limpar"
+          X: =240 + 168
+          Y: =688
           Width: =120
           Height: =38
-          OnSelect: '=UpdateContext({locContato: false})'
+          OnSelect: =Reset(txtResumo_Dossie); Reset(ddResultado_Dossie)
           Fill: =nfCorCartao
           Color: =nfCorAzul
           HoverFill: =nfCorFundo
@@ -2004,7 +2023,101 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =locContato
+          Visible: =locAba = "Registrar contato" && nfPodeEditar
+    - ctSoLeitura_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: ="Seu perfil (" & nfPerfil & ") é somente leitura. Contatos do item na aba Contatos."
+          X: =240
+          Y: =346
+          Width: =(Parent.Width - 260) * 0.56
+          Height: =40
+          Size: =11
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Registrar contato" && !nfPodeEditar
+    - ulTitulo_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: ="Últimos contatos deste item"
+          X: =240 + (Parent.Width - 260) * 0.56 + 16
+          Y: =338
+          Width: =(Parent.Width - 260) * 0.44 - 16
+          Height: =28
+          Size: =11
+          Color: =nfCorTexto
+          Font: =Font.'Segoe UI'
+          FontWeight: =FontWeight.Semibold
+          Visible: =locAba = "Registrar contato"
+    - galUltimos_Dossie:
+        Control: Gallery@2.15.0
+        Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+        Properties:
+          Items: =FirstN(Sort(Filter(colDosComun, !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao, SortOrder.Descending), 20)
+          X: =240 + (Parent.Width - 260) * 0.56 + 16
+          Y: =370
+          Width: =(Parent.Width - 260) * 0.44 - 16
+          Height: =Parent.Height - 386
+          TemplateSize: =60
+          TemplatePadding: =0
+          ShowScrollbar: =true
+          Visible: =locAba = "Registrar contato"
+        Children:
+        - ulFundo_Dossie:
+            Control: Rectangle@2.3.0
+            Properties:
+              X: =0
+              Y: =0
+              Width: =Parent.TemplateWidth
+              Height: =Parent.TemplateHeight - 1
+              Fill: =nfCorCartao
+        - ulData_Dossie:
+            Control: Label@2.5.1
+            Properties:
+              Text: =If(IsBlank(ThisItem.Data_Comunicacao), "—", Text(ThisItem.Data_Comunicacao, "dd/mm"))
+              X: =8
+              Y: =4
+              Width: =50
+              Height: =22
+              Size: =10
+              Color: =nfCorAzul
+              Font: =Font.'Segoe UI'
+              FontWeight: =FontWeight.Semibold
+        - ulAssunto_Dossie:
+            Control: Label@2.5.1
+            Properties:
+              Text: =Coalesce(ThisItem.Assunto, "")
+              X: =60
+              Y: =4
+              Width: =Parent.TemplateWidth - 64
+              Height: =22
+              Size: =9
+              Color: =nfCorTexto
+              Font: =Font.'Segoe UI'
+              FontWeight: =FontWeight.Semibold
+        - ulResumo_Dossie:
+            Control: Label@2.5.1
+            Properties:
+              Text: =Coalesce(ThisItem.Resumo, "")
+              X: =60
+              Y: =26
+              Width: =Parent.TemplateWidth - 64
+              Height: =30
+              Size: =9
+              Color: =nfCorSuave
+              Font: =Font.'Segoe UI'
+    - ulVazio_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: ="Nenhum contato registrado ainda."
+          X: =240 + (Parent.Width - 260) * 0.56 + 16
+          Y: =374
+          Width: =(Parent.Width - 260) * 0.44 - 16
+          Height: =28
+          Size: =9
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =locAba = "Registrar contato" && IsEmpty(galUltimos_Dossie.AllItems)
     - blqFundo_Dossie:
         Control: Rectangle@2.3.0
         Properties:
@@ -2026,6 +2139,18 @@ Screens:
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
+          Visible: =IsBlank(gblItem)
+    - blqDiag_Dossie:
+        Control: Label@2.5.1
+        Properties:
+          Text: '="Seu perfil no app: " & nfPerfil & "   ·   e-mail usado para localizar o perfil em DIL_Configuracao: " & Lower(User().Email)'
+          X: =240
+          Y: =270
+          Width: =Parent.Width - 260
+          Height: =40
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
           Visible: =IsBlank(gblItem)
     - blqBotao_Dossie:
         Control: Classic/Button@2.2.0

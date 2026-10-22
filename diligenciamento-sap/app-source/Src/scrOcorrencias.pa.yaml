@@ -4,7 +4,7 @@ Screens:
   scrOcorrencias:
     Properties:
       Fill: =nfCorFundo
-      OnVisible: '=UpdateContext({locNova: gblAbrirNova && gblPodeEditar}); Set(gblAbrirNova, false)'
+      OnVisible: '=UpdateContext({locNova: gblAbrirNova && nfPodeEditar}); Set(gblAbrirNova, false)'
     Children:
     - cabFundo_Ocorrencias:
         Control: Rectangle@2.3.0
@@ -29,7 +29,7 @@ Screens:
     - cabUsuario_Ocorrencias:
         Control: Label@2.5.1
         Properties:
-          Text: =User().FullName & "  ·  " & gblPerfil
+          Text: '=User().FullName & "  ·  perfil: " & nfPerfil'
           X: =Parent.Width - 560
           Y: =0
           Width: =360
@@ -152,7 +152,7 @@ Screens:
         Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
-          Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
+          Items: =Filter(nfMenu, Perfis = "*" || Lower(nfPerfil) in Split(Lower(Perfis), ","))
           X: =0
           Y: =68
           Width: =220
@@ -257,7 +257,7 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =gblPodeEditar
+          Visible: =nfPodeEditar
     - galOcor_Ocor:
         Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
@@ -568,7 +568,7 @@ Screens:
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && gblPodeEditar
+          Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && nfPodeEditar
     - ddNovoStatus_Ocor:
         Control: Classic/DropDown@2.3.1
         Properties:
@@ -579,7 +579,7 @@ Screens:
           Height: =36
           Size: =10
           BorderColor: =nfCorLinha
-          Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && gblPodeEditar
+          Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && nfPodeEditar
           Default: =galOcor_Ocor.Selected.Status_Ocorrencia.Value
     - btnSalvarStatus_Ocor:
         Control: Classic/Button@2.2.0
@@ -713,7 +713,7 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && gblPodeEditar
+          Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && nfPodeEditar
           DisplayMode: =If(ddNovoStatus_Ocor.Selected.Value = galOcor_Ocor.Selected.Status_Ocorrencia.Value, DisplayMode.Disabled, DisplayMode.Edit)
     - btnNovaAcao_Ocor:
         Control: Classic/Button@2.2.0
@@ -734,7 +734,7 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && gblPodeEditar
+          Visible: =!locNova && !IsBlank(galOcor_Ocor.Selected) && nfPodeEditar
     - novaFundo_Ocor:
         Control: Rectangle@2.3.0
         Properties:

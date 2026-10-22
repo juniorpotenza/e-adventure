@@ -28,7 +28,7 @@ Screens:
     - cabUsuario_Carteira:
         Control: Label@2.5.1
         Properties:
-          Text: =User().FullName & "  ·  " & gblPerfil
+          Text: '=User().FullName & "  ·  perfil: " & nfPerfil'
           X: =Parent.Width - 560
           Y: =0
           Width: =360
@@ -151,7 +151,7 @@ Screens:
         Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
-          Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
+          Items: =Filter(nfMenu, Perfis = "*" || Lower(nfPerfil) in Split(Lower(Perfis), ","))
           X: =0
           Y: =68
           Width: =220

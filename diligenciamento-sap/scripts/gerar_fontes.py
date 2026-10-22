@@ -47,7 +47,7 @@ TELAS = [
     # chave, nome da tela, rótulo do menu, perfis que veem o item (* = todos)
     ("inicio", "scrInicio", "Minha fila", "*"),
     ("carteira", "scrCarteira", "Minha carteira", "*"),
-    ("dossie", "scrDossie", "Diligenciar item", "*"),
+    ("dossie", "scrDossie", "Diligenciar item", "-"),
     ("ocorrencias", "scrOcorrencias", "Ocorrências", "*"),
     ("acoes", "scrAcoes", "Ações", "*"),
     ("agenda", "scrAgenda", "Agenda de entregas", "*"),
@@ -83,6 +83,17 @@ nfAcaoFechadas = ["Concluída", "Cancelada"];
 nfMarcoFechados = ["Concluído", "Cancelado"];
 nfOrigemApp = "Power Apps";
 nfPrioridadesAltas = ["Crítica", "Urgente", "Alta"];
+nfPerfil = Coalesce(
+    LookUp(
+        DIL_Configuracao,
+        Lower(Trim(Categoria)) = "perfil_usuario" && Lower(Trim(Nome_Parametro)) = Lower(User().Email),
+        Trim(Valor_Texto)
+    ),
+    "Diligenciador"
+);
+nfPodeEditar = Lower(nfPerfil) in ["diligenciador", "coordenador", "gestor", "administrador"];
+nfPodeGestao = Lower(nfPerfil) in ["coordenador", "gestor", "auditor", "administrador"];
+nfPodeAdmin = Lower(nfPerfil) in ["gestor", "administrador"];
 nfMarcaContato = "[Contato]";
 nfMarcaNovaData = "[Nova data]";
 nfMarcaEntregue = "[Entregue]";
@@ -178,16 +189,6 @@ ClearCollect(
 Set(gblCarregadoEm, Now())"""
 
 ON_START = """\
-Set(
-    gblPerfil,
-    Coalesce(
-        LookUp(DIL_Configuracao, Categoria = "Perfil_Usuario" && Nome_Parametro = nfEmailUsuario, Valor_Texto),
-        "Diligenciador"
-    )
-);
-Set(gblPodeEditar, gblPerfil in ["Diligenciador", "Coordenador", "Gestor", "Administrador"]);
-Set(gblPodeGestao, gblPerfil in ["Coordenador", "Gestor", "Auditor", "Administrador"]);
-Set(gblPodeAdmin, gblPerfil in ["Gestor", "Administrador"]);
 """ + CARGA
 
 
@@ -315,12 +316,12 @@ def cabecalho_e_menu(chave, titulo):
     return [
         retangulo(f"cabFundo_{s}", 0, 0, "Parent.Width", ALT_CAB, "nfCorNavy"),
         rotulo(f"cabMarca_{s}", txt("DIL · Diligenciamento SAP"), 20, 0, 300, ALT_CAB, 14, "nfCorCartao", True),
-        rotulo(f"cabUsuario_{s}", 'User().FullName & "  ·  " & gblPerfil', "Parent.Width - 560", 0, 360,
+        rotulo(f"cabUsuario_{s}", 'User().FullName & "  ·  perfil: " & nfPerfil', "Parent.Width - 560", 0, 360,
                ALT_CAB, 10, "nfCorCartao", Align="Align.Right"),
         botao(f"cabAtualizar_{s}", txt("Atualizar dados"), "Parent.Width - 180", 12, 160, 32,
               CARGA + ';\nNotify("Dados atualizados.", NotificationType.Success)', primario=False),
         retangulo(f"menuFundo_{s}", 0, ALT_CAB, LARG_MENU, f"Parent.Height - {ALT_CAB}", "nfCorNavy"),
-        galeria(f"galMenu_{s}", "Filter(nfMenu, Perfis = \"*\" || gblPerfil in Split(Perfis, \",\"))",
+        galeria(f"galMenu_{s}", "Filter(nfMenu, Perfis = \"*\" || Lower(nfPerfil) in Split(Lower(Perfis), \",\"))",
                 0, ALT_CAB + 12, LARG_MENU, f"Parent.Height - {ALT_CAB + 60}", 44, menu_item,
                 OnSelect=nav, ShowScrollbar=False),
         rotulo(f"menuRodape_{s}", '"Atualizado " & ' + data("gblCarregadoEm", "dd/mm hh:mm"), 16,
@@ -335,6 +336,8 @@ def bloqueio(s, condicao, mensagem, texto_botao="Voltar ao Início", destino="sc
         retangulo(f"blqFundo_{s}", LARG_MENU, ALT_CAB, f"Parent.Width - {LARG_MENU}", f"Parent.Height - {ALT_CAB}",
                   "nfCorFundo", Visible=condicao),
         rotulo(f"blqMsg_{s}", txt(mensagem), X0, Y0 + 40, LARG_CONTEUDO, 40, 13, "nfCorTexto", True, Visible=condicao),
+        rotulo(f"blqDiag_{s}", '"Seu perfil no app: " & nfPerfil & "   ·   e-mail usado para localizar o perfil em DIL_Configuracao: " & Lower(User().Email)',
+               X0, Y0 + 150, LARG_CONTEUDO, 40, 10, "nfCorSuave", Visible=condicao),
         botao(f"blqBotao_{s}", txt(texto_botao), X0, Y0 + 96, 220, 40,
               f"Navigate({destino}, ScreenTransition.None)", Visible=condicao),
     ]
@@ -439,7 +442,8 @@ def tela_inicio():
         rotulo(f"lblFilaVazia_{s}", txt("Nada pendente na fila. Bom trabalho!"), X0, y + 40, LARG_CONTEUDO, 28, 10,
                "nfCorSuave", Visible=f"IsEmpty(galFila_{s}.AllItems)"),
     ]
-    return tela("inicio", "scrInicio", "Minha fila de hoje", filhos)
+    return tela("inicio", "scrInicio", "Minha fila de hoje", filhos,
+                "If(IsEmpty(colCarteira),\n" + CARGA + "\n)")
 
 
 def tela_carteira():
@@ -527,7 +531,7 @@ def tela_dossie():
     IsBlank(gblItem),
     false,
     {carga_dossie(filtro_item)};
-    UpdateContext({{locAba: Coalesce(locAba, "Contatos"), locContato: false}})
+    UpdateContext({{locAba: If(nfPodeEditar, "Registrar contato", "Contatos")}})
 )"""
     yc = Y0 + 172
     ganho = ('If(IsBlank(gblItem.GanhoDias), "—", If(gblItem.GanhoDias > 0, "+" & gblItem.GanhoDias & " dia(s) antecipado(s)", '
@@ -548,16 +552,16 @@ def tela_dossie():
         rotulo(f"dSit_{s}", 'gblItem.Situacao & Char(10) & gblItem.Motivo', f"{X0} + {LARG_CONTEUDO} - 190", Y0 + 6, 180, 100, 10,
                cor_situacao("gblItem.Situacao"), True, Align="Align.Right", VerticalAlign="VerticalAlign.Top"),
         botao(f"btnContato_{s}", txt("Registrar contato / resultado"), X0, Y0 + 122, 260, 40,
-              'UpdateContext({locContato: true})', Visible="gblPodeEditar"),
+              'UpdateContext({locAba: "Registrar contato"})', Visible="nfPodeEditar"),
         botao(f"btnNovaOcor_{s}", txt("Registrar problema"), X0 + 272, Y0 + 122, 190, 40,
               'Set(gblPrefill, gblItem); Set(gblAbrirNova, true); Navigate(scrOcorrencias, ScreenTransition.None)',
-              Visible="gblPodeEditar", primario=False),
+              Visible="nfPodeEditar", primario=False),
         botao(f"btnVoltar_{s}", txt("‹ Voltar à fila"), f"{X0} + {LARG_CONTEUDO} - 190", Y0 + 122, 190, 40,
               "Navigate(scrInicio, ScreenTransition.None)", primario=False),
     ]
-    abas = ["Contatos", "Resumo", "Compromissos", "Marcos", "Ocorrências", "Ações", "Histórico"]
+    abas = ["Registrar contato", "Contatos", "Resumo", "Compromissos", "Marcos", "Ocorrências", "Ações", "Histórico"]
     for i, a in enumerate(abas):
-        filhos.append(botao(f"btnAba{i}_{s}", txt(a), f"{X0} + {i * 150}", yc, 144, 34,
+        filhos.append(botao(f"btnAba{i}_{s}", txt(a), f"{X0} + {i * 138}", yc, 134, 34,
                             f'UpdateContext({{locAba: "{a}"}})', primario=False,
                             Fill=f'If(locAba = "{a}", nfCorAzul, nfCorCartao)',
                             Color=f'If(locAba = "{a}", nfCorCartao, nfCorAzul)'))
@@ -652,7 +656,7 @@ def tela_dossie():
         ], 60),
     ]
     filhos += aba_compromissos(s, yg, filtro_item)
-    filhos += painel_contato(s, yc, filtro_item)
+    filhos += painel_contato(s, yc + 46, filtro_item)
     filhos += bloqueio(s, "IsBlank(gblItem)", "Nenhum processo selecionado. Escolha um item na carteira.",
                        "Ir para a carteira", "scrCarteira")
     return tela("dossie", "scrDossie", "Diligenciar item", filhos, on_visible)
@@ -666,9 +670,10 @@ def painel_contato(s, y, filtro_item):
     """Registrar contato com o fornecedor e o resultado. Grava em DIL_Comunicacoes (chave COM-APP-*, que o
     DIL_10 ignora) e, conforme o resultado, cria/atualiza o compromisso de Entrega (o DIL_05 cuida do marco;
     'Cumprido' encerra a cobrança e o DIL_07 encerra a ocorrência de atraso)."""
-    vis = "locContato"
-    x = f"{X0} + ({LARG_CONTEUDO}) * 0.42"
-    w = f"({LARG_CONTEUDO}) * 0.58"
+    aba = 'locAba = "Registrar contato"'
+    vis = f"{aba} && nfPodeEditar"
+    x = X0
+    w = f"({LARG_CONTEUDO}) * 0.56"
     res = f"ddResultado_{s}.Selected.Value"
     com_data = f'{res} <> "{RESULTADOS[0]}"'
     rotulo_data = (f'Switch({res}, "{RESULTADOS[1]}", "Nova data *", "{RESULTADOS[2]}", "Data da chegada *", '
@@ -739,7 +744,7 @@ def painel_contato(s, y, filtro_item):
         }}
     )"""
     depois = (CARGA + ";\nSet(gblItem, LookUp(colCarteira, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));\n"
-              + carga_dossie(filtro_item) + f";\nReset(txtResumo_{s}); UpdateContext({{locContato: false, locAba: \"Contatos\"}})")
+              + carga_dossie(filtro_item) + f";\nReset(txtResumo_{s}); Reset(ddResultado_{s})")
     salvar = f"""If(
     IsBlank(Trim(txtResumo_{s}.Text)) || IsBlank(ddMeio_{s}.Selected) || IsBlank(ddSentido_{s}.Selected),
     Notify("Informe meio, sentido e o resumo do contato.", NotificationType.Error),
@@ -783,8 +788,25 @@ def painel_contato(s, y, filtro_item):
                f'"{RESULTADOS[4]}", "Registra a NF; a cobrança continua até a chegada do material.", "Registra apenas o contato.")',
                f"{x} + 16", yr + 86, f"{w} - 32", 36, 9, "nfCorSuave", Visible=vis),
         botao(f"btnCtSalvar_{s}", txt("Gravar"), f"{x} + 16", yr + 128, 140, 38, salvar, Visible=vis),
-        botao(f"btnCtCancelar_{s}", txt("Cancelar"), f"{x} + 168", yr + 128, 120, 38,
-              "UpdateContext({locContato: false})", primario=False, Visible=vis),
+        botao(f"btnCtCancelar_{s}", txt("Limpar"), f"{x} + 168", yr + 128, 120, 38,
+              f"Reset(txtResumo_{s}); Reset(ddResultado_{s})", primario=False, Visible=vis),
+        rotulo(f"ctSoLeitura_{s}", '"Seu perfil (" & nfPerfil & ") é somente leitura. Contatos do item na aba Contatos."',
+               x, y + 8, w, 40, 11, "nfCorSuave", Visible=f"{aba} && !nfPodeEditar"),
+    ]
+    xr = f"{X0} + ({LARG_CONTEUDO}) * 0.56 + 16"
+    wr = f"({LARG_CONTEUDO}) * 0.44 - 16"
+    ult = [
+        retangulo(f"ulFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1", "nfCorCartao"),
+        rotulo(f"ulData_{s}", data("ThisItem.Data_Comunicacao", "dd/mm"), 8, 4, 50, 22, 10, "nfCorAzul", True),
+        rotulo(f"ulAssunto_{s}", 'Coalesce(ThisItem.Assunto, "")', 60, 4, "Parent.TemplateWidth - 64", 22, 9, "nfCorTexto", True),
+        rotulo(f"ulResumo_{s}", 'Coalesce(ThisItem.Resumo, "")', 60, 26, "Parent.TemplateWidth - 64", 30, 9, "nfCorSuave"),
+    ]
+    filhos += [
+        rotulo(f"ulTitulo_{s}", txt("Últimos contatos deste item"), xr, y, wr, 28, 11, "nfCorTexto", True, Visible=aba),
+        galeria(f"galUltimos_{s}", 'FirstN(Sort(Filter(colDosComun, !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao, SortOrder.Descending), 20)',
+                xr, y + 32, wr, f"Parent.Height - {y + 48}", 60, ult, Visible=aba),
+        rotulo(f"ulVazio_{s}", txt("Nenhum contato registrado ainda."), xr, y + 36, wr, 28, 9, "nfCorSuave",
+               Visible=f"{aba} && IsEmpty(galUltimos_{s}.AllItems)"),
     ]
     return filhos
 
@@ -856,7 +878,7 @@ def aba_compromissos(s, yg, filtro_item):
         {depois}
     )
 )"""
-    ed = f"{vis} && gblPodeEditar"
+    ed = f"{vis} && nfPodeEditar"
     filhos = [
         galeria(f"galComp_{s}", "Sort(colDosComp, Data_Compromisso, SortOrder.Descending)", X0, yg, wl, alt, 60, linha,
                 Visible=vis),
@@ -908,7 +930,7 @@ def tela_ocorrencias():
         lista_suspensa(f"ddStatus_{s}", opcoes_com_todos("Choices([@DIL_Ocorrencias].Status_Ocorrencia)"), X0 + 312, yf, 170),
         lista_suspensa(f"ddSev_{s}", opcoes_com_todos("Choices([@DIL_Ocorrencias].Severidade)"), X0 + 494, yf, 150),
         botao(f"btnNova_{s}", txt("+ Nova ocorrência"), f"{X0} + {LARG_CONTEUDO} - 200", yf, 200, 36,
-              "Set(gblPrefill, Blank()); UpdateContext({locNova: true})", Visible="gblPodeEditar"),
+              "Set(gblPrefill, Blank()); UpdateContext({locNova: true})", Visible="nfPodeEditar"),
     ]
     larg_lista = f"({LARG_CONTEUDO}) * 0.58"
     xd = f"{X0} + ({LARG_CONTEUDO}) * 0.58 + 16"
@@ -961,7 +983,7 @@ def tela_ocorrencias():
     filhos.append(rotulo(f"detDesc_{s}", f'Coalesce({sel}.Descricao, "")', f"{xd} + 16", ydesc, f"{wd} - 32", 60, 9,
                          "nfCorTexto", Visible=vis_det, VerticalAlign="VerticalAlign.Top"))
     yst = ydesc + 70
-    pode = "gblPodeEditar"
+    pode = "nfPodeEditar"
     patch_status = f"""Patch(
         DIL_Ocorrencias,
         LookUp(DIL_Ocorrencias, ID = {sel}.ID),
@@ -1054,7 +1076,7 @@ def tela_ocorrencias():
         botao(f"btnCancelarNova_{s}", txt("Cancelar"), f"{xd} + 168", yd + 172, 120, 36,
               "UpdateContext({locNova: false}); Set(gblPrefill, Blank())", primario=False, Visible=vis_n),
     ]
-    on_visible = "UpdateContext({locNova: gblAbrirNova && gblPodeEditar}); Set(gblAbrirNova, false)"
+    on_visible = "UpdateContext({locNova: gblAbrirNova && nfPodeEditar}); Set(gblAbrirNova, false)"
     return tela("ocorrencias", "scrOcorrencias", "Ocorrências", filhos, on_visible)
 
 
@@ -1064,12 +1086,12 @@ def tela_acoes():
     abertas = "!(Status_Acao.Value in nfAcaoFechadas)"
     filhos = [
         lista_suspensa(f"ddEscopo_{s}", '["Minhas ações", "Todas as ações"]', X0, yf, 170,
-                       Default='If(gblPerfil = "Diligenciador", "Minhas ações", "Todas as ações")'),
+                       Default='If(Lower(nfPerfil) = "diligenciador", "Minhas ações", "Todas as ações")'),
         lista_suspensa(f"ddStatus_{s}", opcoes_com_todos("Choices([@DIL_Acoes].Status_Acao)"), X0 + 182, yf, 160),
         lista_suspensa(f"ddPrio_{s}", opcoes_com_todos("Choices([@DIL_Acoes].Prioridade)"), X0 + 354, yf, 150),
         lista_suspensa(f"ddPrazo_{s}", '["(Todos os prazos)", "Vencidas", "Vencem em 7 dias"]', X0 + 516, yf, 180),
         botao(f"btnNova_{s}", txt("+ Nova ação"), f"{X0} + {LARG_CONTEUDO} - 160", yf, 160, 36,
-              "Set(gblOcorSel, Blank()); UpdateContext({locNova: true})", Visible="gblPodeEditar"),
+              "Set(gblOcorSel, Blank()); UpdateContext({locNova: true})", Visible="nfPodeEditar"),
     ]
     itens = f"""Sort(
     Filter(
@@ -1105,8 +1127,8 @@ def tela_acoes():
 
     sel = f"galAcoes_{s}.Selected"
     vis_det = f"!locNova && !IsBlank({sel})"
-    pode_editar = (f'gblPodeEditar && (Lower({sel}.Responsavel_Pessoa.Email) = nfEmailUsuario '
-                   f'|| gblPerfil in ["Coordenador", "Gestor", "Administrador"])')
+    pode_editar = (f'nfPodeEditar && (Lower({sel}.Responsavel_Pessoa.Email) = nfEmailUsuario '
+                   f'|| Lower(nfPerfil) in ["coordenador", "gestor", "administrador"])')
     det = [
         ("Chave", f"{sel}.Chave_Acao"),
         ("Ocorrência", f'Coalesce({sel}.Chave_Ocorrencia, "—")'),
@@ -1224,7 +1246,7 @@ def tela_acoes():
         botao(f"btnCancelarNova_{s}", txt("Cancelar"), f"{xd} + 168", yd + 92, 120, 36,
               "UpdateContext({locNova: false}); Set(gblOcorSel, Blank())", primario=False, Visible=vis_n),
     ]
-    on_visible = "UpdateContext({locNova: gblAbrirNova && gblPodeEditar}); Set(gblAbrirNova, false)"
+    on_visible = "UpdateContext({locNova: gblAbrirNova && nfPodeEditar}); Set(gblAbrirNova, false)"
     return tela("acoes", "scrAcoes", "Ações", filhos, on_visible)
 
 
@@ -1429,14 +1451,14 @@ def tela_gestao():
     filhos.append(rotulo(f"lblBI_{s}", txt("Ganho = remessa SAP − data negociada (dias antecipados). Escopo: registros ativos "
                                            "carregados no app. Tendências históricas: Power BI (pendente)."),
                          X0, "Parent.Height - 56", LARG_CONTEUDO, 40, 9, "nfCorSuave"))
-    filhos += bloqueio(s, "!gblPodeGestao", "Acesso restrito aos perfis Coordenador, Gestor, Auditor e Administrador.")
+    filhos += bloqueio(s, "!nfPodeGestao", "Acesso restrito aos perfis Coordenador, Gestor, Auditor e Administrador.")
     return tela("gestao", "scrGestao", "Visão da gestão", filhos, None)
 
 
 def tela_admin():
     s = "Admin"
     on_visible = """If(
-    !gblPodeAdmin,
+    !nfPodeAdmin,
     false,
     Concurrent(
         ClearCollect(colExec, FirstN(Sort(DIL_Integracao_Execucao, ID, SortOrder.Descending), 30)),
@@ -1513,7 +1535,7 @@ def tela_admin():
                    "Parent.TemplateWidth - 300", "Parent.TemplateHeight", 9, "nfCorTexto"),
         ], Visible='locAba = "Auditoria"'),
     ]
-    filhos += bloqueio(s, "!gblPodeAdmin", "Acesso restrito aos perfis Gestor e Administrador.")
+    filhos += bloqueio(s, "!nfPodeAdmin", "Acesso restrito aos perfis Gestor e Administrador.")
     return tela("admin", "scrAdmin", "Administração e configurações", filhos, on_visible)
 
 

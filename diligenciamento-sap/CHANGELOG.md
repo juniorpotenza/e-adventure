@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.6.0-candidato-v9] — 2026-10-22
+
+### Corrigido (relato do usuário na v8)
+- **Botões de edição e menus de Gestão/Administração não apareciam.** Perfil e permissões eram variáveis
+  definidas no `App.OnStart`, que o Studio não executa ao abrir um arquivo (só com "Executar OnStart" ou no app
+  publicado). Agora são fórmulas nomeadas (`nfPerfil`, `nfPodeEditar`, `nfPodeGestao`, `nfPodeAdmin`),
+  avaliadas sempre que usadas. A busca do perfil ignora maiúsculas e espaços em `Categoria`, `Nome_Parametro`
+  e `Valor_Texto`.
+- A carga de dados também roda ao abrir a fila se as coleções estiverem vazias.
+
+### Usabilidade
+- "Diligenciar item": o formulário **Registrar contato** é a primeira aba e abre por padrão (antes ficava
+  escondido atrás de um botão), com os últimos contatos do item ao lado.
+- Cabeçalho mostra "perfil: …"; telas restritas mostram o perfil e o e-mail usado para localizá-lo em
+  `DIL_Configuracao`.
+- "Diligenciar item" saiu do menu lateral (abre a partir da fila, carteira ou agenda).
+
 ## [0.5.1-candidato-v8] — 2026-10-22
 
 ### Validado no Studio (v7)

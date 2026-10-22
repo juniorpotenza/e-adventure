@@ -28,7 +28,7 @@ Screens:
     - cabUsuario_Gestao:
         Control: Label@2.5.1
         Properties:
-          Text: =User().FullName & "  ·  " & gblPerfil
+          Text: '=User().FullName & "  ·  perfil: " & nfPerfil'
           X: =Parent.Width - 560
           Y: =0
           Width: =360
@@ -151,7 +151,7 @@ Screens:
         Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
-          Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
+          Items: =Filter(nfMenu, Perfis = "*" || Lower(nfPerfil) in Split(Lower(Perfis), ","))
           X: =0
           Y: =68
           Width: =220
@@ -631,7 +631,7 @@ Screens:
           Width: =Parent.Width - 220
           Height: =Parent.Height - 56
           Fill: =nfCorFundo
-          Visible: =!gblPodeGestao
+          Visible: =!nfPodeGestao
     - blqMsg_Gestao:
         Control: Label@2.5.1
         Properties:
@@ -644,7 +644,19 @@ Screens:
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
-          Visible: =!gblPodeGestao
+          Visible: =!nfPodeGestao
+    - blqDiag_Gestao:
+        Control: Label@2.5.1
+        Properties:
+          Text: '="Seu perfil no app: " & nfPerfil & "   ·   e-mail usado para localizar o perfil em DIL_Configuracao: " & Lower(User().Email)'
+          X: =240
+          Y: =270
+          Width: =Parent.Width - 260
+          Height: =40
+          Size: =10
+          Color: =nfCorSuave
+          Font: =Font.'Segoe UI'
+          Visible: =!nfPodeGestao
     - blqBotao_Gestao:
         Control: Classic/Button@2.2.0
         Properties:
@@ -664,4 +676,4 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =!gblPodeGestao
+          Visible: =!nfPodeGestao

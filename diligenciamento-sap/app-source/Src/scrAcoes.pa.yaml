@@ -4,7 +4,7 @@ Screens:
   scrAcoes:
     Properties:
       Fill: =nfCorFundo
-      OnVisible: '=UpdateContext({locNova: gblAbrirNova && gblPodeEditar}); Set(gblAbrirNova, false)'
+      OnVisible: '=UpdateContext({locNova: gblAbrirNova && nfPodeEditar}); Set(gblAbrirNova, false)'
     Children:
     - cabFundo_Acoes:
         Control: Rectangle@2.3.0
@@ -29,7 +29,7 @@ Screens:
     - cabUsuario_Acoes:
         Control: Label@2.5.1
         Properties:
-          Text: =User().FullName & "  ·  " & gblPerfil
+          Text: '=User().FullName & "  ·  perfil: " & nfPerfil'
           X: =Parent.Width - 560
           Y: =0
           Width: =360
@@ -152,7 +152,7 @@ Screens:
         Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
         Properties:
-          Items: =Filter(nfMenu, Perfis = "*" || gblPerfil in Split(Perfis, ","))
+          Items: =Filter(nfMenu, Perfis = "*" || Lower(nfPerfil) in Split(Lower(Perfis), ","))
           X: =0
           Y: =68
           Width: =220
@@ -217,7 +217,7 @@ Screens:
           Height: =36
           Size: =10
           BorderColor: =nfCorLinha
-          Default: =If(gblPerfil = "Diligenciador", "Minhas ações", "Todas as ações")
+          Default: =If(Lower(nfPerfil) = "diligenciador", "Minhas ações", "Todas as ações")
     - ddStatus_Acoes:
         Control: Classic/DropDown@2.3.1
         Properties:
@@ -267,7 +267,7 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =gblPodeEditar
+          Visible: =nfPodeEditar
     - galAcoes_Acoes:
         Control: Gallery@2.15.0
         Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
@@ -543,7 +543,7 @@ Screens:
           Color: =nfCorTexto
           Font: =Font.'Segoe UI'
           FontWeight: =FontWeight.Semibold
-          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && nfPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || Lower(nfPerfil) in ["coordenador", "gestor", "administrador"])
     - ddNovoStatus_Acoes:
         Control: Classic/DropDown@2.3.1
         Properties:
@@ -555,7 +555,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
           Default: =galAcoes_Acoes.Selected.Status_Acao.Value
-          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && nfPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || Lower(nfPerfil) in ["coordenador", "gestor", "administrador"])
     - txtObs_Acoes:
         Control: Classic/TextInput@2.3.2
         Properties:
@@ -568,7 +568,7 @@ Screens:
           Size: =10
           BorderColor: =nfCorLinha
           Mode: =TextMode.MultiLine
-          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && nfPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || Lower(nfPerfil) in ["coordenador", "gestor", "administrador"])
     - btnSalvarAnd_Acoes:
         Control: Classic/Button@2.2.0
         Properties:
@@ -702,7 +702,7 @@ Screens:
           RadiusTopRight: =4
           RadiusBottomLeft: =4
           RadiusBottomRight: =4
-          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"])
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && nfPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || Lower(nfPerfil) in ["coordenador", "gestor", "administrador"])
     - lblSemPermissao_Acoes:
         Control: Label@2.5.1
         Properties:
@@ -714,7 +714,7 @@ Screens:
           Size: =9
           Color: =nfCorSuave
           Font: =Font.'Segoe UI'
-          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && !(gblPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || gblPerfil in ["Coordenador", "Gestor", "Administrador"]))
+          Visible: =!locNova && !IsBlank(galAcoes_Acoes.Selected) && !(nfPodeEditar && (Lower(galAcoes_Acoes.Selected.Responsavel_Pessoa.Email) = nfEmailUsuario || Lower(nfPerfil) in ["coordenador", "gestor", "administrador"]))
     - novaFundo_Acoes:
         Control: Rectangle@2.3.0
         Properties:

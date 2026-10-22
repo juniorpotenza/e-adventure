@@ -29,6 +29,17 @@ App:
       nfMarcoFechados = ["Concluído", "Cancelado"];
       nfOrigemApp = "Power Apps";
       nfPrioridadesAltas = ["Crítica", "Urgente", "Alta"];
+      nfPerfil = Coalesce(
+          LookUp(
+              DIL_Configuracao,
+              Lower(Trim(Categoria)) = "perfil_usuario" && Lower(Trim(Nome_Parametro)) = Lower(User().Email),
+              Trim(Valor_Texto)
+          ),
+          "Diligenciador"
+      );
+      nfPodeEditar = Lower(nfPerfil) in ["diligenciador", "coordenador", "gestor", "administrador"];
+      nfPodeGestao = Lower(nfPerfil) in ["coordenador", "gestor", "auditor", "administrador"];
+      nfPodeAdmin = Lower(nfPerfil) in ["gestor", "administrador"];
       nfMarcaContato = "[Contato]";
       nfMarcaNovaData = "[Nova data]";
       nfMarcaEntregue = "[Entregue]";
@@ -37,7 +48,7 @@ App:
       nfMenu = Table(
           {Chave: "inicio", Rotulo: "Minha fila", Perfis: "*"},
           {Chave: "carteira", Rotulo: "Minha carteira", Perfis: "*"},
-          {Chave: "dossie", Rotulo: "Diligenciar item", Perfis: "*"},
+          {Chave: "dossie", Rotulo: "Diligenciar item", Perfis: "-"},
           {Chave: "ocorrencias", Rotulo: "Ocorrências", Perfis: "*"},
           {Chave: "acoes", Rotulo: "Ações", Perfis: "*"},
           {Chave: "agenda", Rotulo: "Agenda de entregas", Perfis: "*"},
@@ -46,17 +57,7 @@ App:
           {Chave: "admin", Rotulo: "Administração", Perfis: "Gestor,Administrador"}
       );
     OnStart: |-
-      =Set(
-          gblPerfil,
-          Coalesce(
-              LookUp(DIL_Configuracao, Categoria = "Perfil_Usuario" && Nome_Parametro = nfEmailUsuario, Valor_Texto),
-              "Diligenciador"
-          )
-      );
-      Set(gblPodeEditar, gblPerfil in ["Diligenciador", "Coordenador", "Gestor", "Administrador"]);
-      Set(gblPodeGestao, gblPerfil in ["Coordenador", "Gestor", "Auditor", "Administrador"]);
-      Set(gblPodeAdmin, gblPerfil in ["Gestor", "Administrador"]);
-      Concurrent(
+      =Concurrent(
           ClearCollect(colVinc, Filter(DIL_Vinculo_RC_PO, Ativo = true)),
           ClearCollect(colItensPO, Filter(DIL_Itens_Pedido, Ativo = true)),
           ClearCollect(colOcor, Filter(DIL_Ocorrencias, Ativo = true)),
