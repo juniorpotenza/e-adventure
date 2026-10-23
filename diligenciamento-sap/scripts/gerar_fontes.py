@@ -99,9 +99,22 @@ nfMarcaNovaData = "[Nova data]";
 nfMarcaEntregue = "[Entregue]";
 nfMarcaDivergencia = "[Recebido c/ divergência NF]";
 nfMarcaNF = "[NF emitida]";
+nfMarcaParcial = "[Entrega parcial]";
+nfClassesSAP = ["Completo", "Parcial", "Não atendido"];
 nfMenu = Table(
 """ + ",\n".join(
     f'    {{Chave: "{k}", Rotulo: "{r}", Perfis: "{p}"}}' for k, _, r, p in TELAS) + "\n);\n"
+
+
+
+def classe_sap(x):
+    """Classe de atendimento de um código Status_EM/Status_EF do SAP. A tabela da Administração
+    (DIL_Configuracao, Categoria Status_SAP) prevalece; sem linha, vale o padrão: 4 = Completo,
+    3 = Parcial, demais = Não atendido. Também aceita a descrição por extenso."""
+    return (f'Coalesce(LookUp(colStatusSAP, Codigo = Trim({x}), Classe), If(IsBlank(Trim({x})), "Não informado", '
+            f'Trim({x}) = "4" || "complet" in Lower({x}), "Completo", '
+            f'Trim({x}) = "3" || "parcial" in Lower({x}), "Parcial", "Não atendido"))')
+
 
 # Carga central das coleções (App.OnStart e botão "Atualizar" do cabeçalho).
 CARGA = """\
@@ -116,77 +129,117 @@ Concurrent(
     ClearCollect(colReq, Filter(DIL_Requisicoes, Ativa = true)),
     ClearCollect(colItensRC, Filter(DIL_Itens_Requisicao, Ativo = true)),
     ClearCollect(colForn, Filter(DIL_Fornecedores, Ativo = true)),
-    ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
+    ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email")),
+    ClearCollect(colPedidos, ShowColumns(Filter(DIL_Pedidos, Ativo = true), Numero_PO, Grupo_Compradores)),
+    ClearCollect(colStatusSAP, ForAll(Filter(DIL_Configuracao, Lower(Trim(Categoria)) = "status_sap"), {Codigo: Trim(Nome_Parametro), Classe: Trim(Valor_Texto)})),
+    ClearCollect(colModelos, Filter(DIL_Configuracao, Lower(Trim(Categoria)) = "modelo_email" && Ativo = true))
 );
 ClearCollect(
     colCarteiraBase,
     AddColumns(
         AddColumns(
             AddColumns(
-                colVinc As v,
-                ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
-                RC, LookUp(colReq, Numero_RC = v.Numero_RC),
-                ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
-                UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
-                UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), Data_Comunicacao, SortOrder.Descending)).Assunto,
-                QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
-                QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
-                QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
-            ) As a,
-            DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
-            DataNegociada, a.CompEntrega.Data_Compromisso,
-            Entregue, a.CompEntrega.Status_Compromisso.Value = "Cumprido",
-            PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
-            LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
-            DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
-            SituacaoFisica, If(
-                StartsWith(a.UltimaMarca, nfMarcaDivergencia), "Recebido — NF com divergência",
-                StartsWith(a.UltimaMarca, nfMarcaNF), "NF emitida — em trânsito",
-                a.CompEntrega.Status_Compromisso.Value = "Cumprido", "Entregue",
+                AddColumns(
+                    colVinc As v,
+                    ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                    RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                    ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                    Grupo, Coalesce(LookUp(colPedidos, Numero_PO = v.Numero_PO, Grupo_Compradores), "(sem grupo)"),
+                    CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
+                    UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
+                    UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), ID, SortOrder.Descending)).Assunto,
+                    UltimoParcial, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, nfMarcaParcial)), ID, SortOrder.Descending)).Assunto,
+                    QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                    QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                    QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                    QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
+                    QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                ) As a,
+                DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
+                DataNegociada, a.CompEntrega.Data_Compromisso,
+                PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
+                LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
+                DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
+                AtendEM, @@CLASSE_EM@@,
+                AtendEF, @@CLASSE_EF@@,
+                QtdInformada, Match(a.UltimoParcial, "recebido (?<rec>[0-9.]+) de (?<tot>[0-9.]+)")
+            ) As b,
+            EntregueSAP, b.AtendEM = "Completo",
+            Entregue, b.AtendEM = "Completo" || b.CompEntrega.Status_Compromisso.Value = "Cumprido",
+            QtdPedida, IfError(Value(b.QtdInformada.tot, "en-US"), Blank()),
+            QtdRecebida, IfError(Value(b.QtdInformada.rec, "en-US"), Blank()),
+            ProblemaNF, If(
+                (b.AtendEM = "Completo" && b.AtendEF in ["Não atendido", "Parcial"]) || (b.AtendEM = "Parcial" && b.AtendEF = "Não atendido"), "Mercadoria recebida, fatura pendente",
+                (b.AtendEF = "Completo" && b.AtendEM in ["Não atendido", "Parcial"]) || (b.AtendEF = "Parcial" && b.AtendEM = "Não atendido"), "NF lançada sem entrada de mercadoria",
+                StartsWith(b.UltimaMarca, nfMarcaDivergencia) && b.AtendEM <> "Completo", "Divergência de NF informada",
                 ""
-            )
-        ) As b,
-        DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
-        GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days)),
+            ),
+            DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
+            GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days))
+        ) As c,
+        Parcial, !c.Entregue && (c.AtendEM = "Parcial" || c.AtendEF = "Parcial" || !IsBlank(c.UltimoParcial)),
+        Saldo, If(IsBlank(c.QtdPedida) || IsBlank(c.QtdRecebida), Blank(), c.QtdPedida - c.QtdRecebida),
         Situacao, If(
-            b.Entregue, "Entregue",
-            IsBlank(Coalesce(b.DataNegociada, b.DataSAP)), "Sem data",
-            Coalesce(b.DataNegociada, b.DataSAP) < Today(), "Atrasado",
-            Coalesce(b.DataNegociada, b.DataSAP) <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
+            c.Entregue, "Entregue",
+            IsBlank(c.DataVigente), "Sem data",
+            c.DataVigente < Today(), "Atrasado",
+            c.DataVigente <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
             "Em dia"
+        )
+    )
+);
+ClearCollect(
+    colCarteiraMeio,
+    AddColumns(
+        colCarteiraBase As d,
+        SaldoTexto, If(
+            !d.Parcial, "",
+            IsBlank(d.Saldo), "quantidade faltante não informada",
+            "recebido " & d.QtdRecebida & " de " & d.QtdPedida & " — faltam " & d.Saldo
+        ),
+        SituacaoFisica, If(
+            d.EntregueSAP, "Entregue — entrada de mercadoria no SAP" & If(d.ProblemaNF = "", "", " (" & d.ProblemaNF & ")"),
+            StartsWith(d.UltimaMarca, nfMarcaDivergencia) && d.Entregue, "Recebido — NF com divergência",
+            d.Entregue, "Entregue (informado no app)",
+            d.Parcial, "Parcialmente atendido",
+            StartsWith(d.UltimaMarca, nfMarcaNF) || d.AtendEF = "Completo", "NF emitida — material sem entrada",
+            ""
         )
     )
 );
 ClearCollect(
     colCarteira,
     AddColumns(
-        colCarteiraBase As c,
+        colCarteiraMeio As c,
         Urgencia, If(
-            c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", 100,
+            c.Entregue && c.ProblemaNF <> "", 100,
             c.Entregue, 0,
-            c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+            c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0) + If(c.Parcial, 50, 0),
             c.Situacao = "Vence em 7 dias", 700 - DateDiff(Today(), c.DataVigente, TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
             c.QtdAcoesVencidas > 0, 500,
+            c.Parcial, 450,
             c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, 400,
+            c.ProblemaNF <> "", 350,
             c.DiasSemContato > c.LimiteContato, 300 + Min(c.DiasSemContato, 99),
             0
         ),
         Motivo, If(
-            c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", "Recebido: acompanhar regularização da NF",
+            c.Entregue && c.ProblemaNF = "Divergência de NF informada", "Recebido: acompanhar regularização da NF",
+            c.Entregue && c.ProblemaNF <> "", "Recebido: fatura (NF) sem entrada no SAP — verificar divergência",
             c.Entregue, "Entregue",
-            c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): cobrar nova data",
-            c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar com o fornecedor",
+            c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): " & If(c.Parcial, "cobrar o saldo (" & c.SaldoTexto & ")", "cobrar nova data"),
+            c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar " & If(c.Parcial, "o saldo", "com o fornecedor"),
             c.QtdAcoesVencidas > 0, c.QtdAcoesVencidas & " ação(ões) vencida(s)",
+            c.Parcial, "Parcialmente atendido: diligenciar o saldo (" & c.SaldoTexto & ")",
             c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, "Prioridade " & c.RC.Prioridade.Value & ": buscar antecipação",
+            c.ProblemaNF <> "", c.ProblemaNF & ": confirmar chegada do material",
             c.DiasSemContato > c.LimiteContato, If(c.DiasSemContato = 999, "Nenhum contato registrado", "Sem contato há " & c.DiasSemContato & " dias"),
             "Em dia"
         )
     )
 );
-Set(gblCarregadoEm, Now())"""
+Set(gblCarregadoEm, Now())""".replace("@@CLASSE_EM@@", classe_sap("a.ItemPO.Status_EM")).replace(
+    "@@CLASSE_EF@@", classe_sap("a.ItemPO.Status_EF"))
 
 ON_START = """\
 """ + CARGA
@@ -291,18 +344,19 @@ def opcoes_com_todos(tabela_choices, rotulo_todos="(Todos)"):
             f'{{o: ShowColumns({tabela_choices}, Value)}}), o)')
 
 
-def cartao_kpi(sufixo, i, titulo, valor, cor_destaque="nfCorAzul", n=6, y=Y0 + 40):
+def cartao_kpi(sufixo, i, titulo, valor, cor_destaque="nfCorAzul", n=6, y=Y0 + 40, visivel=None):
     larg = f"({LARG_CONTEUDO} - {(n - 1) * 12}) / {n}"
     x = f"{X0} + {i} * ({larg} + 12)"
+    v = {"Visible": visivel} if visivel else {}
     return [
-        retangulo(f"kpiFundo{i}_{sufixo}", x, y, larg, 92, BorderColor="nfCorLinha", BorderThickness=1),
-        retangulo(f"kpiFaixa{i}_{sufixo}", x, y, 4, 92, cor_destaque),
-        rotulo(f"kpiTitulo{i}_{sufixo}", txt(titulo), f"{x} + 16", y + 10, f"{larg} - 24", 22, 10, "nfCorSuave"),
-        rotulo(f"kpiValor{i}_{sufixo}", valor, f"{x} + 16", y + 36, f"{larg} - 24", 44, 24, cor_destaque, True),
+        retangulo(f"kpiFundo{i}_{sufixo}", x, y, larg, 92, BorderColor="nfCorLinha", BorderThickness=1, **v),
+        retangulo(f"kpiFaixa{i}_{sufixo}", x, y, 4, 92, cor_destaque, **v),
+        rotulo(f"kpiTitulo{i}_{sufixo}", txt(titulo), f"{x} + 16", y + 10, f"{larg} - 24", 22, 10, "nfCorSuave", **v),
+        rotulo(f"kpiValor{i}_{sufixo}", valor, f"{x} + 16", y + 36, f"{larg} - 24", 44, 22, cor_destaque, True, **v),
     ]
 
 
-def cabecalho_e_menu(chave, titulo):
+def cabecalho_e_menu(chave, titulo, apos_atualizar=""):
     s = chave.capitalize()
     menu_item = [
         retangulo(f"mnuSel_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 4",
@@ -319,7 +373,7 @@ def cabecalho_e_menu(chave, titulo):
         rotulo(f"cabUsuario_{s}", 'User().FullName & "  ·  perfil: " & nfPerfil', "Parent.Width - 560", 0, 360,
                ALT_CAB, 10, "nfCorCartao", Align="Align.Right"),
         botao(f"cabAtualizar_{s}", txt("Atualizar dados"), "Parent.Width - 180", 12, 160, 32,
-              CARGA + ';\nNotify("Dados atualizados.", NotificationType.Success)', primario=False),
+              CARGA + apos_atualizar + ';\nNotify("Dados atualizados.", NotificationType.Success)', primario=False),
         retangulo(f"menuFundo_{s}", 0, ALT_CAB, LARG_MENU, f"Parent.Height - {ALT_CAB}", "nfCorNavy"),
         galeria(f"galMenu_{s}", "Filter(nfMenu, Perfis = \"*\" || Lower(nfPerfil) in Split(Lower(Perfis), \",\"))",
                 0, ALT_CAB + 12, LARG_MENU, f"Parent.Height - {ALT_CAB + 60}", 44, menu_item,
@@ -343,12 +397,12 @@ def bloqueio(s, condicao, mensagem, texto_botao="Voltar ao Início", destino="sc
     ]
 
 
-def tela(chave, nome_tela, titulo, filhos, on_visible=None):
+def tela(chave, nome_tela, titulo, filhos, on_visible=None, apos_atualizar=""):
     props = {"Fill": "nfCorFundo"}
     if on_visible:
         props["OnVisible"] = on_visible
     return {"Screens": {nome_tela: {"Properties": {k: f(v) for k, v in props.items()},
-                                    "Children": cabecalho_e_menu(chave, titulo) + filhos}}}
+                                    "Children": cabecalho_e_menu(chave, titulo, apos_atualizar) + filhos}}}
 
 
 def historico(entidade, chave_expr, tipo_evento, campo, anterior, novo, obs):
@@ -413,11 +467,12 @@ def tela_inicio():
         ("Atrasados", f'CountRows(Filter({escopo}, Situacao = "Atrasado"))', "nfCorVermelho"),
         ("Entregas em 7 dias", f'CountRows(Filter({escopo}, Situacao = "Vence em 7 dias"))', "nfCorLaranja"),
         ("Prioritários a antecipar", f'CountRows(Filter({escopo}, !Entregue && PrioridadeAlta && Coalesce(GanhoDias, 0) <= 0))', "nfCorAzul"),
+        ("Parcialmente atendidos", f'CountRows(Filter({escopo}, Parcial))', "nfCorLaranja"),
         ("Sem contato no prazo", f'CountRows(Filter({escopo}, !Entregue && DiasSemContato > LimiteContato))', "nfCorLaranja"),
         ("Ganho negociado (dias)", f'Sum(Filter({escopo}, GanhoDias > 0), GanhoDias)', "nfCorVerde"),
     ]
     for i, (t, v, c) in enumerate(kpis):
-        filhos += cartao_kpi(s, i, t, v, c, n=5)
+        filhos += cartao_kpi(s, i, t, v, c, n=6)
     y = Y0 + 150
     linha = [
         retangulo(f"fFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 2", "nfCorCartao",
@@ -451,7 +506,7 @@ def tela_carteira():
     yf = Y0
     filhos = [
         entrada(f"txtBusca_{s}", "Buscar RC, PO, material, descrição ou fornecedor", X0, yf, 360),
-        lista_suspensa(f"ddSituacao_{s}", '["(Em aberto)", "(Todos)", "Atrasado", "Vence em 7 dias", "Em dia", "Sem data", "Entregue"]', X0 + 372, yf, 150),
+        lista_suspensa(f"ddSituacao_{s}", '["(Em aberto)", "(Todos)", "Atrasado", "Vence em 7 dias", "Em dia", "Sem data", "Entregue", "Parcialmente atendido", "Problema de NF"]', X0 + 372, yf, 150),
         lista_suspensa(f"ddFornecedor_{s}",
                        'Ungroup(Table({o: ["(Todos)"]}, {o: Sort(Distinct(colCarteira, ItemPO.Nome_Fornecedor), Value)}), o)',
                        X0 + 534, yf, 260),
@@ -478,7 +533,7 @@ def tela_carteira():
                702, 0, 150, alt, 9, "nfCorTexto"),
         rotulo(f"cGanho_{s}", 'If(IsBlank(ThisItem.GanhoDias), "—", If(ThisItem.GanhoDias > 0, "+", "") & ThisItem.GanhoDias & " d") & Char(10) & If(ThisItem.DiasSemContato = 999, "sem contato", "há " & ThisItem.DiasSemContato & " d")',
                856, 0, 120, alt, 9, 'If(Coalesce(ThisItem.GanhoDias, 0) > 0, nfCorVerde, nfCorTexto)'),
-        rotulo(f"cSit_{s}", 'ThisItem.Situacao & Char(10) & Coalesce(ThisItem.RC.Prioridade.Value, "—")', 980, 0, 120, alt, 10,
+        rotulo(f"cSit_{s}", 'ThisItem.Situacao & If(ThisItem.Parcial, " · parcial", "") & If(ThisItem.ProblemaNF <> "", " · NF", "") & Char(10) & Coalesce(ThisItem.RC.Prioridade.Value, "—")', 980, 0, 120, alt, 10,
                cor_situacao("ThisItem.Situacao"), True),
     ]
     itens = f"""Filter(
@@ -486,7 +541,8 @@ def tela_carteira():
     IsBlank(txtBusca_{s}.Text) || txtBusca_{s}.Text in c.Numero_RC || txtBusca_{s}.Text in c.Numero_PO
         || txtBusca_{s}.Text in c.ItemPO.Material || txtBusca_{s}.Text in c.ItemPO.Descricao_Produto
         || txtBusca_{s}.Text in c.ItemPO.Nome_Fornecedor || txtBusca_{s}.Text in c.RC.Responsavel_Diligencia.DisplayName,
-    Switch(ddSituacao_{s}.Selected.Value, "(Todos)", true, "(Em aberto)", c.Situacao <> "Entregue", c.Situacao = ddSituacao_{s}.Selected.Value),
+    Switch(ddSituacao_{s}.Selected.Value, "(Todos)", true, "(Em aberto)", c.Situacao <> "Entregue",
+        "Parcialmente atendido", c.Parcial, "Problema de NF", c.ProblemaNF <> "", c.Situacao = ddSituacao_{s}.Selected.Value),
     ddFornecedor_{s}.Selected.Value = "(Todos)" || c.ItemPO.Nome_Fornecedor = ddFornecedor_{s}.Selected.Value,
     Switch(
         ddEscopo_{s}.Selected.Value,
@@ -547,7 +603,7 @@ def tela_dossie():
                + ' & "     Ganho: " & ' + ganho + ' & "     Último contato: " & If(gblItem.DiasSemContato = 999, "nenhum", '
                + data("gblItem.UltimoContato") + ' & " (há " & gblItem.DiasSemContato & " d)")',
                X0 + 16, Y0 + 62, f"{LARG_CONTEUDO} - 200", 24, 10, "nfCorTexto", True),
-        rotulo(f"dSitFis_{s}", 'If(IsBlank(gblItem.SituacaoFisica), "", "Situação física: " & gblItem.SituacaoFisica)',
+        rotulo(f"dSitFis_{s}", 'If(gblItem.SituacaoFisica = "", "", "Situação física: " & gblItem.SituacaoFisica & "  ·  ") & If(gblItem.SaldoTexto = "", "", gblItem.SaldoTexto & "  ·  ") & If(gblItem.ProblemaNF = "" || gblItem.EntregueSAP, "", gblItem.ProblemaNF & "  ·  ") & "SAP: mercadoria " & gblItem.AtendEM & ", fatura " & gblItem.AtendEF',
                X0 + 16, Y0 + 86, f"{LARG_CONTEUDO} - 200", 22, 9, "nfCorAzul", True),
         rotulo(f"dSit_{s}", 'gblItem.Situacao & Char(10) & gblItem.Motivo', f"{X0} + {LARG_CONTEUDO} - 190", Y0 + 6, 180, 100, 10,
                cor_situacao("gblItem.Situacao"), True, Align="Align.Right", VerticalAlign="VerticalAlign.Top"),
@@ -570,7 +626,8 @@ def tela_dossie():
 
     resumo = [
         ("Status de liberação do PO", 'Coalesce(gblItem.ItemPO.Status_Liberacao_PO, "—")'),
-        ("Status EF / EM (SAP)", 'Coalesce(gblItem.ItemPO.Status_EF, "—") & " / " & Coalesce(gblItem.ItemPO.Status_EM, "—")'),
+        ("Entrada de fatura (EF)", 'Coalesce(gblItem.ItemPO.Status_EF, "—") & " · " & gblItem.AtendEF'),
+        ("Entrada de mercadoria (EM)", 'Coalesce(gblItem.ItemPO.Status_EM, "—") & " · " & gblItem.AtendEM'),
         ("Data 1ª remessa (SAP)", data("gblItem.ItemPO.Data_1_Remessa_Item_SAP")),
         ("Código do fornecedor", 'Coalesce(gblItem.ItemPO.Codigo_Fornecedor, "—")'),
         ("Ocorrências abertas", "gblItem.QtdOcorrAbertas"),
@@ -580,6 +637,7 @@ def tela_dossie():
     ]
     resumo2 = [
         ("Responsável pela diligência", 'Coalesce(gblItem.RC.Responsavel_Diligencia.DisplayName, "—")'),
+        ("Grupo de compradores", "gblItem.Grupo"),
         ("Prioridade / risco (RC)", 'Coalesce(gblItem.RC.Prioridade.Value, "—") & " / " & Coalesce(gblItem.RC.Nivel_Risco.Value, "—")'),
         ("Status / criação da RC", 'Coalesce(gblItem.RC.Status_RC, "—") & " / " & ' + data("gblItem.RC.Data_Criacao_RC")),
         ("Item RC: utilização / avaliação", 'Coalesce(gblItem.ItemRC.Utilizacao_Material, "—") & " / " & Coalesce(gblItem.ItemRC.Tipo_Avaliacao, "—")'),
@@ -590,7 +648,7 @@ def tela_dossie():
     ]
     for col, (lista, x) in enumerate([(resumo, X0), (resumo2, X0 + 600)]):
         for i, (t, v) in enumerate(lista):
-            yy = yg + i * 44
+            yy = yg + i * 40
             filhos += [
                 rotulo(f"rTit{col}{i}_{s}", txt(t), x, yy, 220, 40, 10, "nfCorSuave", Visible='locAba = "Resumo"'),
                 rotulo(f"rVal{col}{i}_{s}", v, x + 230, yy, 340 if col == 0 else f"{LARG_CONTEUDO} - 830", 40, 10,
@@ -663,7 +721,31 @@ def tela_dossie():
 
 
 RESULTADOS = ["Somente contato (sem mudança)", "Nova data negociada", "Material entregue",
-              "Chegou com divergência na NF", "NF emitida — material em trânsito"]
+              "Chegou com divergência na NF", "NF emitida — material em trânsito",
+              "Entrega parcial (informar quantidades)"]
+
+# Variáveis dos modelos de e-mail (Administração > Modelos de e-mail), preenchidas com o item aberto.
+VARIAVEIS_MODELO = [
+    ("{PO}", "gblItem.Numero_PO"), ("{ITEM_PO}", "gblItem.Item_PO"),
+    ("{RC}", "gblItem.Numero_RC"), ("{ITEM_RC}", "gblItem.Item_RC"),
+    ("{MATERIAL}", 'Coalesce(gblItem.ItemPO.Material, "")'),
+    ("{DESCRICAO}", 'Coalesce(gblItem.ItemPO.Descricao_Produto, "")'),
+    ("{FORNECEDOR}", 'Coalesce(locForn.Nome_Fornecedor, gblItem.ItemPO.Nome_Fornecedor, "")'),
+    ("{CONTATO}", 'Coalesce(locForn.Contato_Principal, "")'),
+    ("{DATA_REMESSA}", 'If(IsBlank(gblItem.DataSAP), "—", Text(gblItem.DataSAP, "dd/mm/yyyy"))'),
+    ("{DATA_NEGOCIADA}", 'If(IsBlank(gblItem.DataNegociada), "—", Text(gblItem.DataNegociada, "dd/mm/yyyy"))'),
+    ("{DATA_PREVISTA}", 'If(IsBlank(gblItem.DataVigente), "—", Text(gblItem.DataVigente, "dd/mm/yyyy"))'),
+    ("{DIAS_ATRASO}", 'Text(If(IsBlank(gblItem.DataVigente), 0, Max(0, DateDiff(gblItem.DataVigente, Today(), TimeUnit.Days))))'),
+    ("{SALDO}", "gblItem.SaldoTexto"),
+    ("{GRUPO_COMPRADORES}", "gblItem.Grupo"),
+    ("{DILIGENCIADOR}", "User().FullName"),
+]
+
+
+def preencher(expr):
+    for chave, valor in VARIAVEIS_MODELO:
+        expr = f'Substitute({expr}, "{chave}", {valor})'
+    return expr
 
 
 def painel_contato(s, y, filtro_item):
@@ -676,12 +758,18 @@ def painel_contato(s, y, filtro_item):
     w = f"({LARG_CONTEUDO}) * 0.56"
     res = f"ddResultado_{s}.Selected.Value"
     com_data = f'{res} <> "{RESULTADOS[0]}"'
+    parcial = f'{res} = "{RESULTADOS[5]}"'
     rotulo_data = (f'Switch({res}, "{RESULTADOS[1]}", "Nova data *", "{RESULTADOS[2]}", "Data da chegada *", '
-                   f'"{RESULTADOS[3]}", "Data da chegada *", "{RESULTADOS[4]}", "Data da NF *", "")')
+                   f'"{RESULTADOS[3]}", "Data da chegada *", "{RESULTADOS[4]}", "Data da NF *", '
+                   f'"{RESULTADOS[5]}", "Chegada · qtd *", "")')
     marca = (f'Switch({res}, "{RESULTADOS[1]}", nfMarcaNovaData, "{RESULTADOS[2]}", nfMarcaEntregue, '
-             f'"{RESULTADOS[3]}", nfMarcaDivergencia, "{RESULTADOS[4]}", nfMarcaNF, nfMarcaContato)')
+             f'"{RESULTADOS[3]}", nfMarcaDivergencia, "{RESULTADOS[4]}", nfMarcaNF, "{RESULTADOS[5]}", nfMarcaParcial, '
+             f'nfMarcaContato)')
+    # Quantidades gravadas com ponto decimal, lidas de volta pela carga (coluna QtdInformada).
+    qtds = (f'If({parcial}, " — recebido " & Substitute(Text(Value(txtQtdRec_{s}.Text)), ",", ".") & " de " '
+            f'& Substitute(Text(Value(txtQtdTot_{s}.Text)), ",", "."), "")')
     assunto = (f'{marca} & If({com_data}, " " & Text(dtResultado_{s}.SelectedDate, "dd/mm/yyyy"), "") '
-               f'& " — " & ddMeio_{s}.Selected.Value')
+               f'& {qtds} & " — " & ddMeio_{s}.Selected.Value')
     comp = "gblItem.CompEntrega"
     novo_comp = lambda status: f"""Patch(
             DIL_Compromissos,
@@ -744,18 +832,22 @@ def painel_contato(s, y, filtro_item):
         }}
     )"""
     depois = (CARGA + ";\nSet(gblItem, LookUp(colCarteira, Numero_PO = gblItem.Numero_PO && Item_PO = gblItem.Item_PO));\n"
-              + carga_dossie(filtro_item) + f";\nReset(txtResumo_{s}); Reset(ddResultado_{s})")
+              + carga_dossie(filtro_item) + f";\nUpdateContext({{locResumoEmail: \"\"}}); Reset(txtResumo_{s}); Reset(ddResultado_{s}); "
+              f"Reset(txtQtdRec_{s}); Reset(txtQtdTot_{s})")
     salvar = f"""If(
     IsBlank(Trim(txtResumo_{s}.Text)) || IsBlank(ddMeio_{s}.Selected) || IsBlank(ddSentido_{s}.Selected),
     Notify("Informe meio, sentido e o resumo do contato.", NotificationType.Error),
     {com_data} && IsBlank(dtResultado_{s}.SelectedDate),
     Notify("Informe a data do resultado.", NotificationType.Error),
+    {parcial} && (IsError(Value(txtQtdRec_{s}.Text)) || IsBlank(Value(txtQtdRec_{s}.Text)) || IsBlank(Value(txtQtdTot_{s}.Text))
+        || Value(txtQtdRec_{s}.Text) <= 0 || Value(txtQtdRec_{s}.Text) >= Value(txtQtdTot_{s}.Text)),
+    Notify("Entrega parcial: informe a quantidade recebida (maior que zero) e a quantidade pedida (maior que a recebida).", NotificationType.Error),
     IfError(
         {contato},
         Notify("Não foi possível gravar o contato: " & FirstError.Message, NotificationType.Error),
         {passo_comp},
         Notify("Contato gravado, mas o compromisso não foi atualizado: " & FirstError.Message, NotificationType.Warning),
-        Notify(If({com_data} && {res} <> "{RESULTADOS[4]}", "Contato e compromisso gravados. O marco é atualizado pelo DIL_05 em instantes.", "Contato registrado."), NotificationType.Success);
+        Notify(If({com_data} && !({res} in ["{RESULTADOS[4]}", "{RESULTADOS[5]}"]), "Contato e compromisso gravados. O marco é atualizado pelo DIL_05 em instantes.", "Contato registrado."), NotificationType.Success);
         {depois}
     )
 )"""
@@ -778,18 +870,32 @@ def painel_contato(s, y, filtro_item):
         pr["X"], pr["Y"], pr["Width"] = f(f"{x} + 140"), f(yy), f(f"{w} - 156")
         texto = rotulo_data if t == "Data" else txt(t)
         filhos += [rotulo(f"ctT{i}_{s}", texto, f"{x} + 16", yy, 120, 36, 9, "nfCorSuave", Visible=pr["Visible"][1:]), c]
+        if t == "Data":
+            # Entrega parcial: data da chegada + quantidade recebida e pedida na mesma linha.
+            pr["Width"] = f(f"If({parcial}, ({w} - 156) * 0.4, {w} - 156)")
+            xq = f"{x} + 140 + ({w} - 156) * 0.4 + 8"
+            wq = f"({w} - 156) * 0.3 - 8"
+            filhos += [
+                entrada(f"txtQtdRec_{s}", "Qtd recebida", xq, yy, wq, Format="TextFormat.Number",
+                        Visible=f"{vis} && {parcial}"),
+                entrada(f"txtQtdTot_{s}", "Qtd pedida", f"{xq} + {wq} + 8", yy, wq, Format="TextFormat.Number",
+                        padrao='If(IsBlank(gblItem.QtdPedida), "", Text(gblItem.QtdPedida))',
+                        Visible=f"{vis} && {parcial}"),
+            ]
     yr = y + 46 + len(campos) * 44
     filhos += [
         entrada(f"txtResumo_{s}", "O que foi tratado (ex.: fornecedor confirmou embarque; pedida antecipação por criticidade)",
-                f"{x} + 16", yr, f"{w} - 32", 80, multilinha=True, Visible=vis),
+                f"{x} + 16", yr, f"{w} - 32", 80, multilinha=True, padrao='Coalesce(locResumoEmail, "")', Visible=vis),
         rotulo(f"ctAjuda_{s}", f'Switch({res}, "{RESULTADOS[1]}", "Atualiza a data do compromisso de entrega; o ganho é calculado contra a remessa SAP.", '
                f'"{RESULTADOS[2]}", "Marca o compromisso como Cumprido: a cobrança para e a ocorrência de atraso é encerrada pelo fluxo.", '
                f'"{RESULTADOS[3]}", "Material recebido fisicamente; fica sinalizado até registrar ""Material entregue"" após a regularização da NF.", '
-               f'"{RESULTADOS[4]}", "Registra a NF; a cobrança continua até a chegada do material.", "Registra apenas o contato.")',
+               f'"{RESULTADOS[4]}", "Registra a NF; a cobrança continua até a chegada do material.", '
+               f'"{RESULTADOS[5]}", "Registra o recebimento parcial; o item continua na fila para diligenciar o saldo. '
+               f'Para a data do saldo, registre depois ""Nova data negociada"".", "Registra apenas o contato.")',
                f"{x} + 16", yr + 86, f"{w} - 32", 36, 9, "nfCorSuave", Visible=vis),
         botao(f"btnCtSalvar_{s}", txt("Gravar"), f"{x} + 16", yr + 128, 140, 38, salvar, Visible=vis),
         botao(f"btnCtCancelar_{s}", txt("Limpar"), f"{x} + 168", yr + 128, 120, 38,
-              f"Reset(txtResumo_{s}); Reset(ddResultado_{s})", primario=False, Visible=vis),
+              f'UpdateContext({{locResumoEmail: ""}}); Reset(txtResumo_{s}); Reset(ddResultado_{s})', primario=False, Visible=vis),
         rotulo(f"ctSoLeitura_{s}", '"Seu perfil (" & nfPerfil & ") é somente leitura. Contatos do item na aba Contatos."',
                x, y + 8, w, 40, 11, "nfCorSuave", Visible=f"{aba} && !nfPodeEditar"),
     ]
@@ -801,11 +907,31 @@ def painel_contato(s, y, filtro_item):
         rotulo(f"ulAssunto_{s}", 'Coalesce(ThisItem.Assunto, "")', 60, 4, "Parent.TemplateWidth - 64", 22, 9, "nfCorTexto", True),
         rotulo(f"ulResumo_{s}", 'Coalesce(ThisItem.Resumo, "")', 60, 26, "Parent.TemplateWidth - 64", 30, 9, "nfCorSuave"),
     ]
+    modelo = f"ddModelo_{s}.Selected"
+    abrir_email = f"""If(
+    IsBlank({modelo}),
+    Notify("Cadastre um modelo em Administração > Modelos de e-mail.", NotificationType.Warning),
+    If(IsBlank(locForn.Email_Principal), Notify("Fornecedor sem e-mail em DIL_Fornecedores: informe o destinatário no e-mail.", NotificationType.Warning));
+    Launch(
+        "mailto:" & Coalesce(locForn.Email_Principal, "")
+            & "?subject=" & EncodeUrl({preencher(f'Coalesce({modelo}.Assunto, "")')})
+            & "&body=" & EncodeUrl({preencher(f'Coalesce({modelo}.Corpo, "")')})
+    );
+    UpdateContext({{locResumoEmail: "E-mail enviado (modelo " & {modelo}.Value & "): " & {preencher(f'Coalesce({modelo}.Assunto, "")')}}});
+    Notify("E-mail aberto no seu programa de e-mail. Depois de enviar, grave o contato (meio E-mail).", NotificationType.Information)
+)"""
+    ym = y + 98
     filhos += [
-        rotulo(f"ulTitulo_{s}", txt("Últimos contatos deste item"), xr, y, wr, 28, 11, "nfCorTexto", True, Visible=aba),
-        galeria(f"galUltimos_{s}", 'FirstN(Sort(Filter(colDosComun, !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao, SortOrder.Descending), 20)',
-                xr, y + 32, wr, f"Parent.Height - {y + 48}", 60, ult, Visible=aba),
-        rotulo(f"ulVazio_{s}", txt("Nenhum contato registrado ainda."), xr, y + 36, wr, 28, 9, "nfCorSuave",
+        retangulo(f"emFundo_{s}", xr, y, wr, 86, BorderColor="nfCorLinha", BorderThickness=1, Visible=vis),
+        rotulo(f"emTitulo_{s}", txt("E-mail ao fornecedor (modelo)"), f"{xr} + 12", y + 4, f"{wr} - 24", 26, 11,
+               "nfCorTexto", True, Visible=vis),
+        lista_suspensa(f"ddModelo_{s}", "Sort(ForAll(colModelos, {Value: Nome_Parametro, Assunto: Valor_Texto, Corpo: Descricao}), Value)",
+                       f"{xr} + 12", y + 38, f"{wr} - 182", Visible=vis),
+        botao(f"btnEmail_{s}", txt("Abrir e-mail"), f"{xr} + {wr} - 162", y + 38, 150, 36, abrir_email, Visible=vis),
+        rotulo(f"ulTitulo_{s}", txt("Últimos contatos deste item"), xr, ym, wr, 28, 11, "nfCorTexto", True, Visible=aba),
+        galeria(f"galUltimos_{s}", 'FirstN(Sort(Filter(colDosComun, !StartsWith(Chave_Comunicacao, "COM-SLA-")), ID, SortOrder.Descending), 20)',
+                xr, ym + 32, wr, f"Parent.Height - {ym + 48}", 60, ult, Visible=aba),
+        rotulo(f"ulVazio_{s}", txt("Nenhum contato registrado ainda."), xr, ym + 36, wr, 28, 9, "nfCorSuave",
                Visible=f"{aba} && IsEmpty(galUltimos_{s}.AllItems)"),
     ]
     return filhos
@@ -1401,8 +1527,9 @@ def tela_comunicacoes():
     return tela("comunicacoes", "scrComunicacoes", "Comunicações", filhos)
 
 
-def barras(s, n, titulo, itens, x, y, w, h):
+def barras(s, n, titulo, itens, x, y, w, h, visivel=None):
     """Gráfico de barras horizontais simples (Items com colunas Rotulo, Qtd, Max)."""
+    v = {"Visible": visivel} if visivel else {}
     linha = [
         rotulo(f"b{n}Rot_{s}", "ThisItem.Rotulo", 0, 0, 170, "Parent.TemplateHeight", 9, "nfCorTexto"),
         retangulo(f"b{n}Barra_{s}", 176, 8, "Max(2, (Parent.TemplateWidth - 230) * ThisItem.Qtd / Max(1, ThisItem.Max))",
@@ -1411,9 +1538,9 @@ def barras(s, n, titulo, itens, x, y, w, h):
                "nfCorTexto", True, Align="Align.Right"),
     ]
     return [
-        retangulo(f"b{n}Fundo_{s}", x, y, w, h, BorderColor="nfCorLinha", BorderThickness=1),
-        rotulo(f"b{n}Titulo_{s}", txt(titulo), f"{x} + 12", f"{y} + 6", f"{w} - 24", 28, 11, "nfCorTexto", True),
-        galeria(f"galB{n}_{s}", itens, f"{x} + 12", f"{y} + 40", f"{w} - 24", f"{h} - 50", 32, linha, ShowScrollbar=True),
+        retangulo(f"b{n}Fundo_{s}", x, y, w, h, BorderColor="nfCorLinha", BorderThickness=1, **v),
+        rotulo(f"b{n}Titulo_{s}", txt(titulo), f"{x} + 12", f"{y} + 6", f"{w} - 24", 28, 11, "nfCorTexto", True, **v),
+        galeria(f"galB{n}_{s}", itens, f"{x} + 12", f"{y} + 40", f"{w} - 24", f"{h} - 50", 32, linha, ShowScrollbar=True, **v),
     ]
 
 
@@ -1423,36 +1550,169 @@ def agrupar(origem, expr_rotulo, soma=None):
             f'Sort(AddColumns(t, Max, Max(t, Qtd)), Qtd, SortOrder.Descending))')
 
 
-def tela_gestao():
-    """Painel do gestor: atrasos, antecipações negociadas (ganho em dias) e carga por diligenciador."""
-    s = "Gestao"
-    aberto = 'Filter(colCarteira, Situacao <> "Entregue")'
-    kpis = [
-        ("Itens em aberto", f"CountRows({aberto})", "nfCorAzul"),
-        ("Atrasados", 'CountRows(Filter(colCarteira, Situacao = "Atrasado"))', "nfCorVermelho"),
-        ("Entregas em 7 dias", 'CountRows(Filter(colCarteira, Situacao = "Vence em 7 dias"))', "nfCorLaranja"),
-        ("Itens antecipados", "CountRows(Filter(colCarteira, GanhoDias > 0))", "nfCorVerde"),
-        ("Ganho negociado (dias)", "Sum(Filter(colCarteira, GanhoDias > 0), GanhoDias)", "nfCorVerde"),
+def tabela_resumo(s, n, chave_expr, titulo_chave, y, vis):
+    """Tabela agregada (grupo de compradores ou fornecedor) sobre colGestao, ordenada por atrasados."""
+    itens = f"""Sort(
+    AddColumns(
+        GroupBy(AddColumns(colGestao, Chave, {chave_expr}), Chave, Itens),
+        Abertos, CountRows(Filter(Itens, !Entregue)),
+        Atrasados, CountRows(Filter(Itens, Situacao = "Atrasado")),
+        AtrasoMedio, Average(Filter(Itens, Situacao = "Atrasado"), DateDiff(DataVigente, Today(), TimeUnit.Days)),
+        Parciais, CountRows(Filter(Itens, Parcial)),
+        ProblemasNF, CountRows(Filter(Itens, ProblemaNF <> "")),
+        SemContato, CountRows(Filter(Itens, !Entregue && DiasSemContato > LimiteContato)),
+        ValorAtrasado, Sum(Filter(Itens, Situacao = "Atrasado"), ItemPO.Valor_1_SAP),
+        Ganho, Sum(Filter(Itens, GanhoDias > 0), GanhoDias)
+    ),
+    Atrasados, SortOrder.Descending, Abertos, SortOrder.Descending
+)"""
+    cols = [(titulo_chave, 12, 230), ("Em aberto", 250, 80), ("Atrasados", 334, 80), ("% atraso", 418, 80),
+            ("Atraso médio", 502, 90), ("Parciais", 596, 80), ("Probl. NF", 680, 80), ("Sem contato", 764, 90),
+            ("Valor atrasado", 858, 120), ("Ganho (d)", 982, 90)]
+    cab = [rotulo(f"t{n}Cab{i}_{s}", txt(t), f"{X0} + {x}", y, w, 28, 9, "nfCorSuave", True, Visible=vis)
+           for i, (t, x, w) in enumerate(cols)]
+    valores = [
+        "ThisItem.Chave", "ThisItem.Abertos", "ThisItem.Atrasados",
+        'If(ThisItem.Abertos = 0, "—", Text(ThisItem.Atrasados / ThisItem.Abertos, "0%"))',
+        'If(ThisItem.Atrasados = 0, "—", Text(ThisItem.AtrasoMedio, "0") & " d")',
+        "ThisItem.Parciais", "ThisItem.ProblemasNF", "ThisItem.SemContato",
+        '"R$ " & Text(ThisItem.ValorAtrasado, "#,##0")', "ThisItem.Ganho",
     ]
-    filhos = []
-    for i, (t, v, c) in enumerate(kpis):
-        filhos += cartao_kpi(s, i, t, v, c, n=5, y=Y0)
-    y = Y0 + 108
+    linha = [retangulo(f"t{n}Fundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1", "nfCorCartao")]
+    for i, ((_, x, w), v) in enumerate(zip(cols, valores)):
+        cor = 'If(ThisItem.Atrasados > 0, nfCorVermelho, nfCorTexto)' if i in (2, 3) else "nfCorTexto"
+        linha.append(rotulo(f"t{n}Col{i}_{s}", v, x, 0, w, "Parent.TemplateHeight", 10 if i else 9, cor, i in (0, 2)))
+    return cab + [galeria(f"galT{n}_{s}", itens, X0, y + 30, LARG_CONTEUDO, f"Parent.Height - {y + 30 + 56}", 40, linha,
+                          Visible=vis)]
+
+
+def tela_gestao():
+    """Painel do gestor em abas: carteira e prazos, desempenho da diligência, notas fiscais,
+    grupos de compradores e fornecedores. Filtros de grupo e fornecedor valem para todas as abas."""
+    s = "Gestao"
+    recalcular = f"""ClearCollect(
+    colGestao,
+    Filter(
+        colCarteira,
+        (ddGrupo_{s}.Selected.Value = "(Todos)" || Grupo = ddGrupo_{s}.Selected.Value)
+            && (ddForn_{s}.Selected.Value = "(Todos)" || ItemPO.Nome_Fornecedor = ddForn_{s}.Selected.Value)
+    )
+);
+ClearCollect(
+    colGestaoComun,
+    Filter(
+        colComun,
+        StartsWith(Chave_Comunicacao, "COM-APP-") && Data_Comunicacao >= DateAdd(Today(), -30, TimeUnit.Days)
+            && Numero_PO in ShowColumns(colGestao, Numero_PO)
+    )
+)"""
+    on_visible = f"""If(
+    nfPodeGestao,
+    If(IsEmpty(colCarteira), {CARGA.replace(chr(10), chr(10) + "    ")});
+    {recalcular};
+    UpdateContext({{locAba: Coalesce(locAba, "Carteira e prazos")}})
+)"""
+    abas = ["Carteira e prazos", "Desempenho da diligência", "Notas fiscais", "Grupos de compradores", "Fornecedores"]
+    filhos = [
+        lista_suspensa(f"ddGrupo_{s}", 'Ungroup(Table({o: ["(Todos)"]}, {o: Sort(Distinct(colCarteira, Grupo), Value)}), o)',
+                       X0, Y0, 220, OnChange=recalcular),
+        lista_suspensa(f"ddForn_{s}",
+                       'Ungroup(Table({o: ["(Todos)"]}, {o: Sort(Distinct(colCarteira, ItemPO.Nome_Fornecedor), Value)}), o)',
+                       X0 + 232, Y0, 320, OnChange=recalcular),
+        rotulo(f"lblFiltro_{s}", '"Grupo de compradores e fornecedor  ·  " & CountRows(colGestao) & " itens no filtro"',
+               X0 + 564, Y0, f"{LARG_CONTEUDO} - 564", 36, 9, "nfCorSuave"),
+    ]
+    for i, a in enumerate(abas):
+        filhos.append(botao(f"btnAba{i}_{s}", txt(a), f"{X0} + {i * 206}", Y0 + 46, 200, 34,
+                            f'UpdateContext({{locAba: "{a}"}})', primario=False,
+                            Fill=f'If(locAba = "{a}", nfCorAzul, nfCorCartao)',
+                            Color=f'If(locAba = "{a}", nfCorCartao, nfCorAzul)'))
+    yk = Y0 + 92
+    yb = yk + 104
     w = f"({LARG_CONTEUDO} - 32) / 3"
-    h = f"Parent.Height - {y + 70}"
+    h = f"Parent.Height - {yb + 56}"
+    xs = [X0, f"{X0} + {w} + 16", f"{X0} + 2 * ({w} + 16)"]
+    aberto = "Filter(colGestao, !Entregue)"
+    atrasado = 'Filter(colGestao, Situacao = "Atrasado")'
     resp = 'Coalesce(RC.Responsavel_Diligencia.DisplayName, "(sem responsável)")'
-    filhos += barras(s, 1, "Carteira por situação de entrega", agrupar("colCarteira", "Situacao"), X0, y, w, h)
-    filhos += barras(s, 2, "Atrasados por fornecedor",
-                     agrupar('Filter(colCarteira, Situacao = "Atrasado")', 'Coalesce(ItemPO.Nome_Fornecedor, "(sem fornecedor)")'),
-                     f"{X0} + {w} + 16", y, w, h)
-    filhos += barras(s, 3, "Ganho negociado (dias) por diligenciador",
-                     agrupar("Filter(colCarteira, GanhoDias > 0)", resp, soma="GanhoDias"),
-                     f"{X0} + 2 * ({w} + 16)", y, w, h)
-    filhos.append(rotulo(f"lblBI_{s}", txt("Ganho = remessa SAP − data negociada (dias antecipados). Escopo: registros ativos "
-                                           "carregados no app. Tendências históricas: Power BI (pendente)."),
-                         X0, "Parent.Height - 56", LARG_CONTEUDO, 40, 9, "nfCorSuave"))
+
+    def aba(nome, kpis, graficos, sufixo):
+        vis = f'locAba = "{nome}"'
+        out = []
+        for i, (t, v, c) in enumerate(kpis):
+            out += cartao_kpi(f"{s}{sufixo}", i, t, v, c, n=len(kpis), y=yk, visivel=vis)
+        for j, (n, titulo, itens) in enumerate(graficos):
+            out += barras(s, n, titulo, itens, xs[j], yb, w, h, visivel=vis)
+        return out
+
+    filhos += aba("Carteira e prazos", [
+        ("Itens em aberto", f"CountRows({aberto})", "nfCorAzul"),
+        ("Atrasados", f'CountRows({atrasado}) & "  (" & Text(CountRows({atrasado}) / Max(1, CountRows({aberto})), "0%") & ")"', "nfCorVermelho"),
+        ("Valor atrasado (R$)", f'Text(Sum({atrasado}, ItemPO.Valor_1_SAP), "#,##0")', "nfCorVermelho"),
+        ("Entregas em 7 dias", 'CountRows(Filter(colGestao, Situacao = "Vence em 7 dias"))', "nfCorLaranja"),
+        ("Parcialmente atendidos", "CountRows(Filter(colGestao, Parcial))", "nfCorLaranja"),
+        ("Sem data de entrega", 'CountRows(Filter(colGestao, Situacao = "Sem data"))', "nfCorSuave"),
+    ], [
+        (1, "Atrasados por faixa de atraso", f"""With(
+    {{at: {atrasado}}},
+    With(
+        {{t: Table(
+            {{Rotulo: "1 a 7 dias", Qtd: CountRows(Filter(at, DateDiff(DataVigente, Today(), TimeUnit.Days) <= 7))}},
+            {{Rotulo: "8 a 15 dias", Qtd: CountRows(Filter(at, DateDiff(DataVigente, Today(), TimeUnit.Days) > 7 && DateDiff(DataVigente, Today(), TimeUnit.Days) <= 15))}},
+            {{Rotulo: "16 a 30 dias", Qtd: CountRows(Filter(at, DateDiff(DataVigente, Today(), TimeUnit.Days) > 15 && DateDiff(DataVigente, Today(), TimeUnit.Days) <= 30))}},
+            {{Rotulo: "31 a 60 dias", Qtd: CountRows(Filter(at, DateDiff(DataVigente, Today(), TimeUnit.Days) > 30 && DateDiff(DataVigente, Today(), TimeUnit.Days) <= 60))}},
+            {{Rotulo: "Mais de 60 dias", Qtd: CountRows(Filter(at, DateDiff(DataVigente, Today(), TimeUnit.Days) > 60))}}
+        )}},
+        AddColumns(t, Max, Max(t, Qtd))
+    )
+)"""),
+        (2, "Carteira por situação de entrega", agrupar("colGestao", "Situacao")),
+        (3, "Atendimento SAP (entrada de mercadoria)", agrupar("colGestao", "AtendEM")),
+    ], "A")
+    filhos += aba("Desempenho da diligência", [
+        ("Contatos registrados (30 dias)", "CountRows(colGestaoComun)", "nfCorAzul"),
+        ("Cobertura de contato no prazo", f'Text(CountRows(Filter({aberto}, DiasSemContato <= LimiteContato)) / Max(1, CountRows({aberto})), "0%")', "nfCorVerde"),
+        ("Atrasados sem contato no prazo", f"CountRows(Filter({atrasado}, DiasSemContato > LimiteContato))", "nfCorVermelho"),
+        ("Itens com data negociada", f"CountRows(Filter({aberto}, !IsBlank(DataNegociada)))", "nfCorAzul"),
+        ("Itens antecipados", "CountRows(Filter(colGestao, GanhoDias > 0))", "nfCorVerde"),
+        ("Ganho negociado (dias)", "Sum(Filter(colGestao, GanhoDias > 0), GanhoDias)", "nfCorVerde"),
+    ], [
+        (4, "Contatos por diligenciador (30 dias)", agrupar("colGestaoComun", 'Coalesce(Responsavel_Pessoa.DisplayName, Responsavel, "(sem nome)")')),
+        (5, "Atrasados por responsável da RC", agrupar(atrasado, resp)),
+        (6, "Ganho negociado (dias) por responsável", agrupar("Filter(colGestao, GanhoDias > 0)", resp, soma="GanhoDias")),
+    ], "B")
+    filhos += aba("Notas fiscais", [
+        ("Recebido, fatura pendente", 'CountRows(Filter(colGestao, ProblemaNF = "Mercadoria recebida, fatura pendente"))', "nfCorLaranja"),
+        ("NF lançada sem mercadoria", 'CountRows(Filter(colGestao, ProblemaNF = "NF lançada sem entrada de mercadoria"))', "nfCorLaranja"),
+        ("Divergência informada", 'CountRows(Filter(colGestao, ProblemaNF = "Divergência de NF informada"))', "nfCorVermelho"),
+        ("NF emitida, material sem entrada", 'CountRows(Filter(colGestao, StartsWith(SituacaoFisica, "NF emitida")))', "nfCorAzul"),
+        ("Itens de PO bloqueado", f'CountRows(Filter({aberto}, ItemPO.Status_Liberacao_PO = "Bloqueado"))', "nfCorSuave"),
+    ], [
+        (7, "Problemas de NF por fornecedor", agrupar('Filter(colGestao, ProblemaNF <> "")', 'Coalesce(ItemPO.Nome_Fornecedor, "(sem fornecedor)")')),
+    ], "C")
+    vis_nf = 'locAba = "Notas fiscais"'
+    linha_nf = [
+        retangulo(f"nfFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1", "nfCorCartao", OnSelect="Select(Parent)"),
+        rotulo(f"nfProb_{s}", "ThisItem.ProblemaNF", 12, 2, "Parent.TemplateWidth - 24", 22, 10, "nfCorLaranja", True, OnSelect="Select(Parent)"),
+        rotulo(f"nfItem_{s}", '"PO " & ThisItem.Numero_PO & "/" & ThisItem.Item_PO & " · " & Coalesce(ThisItem.ItemPO.Nome_Fornecedor, "—") & " · grupo " & ThisItem.Grupo & " · EF " & ThisItem.AtendEF & " / EM " & ThisItem.AtendEM',
+               12, 24, "Parent.TemplateWidth - 24", 22, 9, "nfCorTexto", OnSelect="Select(Parent)"),
+    ]
+    filhos += [
+        rotulo(f"nfTitulo_{s}", txt("Itens com problema de NF (clique para diligenciar)"), f"{xs[1]}", yb, f"2 * {w} + 16", 28, 11,
+               "nfCorTexto", True, Visible=vis_nf),
+        galeria(f"galNF_{s}", 'Sort(Filter(colGestao, ProblemaNF <> ""), ProblemaNF)', f"{xs[1]}", f"{yb} + 32", f"2 * {w} + 16",
+                f"{h} - 32", 50, linha_nf, Visible=vis_nf,
+                OnSelect="Set(gblItem, ThisItem); Navigate(scrDossie, ScreenTransition.None)"),
+    ]
+    filhos += tabela_resumo(s, 1, "Grupo", "Grupo de compradores", yk, 'locAba = "Grupos de compradores"')
+    filhos += tabela_resumo(s, 2, 'Coalesce(ItemPO.Nome_Fornecedor, "(sem fornecedor)")', "Fornecedor", yk,
+                            'locAba = "Fornecedores"')
+    filhos.append(rotulo(f"lblBI_{s}", txt(
+        "Situação SAP: entrada de mercadoria (EM) completa = entregue; EF/EM classificados pela tabela da Administração > "
+        "Status SAP. Ganho = remessa SAP − data negociada. Valor = coluna Valor_1_SAP. Escopo: itens ativos carregados no app."),
+        X0, "Parent.Height - 48", LARG_CONTEUDO, 40, 9, "nfCorSuave"))
     filhos += bloqueio(s, "!nfPodeGestao", "Acesso restrito aos perfis Coordenador, Gestor, Auditor e Administrador.")
-    return tela("gestao", "scrGestao", "Visão da gestão", filhos, None)
+    return tela("gestao", "scrGestao", "Visão da gestão", filhos, on_visible, apos_atualizar=";\n" + recalcular)
 
 
 def tela_admin():
@@ -1468,10 +1728,10 @@ def tela_admin():
     );
     UpdateContext({locAba: Coalesce(locAba, "Integrações")})
 )"""
-    abas = ["Integrações", "Parâmetros e perfis", "Regras SLA", "Modelos de e-mail", "Auditoria"]
+    abas = ["Integrações", "Parâmetros e perfis", "Regras SLA", "Modelos de e-mail", "Status SAP", "Auditoria"]
     filhos = []
     for i, a in enumerate(abas):
-        filhos.append(botao(f"btnAba{i}_{s}", txt(a), f"{X0} + {i * 180}", Y0, 174, 34, f'UpdateContext({{locAba: "{a}"}})',
+        filhos.append(botao(f"btnAba{i}_{s}", txt(a), f"{X0} + {i * 182}", Y0, 176, 34, f'UpdateContext({{locAba: "{a}"}})',
                             primario=False, Fill=f'If(locAba = "{a}", nfCorAzul, nfCorCartao)',
                             Color=f'If(locAba = "{a}", nfCorCartao, nfCorAzul)'))
     yg = Y0 + 48
@@ -1521,11 +1781,6 @@ def tela_admin():
             rotulo(f"slNome_{s}", 'Coalesce(ThisItem.Nome_SLA, "—")', 280, 0, "Parent.TemplateWidth - 290", "Parent.TemplateHeight",
                    10, "nfCorTexto"),
         ], Visible='locAba = "Regras SLA"'),
-        info("infoModelos", "Modelos de e-mail",
-             "Situação atual: o DIL_10 envia o Assunto e o Resumo gravados em cada comunicação COM-SLA-* "
-             "(gerada pelo DIL_09) e registra Envio_Email no DIL_Historico para não reenviar. "
-             "Modelos editáveis são uma mudança separada no DIL_10 (verificar esquema real, buscar modelo, substituir "
-             "variáveis, testar envio e idempotência, aprovar e documentar rollback). Pendente de aprovação.", h=120),
         galeria(f"galAud_{s}", "colHistRecente", X0, yg, LARG_CONTEUDO, alt, 52, [
             fundo("au"),
             rotulo(f"auData_{s}", data("ThisItem.Data_Evento", "dd/mm/yyyy hh:mm"), 12, 0, 120, "Parent.TemplateHeight", 9, "nfCorTexto"),
@@ -1535,8 +1790,244 @@ def tela_admin():
                    "Parent.TemplateWidth - 300", "Parent.TemplateHeight", 9, "nfCorTexto"),
         ], Visible='locAba = "Auditoria"'),
     ]
+    filhos += admin_modelos(s, yg, alt)
+    filhos += admin_status_sap(s, yg, alt)
     filhos += bloqueio(s, "!nfPodeAdmin", "Acesso restrito aos perfis Gestor e Administrador.")
     return tela("admin", "scrAdmin", "Administração e configurações", filhos, on_visible)
+
+
+def linhas_fx(*linhas):
+    """Texto de várias linhas em Power Fx (Char(10) entre as linhas)."""
+    return " & Char(10) & ".join(txt(l) for l in linhas)
+
+
+# Modelos criados pelo botão "Criar modelos padrão" (só os que ainda não existem, pelo nome).
+MODELOS_PADRAO = [
+    ("Cobrança de atraso", "Pedido {PO} item {ITEM_PO} – entrega em atraso",
+     ["Prezado(a) {CONTATO},", "",
+      "O item {ITEM_PO} do pedido {PO} ({MATERIAL} – {DESCRICAO}) tinha entrega prevista para {DATA_PREVISTA} "
+      "e está em atraso há {DIAS_ATRASO} dia(s).", "",
+      "Solicitamos, por favor, a nova data de entrega confirmada e o motivo do atraso.", "",
+      "Atenciosamente,", "{DILIGENCIADOR}"]),
+    ("Confirmação de entrega", "Pedido {PO} item {ITEM_PO} – confirmação da data de entrega",
+     ["Prezado(a) {CONTATO},", "",
+      "Pedimos a confirmação da entrega do item {ITEM_PO} do pedido {PO} ({MATERIAL} – {DESCRICAO}), "
+      "prevista para {DATA_PREVISTA}.", "",
+      "Caso haja qualquer risco para essa data, por favor nos informe.", "",
+      "Atenciosamente,", "{DILIGENCIADOR}"]),
+    ("Pedido de antecipação", "Pedido {PO} item {ITEM_PO} – solicitação de antecipação",
+     ["Prezado(a) {CONTATO},", "",
+      "O item {ITEM_PO} do pedido {PO} ({MATERIAL} – {DESCRICAO}) é prioritário para nós. "
+      "A entrega está prevista para {DATA_PREVISTA}.", "",
+      "Verifique, por favor, a possibilidade de antecipar a entrega e nos informe a melhor data possível.", "",
+      "Atenciosamente,", "{DILIGENCIADOR}"]),
+    ("Saldo de entrega parcial", "Pedido {PO} item {ITEM_PO} – saldo pendente de entrega",
+     ["Prezado(a) {CONTATO},", "",
+      "Recebemos parcialmente o item {ITEM_PO} do pedido {PO} ({MATERIAL} – {DESCRICAO}): {SALDO}.", "",
+      "Solicitamos a data de entrega do saldo pendente.", "",
+      "Atenciosamente,", "{DILIGENCIADOR}"]),
+    ("Divergência de nota fiscal", "Pedido {PO} item {ITEM_PO} – divergência na nota fiscal",
+     ["Prezado(a) {CONTATO},", "",
+      "O material do item {ITEM_PO} do pedido {PO} ({MATERIAL} – {DESCRICAO}) foi recebido, mas a nota fiscal "
+      "apresenta divergência que impede a entrada no sistema.", "",
+      "Solicitamos a correção (carta de correção ou nova NF) para regularizarmos o recebimento.", "",
+      "Atenciosamente,", "{DILIGENCIADOR}"]),
+]
+
+
+def admin_modelos(s, yg, alt):
+    """Modelos de e-mail em DIL_Configuracao (Categoria Modelo_Email; Nome_Parametro = nome do modelo,
+    Valor_Texto = assunto, Descricao = corpo, Ativo). Usados no botão "Abrir e-mail" da diligência."""
+    vis = 'locAba = "Modelos de e-mail"'
+    modelos = 'Filter(colConfig, Lower(Trim(Categoria)) = "modelo_email")'
+    sel = f"galModelos_{s}.Selected"
+    novo = "locModeloNovo"
+    wl = f"({LARG_CONTEUDO}) * 0.34"
+    xe = f"{X0} + ({LARG_CONTEUDO}) * 0.34 + 16"
+    we = f"({LARG_CONTEUDO}) * 0.66 - 16"
+    recarregar = ('ClearCollect(colConfig, DIL_Configuracao);\n'
+                  'ClearCollect(colModelos, Filter(colConfig, Lower(Trim(Categoria)) = "modelo_email" && Ativo = true))')
+    gravar_modelo = f"""If(
+    IsBlank(Trim(txtModNome_{s}.Text)) || IsBlank(Trim(txtModAssunto_{s}.Text)) || IsBlank(Trim(txtModCorpo_{s}.Text)),
+    Notify("Preencha nome, assunto e corpo do modelo.", NotificationType.Error),
+    {novo} && !IsBlank(LookUp({modelos}, Lower(Trim(Nome_Parametro)) = Lower(Trim(txtModNome_{s}.Text)))),
+    Notify("Já existe um modelo com esse nome.", NotificationType.Error),
+    !{novo} && IsBlank({sel}),
+    Notify("Selecione um modelo ou clique em Novo modelo.", NotificationType.Error),
+    IfError(
+        Patch(
+            DIL_Configuracao,
+            If({novo}, Defaults(DIL_Configuracao), LookUp(DIL_Configuracao, ID = {sel}.ID)),
+            {{
+                Chave_Configuracao: If({novo}, "CFG-MODELO-" & Text(Now(), "yyyymmddhhmmss"), {sel}.Chave_Configuracao),
+                Categoria: "Modelo_Email",
+                Nome_Parametro: Trim(txtModNome_{s}.Text),
+                Valor_Texto: txtModAssunto_{s}.Text,
+                Descricao: txtModCorpo_{s}.Text,
+                Ativo: ddModAtivo_{s}.Selected.Value = "Sim"
+            }}
+        ),
+        Notify("Não foi possível gravar o modelo: " & FirstError.Message, NotificationType.Error),
+        Notify("Modelo gravado.", NotificationType.Success);
+        {recarregar};
+        UpdateContext({{{novo}: false}})
+    )
+)"""
+    padrao = "Table(" + ", ".join(
+        f'{{Nome: {txt(n)}, Assunto: {txt(a)}, Corpo: {linhas_fx(*c)}}}' for n, a, c in MODELOS_PADRAO) + ")"
+    criar_padrao = f"""IfError(
+    ForAll(
+        Filter({padrao} As m, IsBlank(LookUp({modelos}, Lower(Trim(Nome_Parametro)) = Lower(m.Nome)))) As p,
+        Patch(
+            DIL_Configuracao,
+            Defaults(DIL_Configuracao),
+            {{
+                Chave_Configuracao: "CFG-MODELO-" & Text(Now(), "yyyymmddhhmmss") & "-" & Left(p.Nome, 12),
+                Categoria: "Modelo_Email",
+                Nome_Parametro: p.Nome,
+                Valor_Texto: p.Assunto,
+                Descricao: p.Corpo,
+                Ativo: true
+            }}
+        )
+    ),
+    Notify("Não foi possível criar os modelos: " & FirstError.Message, NotificationType.Error),
+    Notify("Modelos padrão criados (os já existentes foram mantidos).", NotificationType.Success);
+    {recarregar}
+)"""
+    linha = [
+        retangulo(f"moFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1",
+                  "If(ThisItem.IsSelected && !locModeloNovo, nfCorFundo, nfCorCartao)", OnSelect="Select(Parent)"),
+        rotulo(f"moNome_{s}", 'ThisItem.Nome_Parametro & If(ThisItem.Ativo, "", "  (inativo)")', 12, 2,
+               "Parent.TemplateWidth - 24", 24, 10, "If(ThisItem.Ativo, nfCorTexto, nfCorSuave)", True, OnSelect="Select(Parent)"),
+        rotulo(f"moAssunto_{s}", 'Coalesce(ThisItem.Valor_Texto, "")', 12, 26, "Parent.TemplateWidth - 24", 22, 9,
+               "nfCorSuave", OnSelect="Select(Parent)"),
+    ]
+    variaveis = ", ".join(k for k, _ in VARIAVEIS_MODELO)
+    filhos = [
+        botao(f"btnModNovo_{s}", txt("Novo modelo"), X0, yg, 150, 34, f"UpdateContext({{{novo}: true}})", Visible=vis),
+        botao(f"btnModPadrao_{s}", txt("Criar modelos padrão"), X0 + 160, yg, 200, 34, criar_padrao, primario=False,
+              Visible=vis),
+        galeria(f"galModelos_{s}", f"Sort({modelos}, Nome_Parametro)", X0, yg + 44, wl, f"{alt} - 44", 52, linha,
+                Visible=vis, OnSelect=f"UpdateContext({{{novo}: false}})"),
+        rotulo(f"moVazio_{s}", txt("Nenhum modelo cadastrado. Use \"Criar modelos padrão\" ou \"Novo modelo\"."),
+               X0, yg + 52, wl, 44, 10, "nfCorSuave", Visible=f"{vis} && IsEmpty(galModelos_{s}.AllItems)"),
+        retangulo(f"moPainel_{s}", xe, yg, we, alt, BorderColor="nfCorAzul", BorderThickness=1, Visible=vis),
+        rotulo(f"moModo_{s}", f'If({novo}, "Novo modelo", "Editar: " & Coalesce({sel}.Nome_Parametro, "(selecione à esquerda)"))',
+               f"{xe} + 16", yg + 8, f"{we} - 32", 28, 12, "nfCorTexto", True, Visible=vis),
+    ]
+    campos = [
+        ("Nome *", entrada(f"txtModNome_{s}", "Ex.: Cobrança de atraso", 0, 0, 0,
+                           padrao=f'If({novo}, "", {sel}.Nome_Parametro)', Visible=vis), 36),
+        ("Assunto *", entrada(f"txtModAssunto_{s}", "Ex.: Pedido {PO} item {ITEM_PO} – entrega em atraso", 0, 0, 0,
+                              padrao=f'If({novo}, "", {sel}.Valor_Texto)', Visible=vis), 36),
+        ("Corpo *", entrada(f"txtModCorpo_{s}", "Texto do e-mail com as variáveis abaixo", 0, 0, 0, multilinha=True,
+                            padrao=f'If({novo}, "", {sel}.Descricao)', Visible=vis), 200),
+        ("Ativo", lista_suspensa(f"ddModAtivo_{s}", '["Sim", "Não"]', 0, 0, 0,
+                                 Default=f'If({novo} || {sel}.Ativo, "Sim", "Não")', Visible=vis), 36),
+    ]
+    yy = yg + 44
+    for i, (t, c, hh) in enumerate(campos):
+        pr = c[next(iter(c))]["Properties"]
+        pr["X"], pr["Y"], pr["Width"], pr["Height"] = f(f"{xe} + 110"), f(yy), f(f"{we} - 126"), f(hh)
+        filhos += [rotulo(f"moT{i}_{s}", txt(t), f"{xe} + 16", yy, 90, 36, 9, "nfCorSuave", Visible=vis), c]
+        yy += hh + 8
+    filhos += [
+        botao(f"btnModGravar_{s}", txt("Gravar modelo"), f"{xe} + 110", yy, 170, 36, gravar_modelo, Visible=vis),
+        rotulo(f"moVars_{s}", txt("Variáveis: " + variaveis + ". O e-mail abre no programa de e-mail do usuário "
+                                  "(Diligenciar item > Abrir e-mail); o app não envia e-mails."),
+               f"{xe} + 16", yy + 44, f"{we} - 32", 60, 9, "nfCorSuave", Visible=vis),
+        rotulo(f"moDil09_{s}", txt("E-mails automáticos de escalonamento (DIL_09 → DIL_10) continuam com o texto fixo do "
+                                   "DIL_09 até a alteração planejada do DIL_09 ser aprovada (docs/Melhorias_v10.md)."),
+               f"{xe} + 16", yy + 104, f"{we} - 32", 44, 9, "nfCorLaranja", Visible=vis),
+    ]
+    return filhos
+
+
+def admin_status_sap(s, yg, alt):
+    """Classificação dos códigos Status_EM/Status_EF do SAP (DIL_Configuracao, Categoria Status_SAP;
+    Nome_Parametro = código, Valor_Texto = Completo, Parcial ou Não atendido)."""
+    vis = 'locAba = "Status SAP"'
+    sel = f"galStatus_{s}.Selected"
+    wl = f"({LARG_CONTEUDO}) * 0.6"
+    xe = f"{X0} + ({LARG_CONTEUDO}) * 0.6 + 16"
+    we = f"({LARG_CONTEUDO}) * 0.4 - 16"
+    codigos = """AddColumns(
+    Filter(
+        Distinct(Ungroup(Table({t: ForAll(colItensPO, {Cod: Trim(Status_EM)})}, {t: ForAll(colItensPO, {Cod: Trim(Status_EF)})}), t), Cod),
+        !IsBlank(Value)
+    ),
+    QtdEM, CountRows(Filter(colItensPO, Trim(Status_EM) = Value)),
+    QtdEF, CountRows(Filter(colItensPO, Trim(Status_EF) = Value)),
+    Configurado, !IsBlank(LookUp(colStatusSAP, Codigo = Value))
+)"""
+    gravar = f"""If(
+    IsBlank(Trim(txtStCod_{s}.Text)),
+    Notify("Informe o código.", NotificationType.Error),
+    With(
+        {{existente: LookUp(colConfig, Lower(Trim(Categoria)) = "status_sap" && Trim(Nome_Parametro) = Trim(txtStCod_{s}.Text))}},
+        IfError(
+            Patch(
+                DIL_Configuracao,
+                If(IsBlank(existente), Defaults(DIL_Configuracao), LookUp(DIL_Configuracao, ID = existente.ID)),
+                {{
+                    Chave_Configuracao: Coalesce(existente.Chave_Configuracao, "CFG-STATUS-SAP-" & Trim(txtStCod_{s}.Text)),
+                    Categoria: "Status_SAP",
+                    Nome_Parametro: Trim(txtStCod_{s}.Text),
+                    Valor_Texto: ddStClasse_{s}.Selected.Value,
+                    Descricao: txtStDesc_{s}.Text,
+                    Ativo: true
+                }}
+            ),
+            Notify("Não foi possível gravar: " & FirstError.Message, NotificationType.Error),
+            ClearCollect(colConfig, DIL_Configuracao);
+            {CARGA};
+            Notify("Classificação gravada e carteira recalculada.", NotificationType.Success)
+        )
+    )
+)"""
+    linha = [
+        retangulo(f"stFundo_{s}", 0, 0, "Parent.TemplateWidth", "Parent.TemplateHeight - 1",
+                  "If(ThisItem.IsSelected, nfCorFundo, nfCorCartao)", OnSelect="Select(Parent)"),
+        rotulo(f"stCod_{s}", '"Código " & ThisItem.Value', 12, 0, 120, "Parent.TemplateHeight", 11, "nfCorTexto", True,
+               OnSelect="Select(Parent)"),
+        rotulo(f"stClasse_{s}", classe_sap("ThisItem.Value") + ' & If(ThisItem.Configurado, "  (tabela)", "  (padrão do app)")',
+               136, 0, 240, "Parent.TemplateHeight", 10,
+               'If(ThisItem.Configurado, nfCorVerde, nfCorLaranja)', True, OnSelect="Select(Parent)"),
+        rotulo(f"stQtd_{s}", '"EM: " & ThisItem.QtdEM & " itens  ·  EF: " & ThisItem.QtdEF & " itens"', 380, 0,
+               "Parent.TemplateWidth - 390", "Parent.TemplateHeight", 9, "nfCorSuave", OnSelect="Select(Parent)"),
+    ]
+    filhos = [
+        rotulo(f"stInfo_{s}", txt("Códigos de status de entrada de mercadoria (EM) e de fatura (EF) encontrados em "
+                                  "DIL_Itens_Pedido. Confirme a classificação de cada um: \"(padrão do app)\" = 4 Completo, "
+                                  "3 Parcial, demais Não atendido."),
+               X0, yg, wl, 44, 9, "nfCorSuave", Visible=vis),
+        galeria(f"galStatus_{s}", f"Sort({codigos}, Value)", X0, yg + 48, wl, f"{alt} - 48", 44, linha, Visible=vis),
+        retangulo(f"stPainel_{s}", xe, yg, we, 330, BorderColor="nfCorAzul", BorderThickness=1, Visible=vis),
+        rotulo(f"stTitulo_{s}", txt("Classificar código"), f"{xe} + 16", yg + 8, f"{we} - 32", 28, 12, "nfCorTexto", True,
+               Visible=vis),
+    ]
+    campos = [
+        ("Código *", entrada(f"txtStCod_{s}", "Ex.: 3", 0, 0, 0, padrao=f'Coalesce({sel}.Value, "")', Visible=vis)),
+        ("Classe *", lista_suspensa(f"ddStClasse_{s}", "nfClassesSAP", 0, 0, 0,
+                                    Default=classe_sap(f'Coalesce({sel}.Value, "")'), Visible=vis)),
+        ("Descrição", entrada(f"txtStDesc_{s}", "Ex.: Parcialmente atendido", 0, 0, 0,
+                              padrao=f'Coalesce(LookUp(colConfig, Lower(Trim(Categoria)) = "status_sap" && Trim(Nome_Parametro) = {sel}.Value, Descricao), "")',
+                              Visible=vis)),
+    ]
+    for i, (t, c) in enumerate(campos):
+        yy = yg + 48 + i * 46
+        pr = c[next(iter(c))]["Properties"]
+        pr["X"], pr["Y"], pr["Width"] = f(f"{xe} + 110"), f(yy), f(f"{we} - 126")
+        filhos += [rotulo(f"stT{i}_{s}", txt(t), f"{xe} + 16", yy, 90, 36, 9, "nfCorSuave", Visible=vis), c]
+    yb = yg + 48 + len(campos) * 46
+    filhos += [
+        botao(f"btnStGravar_{s}", txt("Gravar classificação"), f"{xe} + 110", yb, 200, 36, gravar, Visible=vis),
+        rotulo(f"stNota_{s}", txt("Completo na entrada de mercadoria = entregue (sai da cobrança). Parcial = continua na "
+                                  "fila para diligenciar o saldo. A gravação recalcula a carteira."),
+               f"{xe} + 16", yb + 44, f"{we} - 32", 60, 9, "nfCorSuave", Visible=vis),
+    ]
+    return filhos
 
 
 # ---------------------------------------------------------------------------

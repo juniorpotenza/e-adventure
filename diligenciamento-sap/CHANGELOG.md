@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.7.0-candidato-v10] — 2026-10-23
+
+### Corrigido (relato do usuário)
+- **Itens já recebidos apareciam como atrasados.** A situação passa a usar o status SAP de entrada de mercadoria
+  (`Status_EM`) e de fatura (`Status_EF`) de `DIL_Itens_Pedido`: EM completo = entregue. Códigos classificados por
+  tabela editável (*Administração > Status SAP*); padrão 4 = Completo, 3 = Parcial, demais = Não atendido.
+
+### Novo
+- **Parcialmente atendido**: fica na fila para diligenciar o saldo; novo resultado de contato *Entrega parcial*
+  com quantidade recebida e pedida ("faltam N" na fila, diligência e e-mail).
+- **Problemas de nota fiscal**: mercadoria recebida com fatura pendente, NF lançada sem entrada de mercadoria,
+  divergência informada pelo diligenciador.
+- **Visão da gestão** em abas (Carteira e prazos, Desempenho da diligência, Notas fiscais, Grupos de compradores,
+  Fornecedores), com filtros por grupo de compradores e fornecedor, faixas de atraso, valor atrasado, cobertura de
+  contato e tabelas por grupo/fornecedor. Nova fonte de leitura: `DIL_Pedidos` (grupo de compradores).
+- **Modelos de e-mail** editáveis em *Administração* (`DIL_Configuracao`, Categoria `Modelo_Email`), com modelos
+  padrão e botão *Abrir e-mail* na diligência (preenche variáveis do item e abre o programa de e-mail do usuário).
+- Fila: KPI "Parcialmente atendidos"; Carteira: filtros "Parcialmente atendido" e "Problema de NF".
+
+### Não alterado
+- Listas, colunas e fluxos DIL_01–DIL_10. Planos para quantidades SAP (DIL_01/02) e modelos nos e-mails automáticos
+  (DIL_09; DIL_10 sem mudança) em `docs/Melhorias_v10.md`, aguardando aprovação.
+
 ## [0.6.0-candidato-v9] — 2026-10-22
 
 ### Corrigido (relato do usuário na v8)

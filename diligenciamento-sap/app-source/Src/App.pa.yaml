@@ -45,6 +45,8 @@ App:
       nfMarcaEntregue = "[Entregue]";
       nfMarcaDivergencia = "[Recebido c/ divergência NF]";
       nfMarcaNF = "[NF emitida]";
+      nfMarcaParcial = "[Entrega parcial]";
+      nfClassesSAP = ["Completo", "Parcial", "Não atendido"];
       nfMenu = Table(
           {Chave: "inicio", Rotulo: "Minha fila", Perfis: "*"},
           {Chave: "carteira", Rotulo: "Minha carteira", Perfis: "*"},
@@ -68,71 +70,110 @@ App:
           ClearCollect(colReq, Filter(DIL_Requisicoes, Ativa = true)),
           ClearCollect(colItensRC, Filter(DIL_Itens_Requisicao, Ativo = true)),
           ClearCollect(colForn, Filter(DIL_Fornecedores, Ativo = true)),
-          ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email"))
+          ClearCollect(colEnvios, Filter(DIL_Historico, Tipo_Evento.Value = "Envio_Email")),
+          ClearCollect(colPedidos, ShowColumns(Filter(DIL_Pedidos, Ativo = true), Numero_PO, Grupo_Compradores)),
+          ClearCollect(colStatusSAP, ForAll(Filter(DIL_Configuracao, Lower(Trim(Categoria)) = "status_sap"), {Codigo: Trim(Nome_Parametro), Classe: Trim(Valor_Texto)})),
+          ClearCollect(colModelos, Filter(DIL_Configuracao, Lower(Trim(Categoria)) = "modelo_email" && Ativo = true))
       );
       ClearCollect(
           colCarteiraBase,
           AddColumns(
               AddColumns(
                   AddColumns(
-                      colVinc As v,
-                      ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
-                      RC, LookUp(colReq, Numero_RC = v.Numero_RC),
-                      ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
-                      CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
-                      UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
-                      UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), Data_Comunicacao, SortOrder.Descending)).Assunto,
-                      QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                      QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
-                      QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
-                      QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
-                      QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
-                  ) As a,
-                  DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
-                  DataNegociada, a.CompEntrega.Data_Compromisso,
-                  Entregue, a.CompEntrega.Status_Compromisso.Value = "Cumprido",
-                  PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
-                  LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
-                  DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
-                  SituacaoFisica, If(
-                      StartsWith(a.UltimaMarca, nfMarcaDivergencia), "Recebido — NF com divergência",
-                      StartsWith(a.UltimaMarca, nfMarcaNF), "NF emitida — em trânsito",
-                      a.CompEntrega.Status_Compromisso.Value = "Cumprido", "Entregue",
+                      AddColumns(
+                          colVinc As v,
+                          ItemPO, LookUp(colItensPO, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO),
+                          RC, LookUp(colReq, Numero_RC = v.Numero_RC),
+                          ItemRC, LookUp(colItensRC, Numero_RC = v.Numero_RC && Item_RC = v.Item_RC),
+                          Grupo, Coalesce(LookUp(colPedidos, Numero_PO = v.Numero_PO, Grupo_Compradores), "(sem grupo)"),
+                          CompEntrega, First(Sort(Filter(colComp, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Tipo_Compromisso.Value = "Entrega"), Data_Registro, SortOrder.Descending)),
+                          UltimoContato, Max(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !StartsWith(Chave_Comunicacao, "COM-SLA-")), Data_Comunicacao),
+                          UltimaMarca, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, "[")), ID, SortOrder.Descending)).Assunto,
+                          UltimoParcial, First(Sort(Filter(colComun, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && StartsWith(Chave_Comunicacao, "COM-APP-") && StartsWith(Assunto, nfMarcaParcial)), ID, SortOrder.Descending)).Assunto,
+                          QtdOcorrAbertas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                          QtdCriticas, CountRows(Filter(colOcor, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && Severidade.Value = "Crítica" && !(Status_Ocorrencia.Value in nfOcorFechadas))),
+                          QtdAcoesPend, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && !(Status_Acao.Value in nfAcaoFechadas))),
+                          QtdAcoesVencidas, CountRows(Filter(colAcoes, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && PrazoData < Now() && !(Status_Acao.Value in nfAcaoFechadas))),
+                          QtdMarcosAtrasados, CountRows(Filter(colMarcos, Numero_PO = v.Numero_PO && Item_PO = v.Item_PO && IsBlank(Data_Realizada) && Data_Planejada < Today() && !(Status_Marco.Value in nfMarcoFechados)))
+                      ) As a,
+                      DataSAP, a.ItemPO.Data_1_Remessa_Item_SAP,
+                      DataNegociada, a.CompEntrega.Data_Compromisso,
+                      PrioridadeAlta, a.RC.Prioridade.Value in nfPrioridadesAltas,
+                      LimiteContato, Switch(a.RC.Prioridade.Value, "Crítica", 2, "Urgente", 2, "Alta", 3, "Média", 7, "Baixa", 14, 7),
+                      DiasSemContato, If(IsBlank(a.UltimoContato), 999, DateDiff(a.UltimoContato, Today(), TimeUnit.Days)),
+                      AtendEM, Coalesce(LookUp(colStatusSAP, Codigo = Trim(a.ItemPO.Status_EM), Classe), If(IsBlank(Trim(a.ItemPO.Status_EM)), "Não informado", Trim(a.ItemPO.Status_EM) = "4" || "complet" in Lower(a.ItemPO.Status_EM), "Completo", Trim(a.ItemPO.Status_EM) = "3" || "parcial" in Lower(a.ItemPO.Status_EM), "Parcial", "Não atendido")),
+                      AtendEF, Coalesce(LookUp(colStatusSAP, Codigo = Trim(a.ItemPO.Status_EF), Classe), If(IsBlank(Trim(a.ItemPO.Status_EF)), "Não informado", Trim(a.ItemPO.Status_EF) = "4" || "complet" in Lower(a.ItemPO.Status_EF), "Completo", Trim(a.ItemPO.Status_EF) = "3" || "parcial" in Lower(a.ItemPO.Status_EF), "Parcial", "Não atendido")),
+                      QtdInformada, Match(a.UltimoParcial, "recebido (?<rec>[0-9.]+) de (?<tot>[0-9.]+)")
+                  ) As b,
+                  EntregueSAP, b.AtendEM = "Completo",
+                  Entregue, b.AtendEM = "Completo" || b.CompEntrega.Status_Compromisso.Value = "Cumprido",
+                  QtdPedida, IfError(Value(b.QtdInformada.tot, "en-US"), Blank()),
+                  QtdRecebida, IfError(Value(b.QtdInformada.rec, "en-US"), Blank()),
+                  ProblemaNF, If(
+                      (b.AtendEM = "Completo" && b.AtendEF in ["Não atendido", "Parcial"]) || (b.AtendEM = "Parcial" && b.AtendEF = "Não atendido"), "Mercadoria recebida, fatura pendente",
+                      (b.AtendEF = "Completo" && b.AtendEM in ["Não atendido", "Parcial"]) || (b.AtendEF = "Parcial" && b.AtendEM = "Não atendido"), "NF lançada sem entrada de mercadoria",
+                      StartsWith(b.UltimaMarca, nfMarcaDivergencia) && b.AtendEM <> "Completo", "Divergência de NF informada",
                       ""
-                  )
-              ) As b,
-              DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
-              GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days)),
+                  ),
+                  DataVigente, Coalesce(b.DataNegociada, b.DataSAP),
+                  GanhoDias, If(IsBlank(b.DataNegociada) || IsBlank(b.DataSAP), Blank(), DateDiff(b.DataNegociada, b.DataSAP, TimeUnit.Days))
+              ) As c,
+              Parcial, !c.Entregue && (c.AtendEM = "Parcial" || c.AtendEF = "Parcial" || !IsBlank(c.UltimoParcial)),
+              Saldo, If(IsBlank(c.QtdPedida) || IsBlank(c.QtdRecebida), Blank(), c.QtdPedida - c.QtdRecebida),
               Situacao, If(
-                  b.Entregue, "Entregue",
-                  IsBlank(Coalesce(b.DataNegociada, b.DataSAP)), "Sem data",
-                  Coalesce(b.DataNegociada, b.DataSAP) < Today(), "Atrasado",
-                  Coalesce(b.DataNegociada, b.DataSAP) <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
+                  c.Entregue, "Entregue",
+                  IsBlank(c.DataVigente), "Sem data",
+                  c.DataVigente < Today(), "Atrasado",
+                  c.DataVigente <= DateAdd(Today(), 7, TimeUnit.Days), "Vence em 7 dias",
                   "Em dia"
+              )
+          )
+      );
+      ClearCollect(
+          colCarteiraMeio,
+          AddColumns(
+              colCarteiraBase As d,
+              SaldoTexto, If(
+                  !d.Parcial, "",
+                  IsBlank(d.Saldo), "quantidade faltante não informada",
+                  "recebido " & d.QtdRecebida & " de " & d.QtdPedida & " — faltam " & d.Saldo
+              ),
+              SituacaoFisica, If(
+                  d.EntregueSAP, "Entregue — entrada de mercadoria no SAP" & If(d.ProblemaNF = "", "", " (" & d.ProblemaNF & ")"),
+                  StartsWith(d.UltimaMarca, nfMarcaDivergencia) && d.Entregue, "Recebido — NF com divergência",
+                  d.Entregue, "Entregue (informado no app)",
+                  d.Parcial, "Parcialmente atendido",
+                  StartsWith(d.UltimaMarca, nfMarcaNF) || d.AtendEF = "Completo", "NF emitida — material sem entrada",
+                  ""
               )
           )
       );
       ClearCollect(
           colCarteira,
           AddColumns(
-              colCarteiraBase As c,
+              colCarteiraMeio As c,
               Urgencia, If(
-                  c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", 100,
+                  c.Entregue && c.ProblemaNF <> "", 100,
                   c.Entregue, 0,
-                  c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
+                  c.Situacao = "Atrasado", 1000 + DateDiff(c.DataVigente, Today(), TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0) + If(c.Parcial, 50, 0),
                   c.Situacao = "Vence em 7 dias", 700 - DateDiff(Today(), c.DataVigente, TimeUnit.Days) + If(c.PrioridadeAlta, 200, 0),
                   c.QtdAcoesVencidas > 0, 500,
+                  c.Parcial, 450,
                   c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, 400,
+                  c.ProblemaNF <> "", 350,
                   c.DiasSemContato > c.LimiteContato, 300 + Min(c.DiasSemContato, 99),
                   0
               ),
               Motivo, If(
-                  c.Entregue && c.SituacaoFisica = "Recebido — NF com divergência", "Recebido: acompanhar regularização da NF",
+                  c.Entregue && c.ProblemaNF = "Divergência de NF informada", "Recebido: acompanhar regularização da NF",
+                  c.Entregue && c.ProblemaNF <> "", "Recebido: fatura (NF) sem entrada no SAP — verificar divergência",
                   c.Entregue, "Entregue",
-                  c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): cobrar nova data",
-                  c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar com o fornecedor",
+                  c.Situacao = "Atrasado", "Atrasado há " & DateDiff(c.DataVigente, Today(), TimeUnit.Days) & " dia(s): " & If(c.Parcial, "cobrar o saldo (" & c.SaldoTexto & ")", "cobrar nova data"),
+                  c.Situacao = "Vence em 7 dias", "Entrega em " & DateDiff(Today(), c.DataVigente, TimeUnit.Days) & " dia(s): confirmar " & If(c.Parcial, "o saldo", "com o fornecedor"),
                   c.QtdAcoesVencidas > 0, c.QtdAcoesVencidas & " ação(ões) vencida(s)",
+                  c.Parcial, "Parcialmente atendido: diligenciar o saldo (" & c.SaldoTexto & ")",
                   c.PrioridadeAlta && Coalesce(c.GanhoDias, 0) <= 0, "Prioridade " & c.RC.Prioridade.Value & ": buscar antecipação",
+                  c.ProblemaNF <> "", c.ProblemaNF & ": confirmar chegada do material",
                   c.DiasSemContato > c.LimiteContato, If(c.DiasSemContato = 999, "Nenhum contato registrado", "Sem contato há " & c.DiasSemContato & " dias"),
                   "Em dia"
               )

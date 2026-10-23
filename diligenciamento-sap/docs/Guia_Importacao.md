@@ -45,7 +45,7 @@ O script:
 
 | Ordem | Lista | Uso no app | Validar após adicionar |
 |---|---|---|---|
-| 1 | `DIL_Configuracao` | perfil do usuário (leitura) | `OnStart` sem erro |
+| 1 | `DIL_Configuracao` | perfil do usuário (leitura); Administração grava modelos de e-mail e status SAP | `OnStart` sem erro |
 | 2 | `DIL_Vinculo_RC_PO` | carteira (leitura) | |
 | 3 | `DIL_Itens_Pedido` | carteira (leitura) | |
 | 4 | `DIL_Ocorrencias` | leitura e **gravação** | |
@@ -59,6 +59,7 @@ O script:
 | 13 | `DIL_Itens_Requisicao` | dossiê (leitura) | aba Resumo |
 | 14 | `DIL_Fornecedores` | dossiê (leitura): contato do fornecedor | aba Resumo |
 | 11 | `DIL_Compromissos` | dossiê: leitura e **gravação** (registrar/reprogramar compromisso) | aba Compromissos do Dossiê |
+| 15 | `DIL_Pedidos` | grupo de compradores (leitura) — **nova na v10** | filtros da Visão da gestão |
 
 O nome da fonte no Studio precisa ser **exatamente** o nome da lista (ex.: `DIL_Acoes`). Se o Studio criar outro nome
 (ex.: `DIL_Acoes_1`), remova e adicione de novo, ou ajuste o gerador — não edite fórmulas à mão.

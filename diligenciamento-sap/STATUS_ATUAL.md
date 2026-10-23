@@ -2,6 +2,12 @@
 
 **Data:** 21/10/2026 · **Situação geral:** fontes do app geradas e validadas offline; **`.msapp` candidato gerado** a partir do original (recebido por e-mail). Candidato **não aberto no Power Apps Studio** e nada testado no tenant.
 
+> **Atualização 23/10/2026 — candidata v10** (`artifacts/candidate/Sistema_Diligenciamento_COMPLETO_v10.msapp`):
+> situação de entrega pelo status SAP EF/EM, entrega parcial, problemas de NF, Visão da gestão em abas e modelos de
+> e-mail na Administração. Validação offline: schema/controles/colunas sem erro, 6.126 fórmulas sem erro de sintaxe.
+> Pendente: abrir no Studio, adicionar a fonte `DIL_Pedidos`, confirmar o código de "Parcialmente atendido" e
+> executar F-26 a F-33. Detalhes e decisões em `docs/Melhorias_v10.md`.
+
 Legenda: ✅ confirmado com evidência · 🟡 inferido · ⏳ pendente · ⛔ inacessível · 🧪 não testado
 
 ---

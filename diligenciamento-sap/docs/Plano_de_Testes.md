@@ -46,6 +46,14 @@ Limite destes testes: não resolvem nomes de fontes de dados, tipos reais das co
 | F-23 | "Material entregue" em item atrasado | compromisso `Cumprido`; item sai da fila; DIL_05 conclui o marco e DIL_07 encerra a ocorrência de atraso e suas ações | ⏳ |
 | F-24 | "Chegou com divergência na NF" e depois "Material entregue" | entre os dois, item aparece na fila como "Recebido: acompanhar regularização da NF"; depois sai | ⏳ |
 | F-25 | "NF emitida — material em trânsito" | situação física "NF emitida — em trânsito"; cobrança continua | ⏳ |
+| F-26 | Item com `Status_EM` = 4 e remessa vencida | Situação **Entregue**; não aparece em atrasados, fila nem agenda | ⏳ |
+| F-27 | Item com `Status_EM`/`Status_EF` parcial (código a confirmar em Administração > Status SAP) | "Parcialmente atendido: diligenciar o saldo"; vencido → "Atrasado … cobrar o saldo" | ⏳ |
+| F-28 | EM completo e EF não atendido / EF completo e EM não atendido | Gestão > Notas fiscais conta cada caso; o segundo continua na cobrança | ⏳ |
+| F-29 | Registrar contato "Entrega parcial" (recebido 5 de 10) | Assunto `[Entrega parcial] … recebido 5 de 10 …`; fila e diligência mostram "faltam 5"; recebido ≥ pedido é bloqueado | ⏳ |
+| F-30 | Administração > Modelos de e-mail: Criar modelos padrão, editar um, desativar outro | 5 linhas `Modelo_Email` em `DIL_Configuracao`; inativo some da lista na diligência; segunda execução não duplica | ⏳ |
+| F-31 | Diligenciar item > Abrir e-mail | Programa de e-mail abre com destinatário, assunto e corpo preenchidos com os dados do item; nenhum e-mail sai pelo app | ⏳ |
+| F-32 | Administração > Status SAP: classificar código 3 como Parcial | Linha `Status_SAP` gravada; carteira recalculada | ⏳ |
+| F-33 | Visão da gestão: filtrar grupo de compradores e fornecedor | Todas as abas respeitam o filtro; totais da tabela por grupo batem com contagem no SharePoint | ⏳ |
 | F-08 | Atualizar andamento sendo/não sendo o responsável | Responsável e coordenação podem; outro diligenciador vê aviso e não edita pelo app | ⏳ |
 | F-09 | Agenda: navegar meses, clicar em dia com marco | Lista filtra o dia; atrasados em vermelho | ⏳ |
 | F-10 | Comunicações: comparar "Enviada pelo DIL_10" com `DIL_Historico` (`Envio_Email`) | Coincidem; não existe botão de envio | ⏳ |
